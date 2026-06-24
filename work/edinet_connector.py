@@ -55,7 +55,7 @@ def fetch_recent_securities_reports(
     target_sec_codes = {f"{code}0" if re.fullmatch(r"\d{4}", code) else code for code in target_codes}
     for offset in range(lookback_days):
         target = today - timedelta(days=offset)
-        query = urlencode({"date": target.isoformat(), "type": 2, "Subscription-Key": api_key})
+        query = urlencode({"date": target.isoformat(), "type": 2})
         url = f"{EDINET_DOCUMENTS_URL}?{query}"
         try:
             payload = _json(url, api_key)
@@ -96,7 +96,7 @@ def fetch_recent_securities_reports(
 
 
 def download_xbrl_zip(doc_id: str, api_key: str) -> tuple[bytes, str]:
-    query = urlencode({"type": 1, "Subscription-Key": api_key})
+    query = urlencode({"type": 1})
     url = f"{EDINET_API_BASE}/documents/{doc_id}?{query}"
     return _request(url, api_key), url
 
