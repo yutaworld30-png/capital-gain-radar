@@ -135,6 +135,10 @@
       gap: 6px;
     }
 
+    .segmented.four {
+      grid-template-columns: 1fr;
+    }
+
     .segmented button,
     .icon-button {
       min-height: 38px;
@@ -374,6 +378,30 @@
       font-weight: 800;
     }
 
+    .watch-button {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .watch-button.active {
+      border-color: #f0c36a;
+      background: #fff8e1;
+      color: var(--amber);
+    }
+
+    .view-note {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
     .good {
       color: var(--green);
     }
@@ -559,6 +587,76 @@
 
     .technical-body {
       padding: 14px 16px 16px;
+    }
+
+    .detail-tabs,
+    .range-tabs {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .detail-tabs {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .range-tabs {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .detail-tabs button,
+    .range-tabs button {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fbfcfe;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .detail-tabs button.active,
+    .range-tabs button.active {
+      color: #102235;
+      background: #8ee0c2;
+      border-color: #8ee0c2;
+    }
+
+    .fundamental-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .fundamental-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .fundamental-label {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 5px;
+    }
+
+    .fundamental-value {
+      font-weight: 800;
+      font-size: 14px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .price-change.up {
+      color: var(--green);
+    }
+
+    .price-change.down {
+      color: var(--red);
     }
 
     .selected-stock {
@@ -759,45 +857,28 @@
 
       <div class="control-group">
         <div class="control-title">
-          <strong>スコア条件</strong>
+          <strong>表示タブ</strong>
           <span id="resultCount">0件</span>
         </div>
-
-        <div class="field">
-          <label for="themeMin"><span>テーマ人気</span><strong id="themeValue">65以上</strong></label>
-          <input id="themeMin" type="range" min="40" max="95" value="65">
+        <div class="segmented four" aria-label="表示タブ">
+          <button id="overallView" class="active" type="button">総合ランキング</button>
+          <button id="themeView" type="button">テーマ別1位</button>
+          <button id="industryView" type="button">業種別1位</button>
+          <button id="watchlistView" type="button">ウォッチリスト</button>
         </div>
+      </div>
 
-        <div class="field">
-          <label for="marginMax"><span>信用倍率</span><strong id="marginValue">3.0倍以下</strong></label>
-          <input id="marginMax" type="range" min="0.5" max="8" step="0.1" value="3">
+      <div class="control-group">
+        <div class="control-title">
+          <strong>表示数</strong>
         </div>
-
-        <div class="field">
-          <label for="highMin"><span>終値高値から</span><strong id="highValue">6か月以上</strong></label>
-          <input id="highMin" type="range" min="0" max="18" value="6">
+        <div class="segmented" aria-label="表示数">
+          <button id="limit10" class="active" type="button">10銘柄</button>
+          <button id="limit20" type="button">20銘柄</button>
         </div>
+      </div>
 
-        <div class="field">
-          <label for="liquidityMin"><span>売買代金</span><strong id="liquidityValue">十分</strong></label>
-          <input id="liquidityMin" type="range" min="40" max="95" value="65">
-        </div>
-
-        <div class="field">
-          <label for="relativeMin"><span>相対強度</span><strong id="relativeValue">60以上</strong></label>
-          <input id="relativeMin" type="range" min="40" max="95" value="60">
-        </div>
-
-        <div class="field">
-          <label for="earningsMin"><span>業績モメンタム</span><strong id="earningsValue">55以上</strong></label>
-          <input id="earningsMin" type="range" min="30" max="95" value="55">
-        </div>
-
-        <div class="field">
-          <label for="riskMax"><span>リスク上限</span><strong id="riskValue">70以下</strong></label>
-          <input id="riskMax" type="range" min="30" max="100" value="70">
-        </div>
-
+      <div class="control-group">
         <div class="field">
           <label for="sortBy"><span>並び順</span></label>
           <select id="sortBy">
@@ -813,19 +894,9 @@
       </div>
 
       <div class="control-group">
-        <div class="control-title">
-          <strong>表示</strong>
-        </div>
-        <div class="segmented" aria-label="表示モード">
-          <button id="strictMode" class="active" type="button">厳選</button>
-          <button id="watchMode" type="button">監視</button>
-        </div>
-      </div>
-
-      <div class="control-group">
         <div class="field">
           <label for="searchBox"><span>銘柄検索</span></label>
-          <input id="searchBox" class="search" type="search" placeholder="コード・銘柄名・テーマ">
+          <input id="searchBox" class="search" type="search" placeholder="コード・銘柄名・テーマ・業種">
         </div>
       </div>
     </aside>
@@ -833,7 +904,7 @@
     <main>
       <div class="topbar">
         <div>
-          <p class="page-title">今日の投資候補</p>
+          <p class="page-title">今日の高スコアランキング</p>
           <div class="updated">実データ未接続: 候補は表示していません</div>
         </div>
         <div class="actions">
@@ -873,7 +944,7 @@
 
       <section class="summary-grid" aria-label="サマリー">
         <div class="metric">
-          <div class="metric-label">候補数</div>
+          <div class="metric-label">表示銘柄</div>
           <div class="metric-value" id="metricCandidates">0</div>
         </div>
         <div class="metric">
@@ -885,7 +956,7 @@
           <div class="metric-value" id="metricMargin">0.0</div>
         </div>
         <div class="metric">
-          <div class="metric-label">人気テーマ</div>
+          <div class="metric-label">トップ分類</div>
           <div class="metric-value" id="metricTheme">AI</div>
         </div>
       </section>
@@ -893,8 +964,8 @@
       <div class="layout">
         <section class="panel" aria-label="候補銘柄一覧">
           <div class="panel-header">
-            <h2>ランキング</h2>
-            <span class="updated">投資判断ではなく候補抽出です</span>
+            <h2 id="rankingTitle">総合ランキング</h2>
+            <span class="updated" id="rankingNote">スコア上位を毎日更新します</span>
           </div>
           <div class="table-wrap">
             <table>
@@ -902,11 +973,13 @@
                 <tr>
                   <th>銘柄</th>
                   <th>テーマ</th>
+                  <th>業種</th>
                   <th>総合</th>
                   <th>信用倍率</th>
-              <th>終値高値</th>
+                  <th>終値高値</th>
                   <th>追加評価</th>
                   <th>判定</th>
+                  <th>監視</th>
                 </tr>
               </thead>
               <tbody id="candidateRows"></tbody>
@@ -916,12 +989,12 @@
         </section>
 
         <div class="side-stack">
-          <section class="panel" aria-label="テクニカル分析">
+          <section class="panel" aria-label="銘柄詳細">
             <div class="panel-header">
-              <h2>テクニカル分析</h2>
+              <h2>銘柄詳細</h2>
               <span class="updated" id="technicalAsOf">銘柄未選択</span>
             </div>
-            <div id="technicalEmpty" class="empty">ランキングから銘柄を選択すると、終値チャートと指標を表示します。</div>
+            <div id="technicalEmpty" class="empty">ランキングから銘柄を選択すると、基本情報とチャートを表示します。</div>
             <div id="technicalBody" class="technical-body" hidden>
               <div class="selected-stock">
                 <div>
@@ -930,13 +1003,31 @@
                 </div>
                 <span class="badge ok" id="selectedJudgement">-</span>
               </div>
-              <div class="chart-wrap">
-                <canvas id="priceChart" aria-label="終値チャート"></canvas>
+              <div class="detail-tabs" aria-label="銘柄詳細タブ">
+                <button id="fundamentalTab" class="active" type="button">基本情報</button>
+                <button id="chartTab" type="button">チャート</button>
               </div>
-              <div class="chart-legend" id="chartLegend"></div>
-              <div class="indicator-grid" id="indicatorGrid"></div>
-              <div class="signal-list" id="signalList"></div>
-              <div class="chart-note" id="chartNote">候補銘柄はローソク足・出来高つきで表示します。詳細OHLCVがない銘柄は、無料取得できる終値履歴を使ったラインチャートに切り替えます。</div>
+              <div id="fundamentalPanel">
+                <div class="fundamental-grid" id="fundamentalGrid"></div>
+                <div class="chart-note" id="fundamentalNote">無料データで取得できた項目を表示します。未取得の指標は、取得元を追加できるまで未取得として表示します。</div>
+              </div>
+              <div id="chartPanel" hidden>
+                <div class="range-tabs" aria-label="チャート期間">
+                  <button id="range1w" type="button">1週間</button>
+                  <button id="range1m" type="button">1ヶ月</button>
+                  <button id="range3m" type="button">3ヶ月</button>
+                  <button id="range6m" class="active" type="button">6ヶ月</button>
+                  <button id="range1y" type="button">1年</button>
+                  <button id="range3y" type="button">3年</button>
+                </div>
+                <div class="chart-wrap">
+                  <canvas id="priceChart" aria-label="終値チャート"></canvas>
+                </div>
+                <div class="chart-legend" id="chartLegend"></div>
+                <div class="indicator-grid" id="indicatorGrid"></div>
+                <div class="signal-list" id="signalList"></div>
+                <div class="chart-note" id="chartNote">候補銘柄はローソク足・出来高つきで表示します。詳細OHLCVがない銘柄は、無料取得できる終値履歴を使ったラインチャートに切り替えます。</div>
+              </div>
             </div>
           </section>
 
@@ -979,20 +1070,18 @@
     let searchUniverse = [];
     let priceMetricsByCode = new Map();
     let officialDataset = null;
+    let watchedCodes = new Set();
+    const WATCHLIST_STORAGE_KEY = "capitalGainRadar.watchlist.v1";
 
     const state = {
-      themeMin: 65,
-      marginMax: 3,
-      highMin: 6,
-      liquidityMin: 65,
-      relativeMin: 60,
-      earningsMin: 55,
-      riskMax: 70,
+      view: "overall",
+      limit: 10,
       sortBy: "score",
-      strict: true,
       universe: "prime",
       query: "",
       selectedCode: "",
+      detailTab: "fundamental",
+      chartRange: "6m",
     };
 
     const dataStatus = {
@@ -1004,33 +1093,25 @@
     };
 
     const el = {
-      themeMin: document.querySelector("#themeMin"),
-      marginMax: document.querySelector("#marginMax"),
-      highMin: document.querySelector("#highMin"),
-      liquidityMin: document.querySelector("#liquidityMin"),
-      relativeMin: document.querySelector("#relativeMin"),
-      earningsMin: document.querySelector("#earningsMin"),
-      riskMax: document.querySelector("#riskMax"),
+      overallView: document.querySelector("#overallView"),
+      themeView: document.querySelector("#themeView"),
+      industryView: document.querySelector("#industryView"),
+      watchlistView: document.querySelector("#watchlistView"),
+      limit10: document.querySelector("#limit10"),
+      limit20: document.querySelector("#limit20"),
       sortBy: document.querySelector("#sortBy"),
       primeUniverse: document.querySelector("#primeUniverse"),
       nikkeiUniverse: document.querySelector("#nikkeiUniverse"),
-      strictMode: document.querySelector("#strictMode"),
-      watchMode: document.querySelector("#watchMode"),
       searchBox: document.querySelector("#searchBox"),
       rows: document.querySelector("#candidateRows"),
       empty: document.querySelector("#emptyState"),
-      themeValue: document.querySelector("#themeValue"),
-      marginValue: document.querySelector("#marginValue"),
-      highValue: document.querySelector("#highValue"),
-      liquidityValue: document.querySelector("#liquidityValue"),
-      relativeValue: document.querySelector("#relativeValue"),
-      earningsValue: document.querySelector("#earningsValue"),
-      riskValue: document.querySelector("#riskValue"),
       resultCount: document.querySelector("#resultCount"),
       metricCandidates: document.querySelector("#metricCandidates"),
       metricScore: document.querySelector("#metricScore"),
       metricMargin: document.querySelector("#metricMargin"),
       metricTheme: document.querySelector("#metricTheme"),
+      rankingTitle: document.querySelector("#rankingTitle"),
+      rankingNote: document.querySelector("#rankingNote"),
       themeList: document.querySelector("#themeList"),
       exportBtn: document.querySelector("#exportBtn"),
       importBtn: document.querySelector("#importBtn"),
@@ -1048,6 +1129,20 @@
       selectedName: document.querySelector("#selectedName"),
       selectedCode: document.querySelector("#selectedCode"),
       selectedJudgement: document.querySelector("#selectedJudgement"),
+      fundamentalTab: document.querySelector("#fundamentalTab"),
+      chartTab: document.querySelector("#chartTab"),
+      fundamentalPanel: document.querySelector("#fundamentalPanel"),
+      chartPanel: document.querySelector("#chartPanel"),
+      fundamentalGrid: document.querySelector("#fundamentalGrid"),
+      fundamentalNote: document.querySelector("#fundamentalNote"),
+      rangeButtons: {
+        "1w": document.querySelector("#range1w"),
+        "1m": document.querySelector("#range1m"),
+        "3m": document.querySelector("#range3m"),
+        "6m": document.querySelector("#range6m"),
+        "1y": document.querySelector("#range1y"),
+        "3y": document.querySelector("#range3y"),
+      },
       priceChart: document.querySelector("#priceChart"),
       chartLegend: document.querySelector("#chartLegend"),
       chartNote: document.querySelector("#chartNote"),
@@ -1063,6 +1158,26 @@
         '"': "&quot;",
         "'": "&#039;",
       }[char]));
+    }
+
+    function loadWatchlist() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(WATCHLIST_STORAGE_KEY) || "[]");
+        watchedCodes = new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+      } catch (error) {
+        watchedCodes = new Set();
+      }
+    }
+
+    function saveWatchlist() {
+      localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify([...watchedCodes]));
+    }
+
+    function toggleWatch(code) {
+      const key = String(code);
+      if (watchedCodes.has(key)) watchedCodes.delete(key);
+      else watchedCodes.add(key);
+      saveWatchlist();
     }
 
     function formatDate(value) {
@@ -1121,6 +1236,15 @@
           return source && source.url && (source.updatedAt || source.asOf || source.checkedAt);
         })
       );
+    }
+
+    function normalizeStock(item) {
+      return {
+        ...item,
+        code: String(item.code),
+        industry: item.industry || "業種未分類",
+        themes: Array.isArray(item.themes) && item.themes.length ? item.themes : ["テーマ未分類"],
+      };
     }
 
     function statusLabel(status) {
@@ -1224,21 +1348,21 @@
       const rawSearchUniverse = Array.isArray(dataset?.searchUniverse) ? dataset.searchUniverse : rawCandidates;
       const rawPrices = Array.isArray(dataset?.primeMarketPrices) ? dataset.primeMarketPrices : [];
       const fieldCheckedCandidates = rawCandidates.filter(hasRequiredCandidateFields);
-      const loadedCandidates = fieldCheckedCandidates.filter(hasCandidateEvidence);
-      const loadedSearchUniverse = rawSearchUniverse.filter(hasRequiredCandidateFields);
+      const loadedCandidates = fieldCheckedCandidates.filter(hasCandidateEvidence).map(normalizeStock);
+      const loadedSearchUniverse = rawSearchUniverse.filter(hasRequiredCandidateFields).map(normalizeStock);
 
       dataStatus.primeLoaded = prime.status === "available" && Array.isArray(dataset?.primeMarketComponents) && dataset.primeMarketComponents.length >= 1000;
       dataStatus.nikkeiLoaded = nikkei.status === "available" && Array.isArray(dataset?.nikkei225Components) && dataset.nikkei225Components.length === 225;
       dataStatus.marginLoaded = margin.status === "available" && (margin.scope === "per-issue" || margin.hasPerIssueData === true);
-      dataStatus.liveConnected = loadedCandidates.length > 0 && dataStatus.primeLoaded && dataStatus.nikkeiLoaded && dataStatus.marginLoaded;
+      dataStatus.liveConnected = loadedSearchUniverse.length > 0 && dataStatus.primeLoaded && dataStatus.nikkeiLoaded && dataStatus.marginLoaded;
       dataStatus.message = dataStatus.liveConnected ? "検証済みデータ表示中" : "候補算出に必要なデータ待ち";
       candidates = dataStatus.liveConnected ? loadedCandidates : [];
       searchUniverse = dataStatus.liveConnected ? loadedSearchUniverse : [];
       priceMetricsByCode = new Map(rawPrices.map(item => [String(item.code), item]));
       const stats = {
-        raw: rawCandidates.length,
-        accepted: loadedCandidates.length,
-        invalid: rawCandidates.length - loadedCandidates.length,
+        raw: rawSearchUniverse.length,
+        accepted: loadedSearchUniverse.length,
+        invalid: rawSearchUniverse.length - loadedSearchUniverse.length,
       };
 
       el.primeStatus.innerHTML = dataStatus.primeLoaded
@@ -1294,30 +1418,17 @@
       }
     }
 
-    function passesScoreConditions(item) {
-      const baseMatch = item.theme >= state.themeMin && item.margin <= state.marginMax;
-      const highMatch = state.strict ? item.monthsFromHigh >= state.highMin : item.monthsFromHigh >= Math.max(0, state.highMin - 3);
-      const factorMatch =
-        (item.liquidity ?? 60) >= state.liquidityMin &&
-        (item.relative ?? 60) >= state.relativeMin &&
-        (item.earnings ?? 50) >= state.earningsMin &&
-        (item.risk ?? 50) <= state.riskMax;
-      return baseMatch && highMatch && factorMatch;
-    }
-
     function matches(item) {
-      const haystack = `${item.code} ${item.name} ${item.themes.join(" ")}`.toLowerCase();
+      const haystack = `${item.code} ${item.name} ${item.themes.join(" ")} ${item.industry || ""}`.toLowerCase();
       const queryMatch = haystack.includes(state.query.toLowerCase());
       const universeMatch = state.universe === "prime" || item.isNikkei225 === true;
-      if (state.query.trim()) return dataStatus.liveConnected && universeMatch && queryMatch;
-      return dataStatus.liveConnected && universeMatch && queryMatch && passesScoreConditions(item);
+      return dataStatus.liveConnected && universeMatch && queryMatch;
     }
 
     function statusFor(item) {
-      if (state.query.trim() && !passesScoreConditions(item)) return ["条件外", "bad"];
       if (item.margin <= 2 && item.monthsFromHigh >= 6 && totalScore(item) >= 80) return ["候補", "good"];
-      if (item.margin <= state.marginMax && totalScore(item) >= 65) return ["監視", "watch"];
-      return ["条件内", "watch"];
+      if (totalScore(item) >= 65) return ["監視", "watch"];
+      return ["確認", "watch"];
     }
 
     function evidenceLink(source, label) {
@@ -1436,6 +1547,93 @@
       return (value * 100).toFixed(1) + "%";
     }
 
+    function formatFundamentalPercent(value) {
+      return Number.isFinite(value) ? formatPercent(value) : "未取得";
+    }
+
+    function formatSignedPrice(value) {
+      if (!Number.isFinite(value)) return "未取得";
+      const sign = value > 0 ? "+" : "";
+      return `${sign}${formatPrice(value)}`;
+    }
+
+    function formatRatio(value, suffix = "倍") {
+      return Number.isFinite(value) ? `${value.toFixed(2)}${suffix}` : "未取得";
+    }
+
+    function formatMarketCap(value) {
+      if (!Number.isFinite(value)) return "未取得";
+      if (value >= 1_000_000_000_000) return `${(value / 1_000_000_000_000).toFixed(2)}兆円`;
+      if (value >= 100_000_000) return `${(value / 100_000_000).toFixed(0)}億円`;
+      return `${Math.round(value).toLocaleString("ja-JP")}円`;
+    }
+
+    function latestPriceInfo(item, rows) {
+      const latest = rows.at(-1);
+      const previous = rows.length >= 2 ? rows.at(-2) : null;
+      const close = Number(item.latestClose ?? latest?.close);
+      const previousClose = Number(item.previousClose ?? previous?.close);
+      const change = Number.isFinite(close) && Number.isFinite(previousClose) ? close - previousClose : null;
+      const changeRate = Number.isFinite(change) && previousClose ? change / previousClose : null;
+      return { close, previousClose, change, changeRate };
+    }
+
+    function valueFrom(item, keys) {
+      for (const key of keys) {
+        const value = item[key] ?? item.fundamentals?.[key] ?? item.metrics?.[key];
+        if (value === null || value === undefined || value === "") continue;
+        if (Number.isFinite(Number(value))) return Number(value);
+      }
+      return null;
+    }
+
+    function renderFundamentals(item, rows) {
+      const price = latestPriceInfo(item, rows);
+      const changeClass = price.change > 0 ? "up" : price.change < 0 ? "down" : "";
+      const fields = [
+        ["現在の株価", formatPrice(price.close)],
+        ["前日終値からの変化", `<span class="price-change ${changeClass}">${escapeHtml(formatSignedPrice(price.change))}</span>`],
+        ["前日比", `<span class="price-change ${changeClass}">${escapeHtml(formatPercent(price.changeRate))}</span>`],
+        ["時価総額", formatMarketCap(valueFrom(item, ["marketCap", "marketCapitalization"]))],
+        ["PER", formatRatio(valueFrom(item, ["per", "PER"]))],
+        ["PBR", formatRatio(valueFrom(item, ["pbr", "PBR"]))],
+        ["ROE", formatFundamentalPercent(valueFrom(item, ["roe", "ROE"]))],
+        ["ROA", formatFundamentalPercent(valueFrom(item, ["roa", "ROA"]))],
+        ["配当利回り", formatFundamentalPercent(valueFrom(item, ["dividendYield"]))],
+        ["配当性向", formatFundamentalPercent(valueFrom(item, ["dividendPayoutRatio", "payoutRatio"]))],
+        ["DOE", formatFundamentalPercent(valueFrom(item, ["doe", "DOE"]))],
+        ["自己資本比率", formatFundamentalPercent(valueFrom(item, ["equityRatio", "capitalAdequacyRatio"]))],
+      ];
+      el.fundamentalGrid.innerHTML = fields.map(([label, value]) => `
+        <div class="fundamental-item">
+          <div class="fundamental-label">${escapeHtml(label)}</div>
+          <div class="fundamental-value">${String(value)}</div>
+        </div>
+      `).join("");
+      el.fundamentalNote.textContent = `株価は${formatDate(item.priceAsOf)}時点の取得値です。PER/PBR/ROEなどは無料データで構造化取得できた場合に表示し、未取得項目は「未取得」と表示します。`;
+    }
+
+    function chartRangeDays() {
+      return {
+        "1w": 7,
+        "1m": 31,
+        "3m": 93,
+        "6m": 186,
+        "1y": 366,
+        "3y": 1096,
+      }[state.chartRange] || 186;
+    }
+
+    function rowsForSelectedRange(rows) {
+      const days = chartRangeDays();
+      const latest = rows.at(-1);
+      if (!latest?.date) return rows;
+      const latestTime = new Date(`${latest.date}T00:00:00`).getTime();
+      const threshold = latestTime - days * 86400000;
+      const filtered = rows.filter(row => new Date(`${row.date}T00:00:00`).getTime() >= threshold);
+      return filtered.length >= 5 ? filtered : rows.slice(-5);
+    }
+
     function drawTechnicalChart(rows) {
       const canvas = el.priceChart;
       const context = canvas.getContext("2d");
@@ -1448,14 +1646,14 @@
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       context.clearRect(0, 0, width, height);
 
-      const data = rows.slice(-120);
-      if (data.length < 20) return;
+      const data = rowsForSelectedRange(rows);
+      if (data.length < 5) return;
       const closes = data.map(row => row.close);
       const ma200Source = rows.map(row => row.close);
       const ma20 = movingAverageSeries(closes, 20);
       const ma50 = movingAverageSeries(closes, 50);
       const ma200Full = movingAverageSeries(ma200Source, 200);
-      const ma200 = ma200Full.slice(-120);
+      const ma200 = ma200Full.slice(-data.length);
       const bands = bollingerSeries(closes, 20, 2);
       const upperBand = bands.map(item => item.upper);
       const lowerBand = bands.map(item => item.lower);
@@ -1691,8 +1889,7 @@
 
     function currentRows() {
       const key = state.sortBy;
-      const sourceRows = state.query.trim() ? searchUniverse : candidates;
-      return sourceRows
+      const rankedRows = searchUniverse
         .map(item => ({
           ...item,
           liquidity: item.liquidity ?? 60,
@@ -1704,6 +1901,33 @@
         }))
         .filter(matches)
         .sort((a, b) => b[key] - a[key]);
+
+      if (state.view === "theme") {
+        return topRowsByGroup(rankedRows, item => item.themes);
+      }
+      if (state.view === "industry") {
+        return topRowsByGroup(rankedRows, item => [item.industry || "業種未分類"]);
+      }
+      if (state.view === "watchlist") {
+        return rankedRows.filter(item => watchedCodes.has(String(item.code)));
+      }
+      return rankedRows.slice(0, state.limit);
+    }
+
+    function topRowsByGroup(rows, groupGetter) {
+      const bestByGroup = new Map();
+      rows.forEach(item => {
+        const groups = groupGetter(item).filter(Boolean);
+        groups.forEach(group => {
+          const current = bestByGroup.get(group);
+          if (!current || item.score > current.score) {
+            bestByGroup.set(group, { ...item, groupLabel: group });
+          }
+        });
+      });
+      return [...bestByGroup.values()]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, state.limit);
     }
 
     function renderRows(rows) {
@@ -1717,6 +1941,7 @@
         return `
           <tr class="${selectedClass}" data-code="${escapeHtml(item.code)}" tabindex="0">
             <td>
+              ${item.groupLabel ? `<div class="code">${escapeHtml(item.groupLabel)} 1位</div>` : ""}
               <div class="code">${escapeHtml(item.code)}</div>
               <div class="name">${escapeHtml(item.name)}</div>
               <div class="evidence-links">
@@ -1728,6 +1953,7 @@
               </div>
             </td>
             <td><div class="pill-row">${item.themes.map(t => `<span class="pill">${escapeHtml(t)}</span>`).join("")}</div></td>
+            <td>${escapeHtml(item.industry || "業種未分類")}</td>
             <td><span class="score">${item.score}</span></td>
             <td>
               <strong>${item.margin.toFixed(1)}倍</strong>
@@ -1739,10 +1965,20 @@
               <div class="bar" aria-label="相対強度"><span style="width:${item.relative ?? 0}%"></span></div>
             </td>
             <td><span class="status ${className}">${label}</span></td>
+            <td>
+              <button class="watch-button ${watchedCodes.has(String(item.code)) ? "active" : ""}" type="button" data-watch-code="${escapeHtml(item.code)}" title="ウォッチリストに追加/解除" aria-label="ウォッチリストに追加/解除">
+                ${watchedCodes.has(String(item.code)) ? "★" : "☆"}
+              </button>
+            </td>
           </tr>
         `;
       }).join("");
       el.empty.hidden = rows.length > 0;
+      if (!rows.length) {
+        el.empty.textContent = state.view === "watchlist"
+          ? "ウォッチリストは空です。ランキングの☆ボタンから銘柄を追加できます。"
+          : "表示できる銘柄がありません。検索条件や対象銘柄を確認してください。";
+      }
     }
 
     function renderThemes(rows) {
@@ -1760,7 +1996,7 @@
         return;
       }
       const counts = new Map();
-      candidates.filter(item => state.universe === "prime" || item.isNikkei225 === true).forEach(item => {
+      searchUniverse.filter(item => state.universe === "prime" || item.isNikkei225 === true).forEach(item => {
         item.themes.forEach(theme => {
           const current = counts.get(theme) || { total: 0, score: 0 };
           current.total += 1;
@@ -1781,7 +2017,7 @@
           <div class="rank">${index + 1}</div>
         </div>
       `).join("");
-      el.metricTheme.textContent = rows[0]?.themes[0] || themes[0]?.name || "-";
+      el.metricTheme.textContent = rows[0]?.groupLabel || (state.view === "industry" ? rows[0]?.industry : rows[0]?.themes?.[0]) || themes[0]?.name || "-";
     }
 
     function renderTechnical(rows) {
@@ -1826,9 +2062,17 @@
       el.technicalEmpty.hidden = true;
       el.technicalBody.hidden = false;
       el.selectedName.textContent = item.name;
-      el.selectedCode.textContent = `${item.code} / ${item.isNikkei225 ? "日経225" : "東証プライム"}`;
+      el.selectedCode.textContent = `${item.code} / ${item.industry || "業種未分類"} / ${item.isNikkei225 ? "日経225" : "東証プライム"}`;
       el.selectedJudgement.textContent = label;
       el.selectedJudgement.className = `badge ${className === "good" ? "ok" : "warn"}`;
+      el.fundamentalTab.classList.toggle("active", state.detailTab === "fundamental");
+      el.chartTab.classList.toggle("active", state.detailTab === "chart");
+      el.fundamentalPanel.hidden = state.detailTab !== "fundamental";
+      el.chartPanel.hidden = state.detailTab !== "chart";
+      Object.entries(el.rangeButtons).forEach(([range, button]) => {
+        button.classList.toggle("active", state.chartRange === range);
+      });
+      renderFundamentals(item, chartRows);
       el.chartLegend.innerHTML = [
         ["#246bce", hasOhlc ? "ローソク足" : "終値"],
         ["#8aa8d8", "BB ±2σ"],
@@ -1867,7 +2111,9 @@
           <span>${escapeHtml(text)}</span>
         </div>
       `).join("");
-      requestAnimationFrame(() => drawTechnicalChart(chartRows));
+      if (state.detailTab === "chart") {
+        requestAnimationFrame(() => drawTechnicalChart(chartRows));
+      }
     }
 
     function renderMetrics(rows) {
@@ -1879,15 +2125,21 @@
     }
 
     function syncLabels() {
-      el.themeValue.textContent = `${state.themeMin}以上`;
-      el.marginValue.textContent = `${Number(state.marginMax).toFixed(1)}倍以下`;
-      el.highValue.textContent = `${state.highMin}か月以上`;
-      el.liquidityValue.textContent = `${state.liquidityMin}以上`;
-      el.relativeValue.textContent = `${state.relativeMin}以上`;
-      el.earningsValue.textContent = `${state.earningsMin}以上`;
-      el.riskValue.textContent = `${state.riskMax}以下`;
-      el.strictMode.classList.toggle("active", state.strict);
-      el.watchMode.classList.toggle("active", !state.strict);
+      const viewLabels = {
+        overall: ["総合ランキング", "スコア上位を毎日更新します"],
+        theme: ["テーマ別1位", "各テーマで最もスコアが高い銘柄です"],
+        industry: ["業種別1位", "各業種で最もスコアが高い銘柄です"],
+        watchlist: ["ウォッチリスト", "気になる銘柄を端末内に保存して監視します"],
+      };
+      const [title, note] = viewLabels[state.view] || viewLabels.overall;
+      el.rankingTitle.textContent = title;
+      el.rankingNote.textContent = note;
+      el.overallView.classList.toggle("active", state.view === "overall");
+      el.themeView.classList.toggle("active", state.view === "theme");
+      el.industryView.classList.toggle("active", state.view === "industry");
+      el.watchlistView.classList.toggle("active", state.view === "watchlist");
+      el.limit10.classList.toggle("active", state.limit === 10);
+      el.limit20.classList.toggle("active", state.limit === 20);
       el.primeUniverse.classList.toggle("active", state.universe === "prime");
       el.nikkeiUniverse.classList.toggle("active", state.universe === "nikkei225");
     }
@@ -1903,10 +2155,10 @@
 
     function downloadCsv() {
       const rows = currentRows();
-      const header = ["コード", "銘柄", "テーマ", "総合スコア", "信用倍率", "前回高値から", "流動性", "相対強度", "業績", "リスク", "判定"];
+      const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "信用倍率", "前回高値から", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
       const body = rows.map(item => {
         const [label] = statusFor(item);
-        return [item.code, item.name, item.themes.join("/"), item.score, item.margin, item.monthsFromHigh, item.liquidity, item.relative, item.earnings, item.risk, label];
+        return [item.groupLabel || "", item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.margin, item.monthsFromHigh, item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
       });
       const csv = [header, ...body].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
@@ -1918,32 +2170,28 @@
       URL.revokeObjectURL(url);
     }
 
-    el.themeMin.addEventListener("input", event => {
-      state.themeMin = Number(event.target.value);
+    el.overallView.addEventListener("click", () => {
+      state.view = "overall";
       render();
     });
-    el.marginMax.addEventListener("input", event => {
-      state.marginMax = Number(event.target.value);
+    el.themeView.addEventListener("click", () => {
+      state.view = "theme";
       render();
     });
-    el.highMin.addEventListener("input", event => {
-      state.highMin = Number(event.target.value);
+    el.industryView.addEventListener("click", () => {
+      state.view = "industry";
       render();
     });
-    el.liquidityMin.addEventListener("input", event => {
-      state.liquidityMin = Number(event.target.value);
+    el.watchlistView.addEventListener("click", () => {
+      state.view = "watchlist";
       render();
     });
-    el.relativeMin.addEventListener("input", event => {
-      state.relativeMin = Number(event.target.value);
+    el.limit10.addEventListener("click", () => {
+      state.limit = 10;
       render();
     });
-    el.earningsMin.addEventListener("input", event => {
-      state.earningsMin = Number(event.target.value);
-      render();
-    });
-    el.riskMax.addEventListener("input", event => {
-      state.riskMax = Number(event.target.value);
+    el.limit20.addEventListener("click", () => {
+      state.limit = 20;
       render();
     });
     el.sortBy.addEventListener("change", event => {
@@ -1958,19 +2206,33 @@
       state.universe = "nikkei225";
       render();
     });
-    el.strictMode.addEventListener("click", () => {
-      state.strict = true;
-      render();
-    });
-    el.watchMode.addEventListener("click", () => {
-      state.strict = false;
-      render();
-    });
     el.searchBox.addEventListener("input", event => {
       state.query = event.target.value;
       render();
     });
+    el.fundamentalTab.addEventListener("click", () => {
+      state.detailTab = "fundamental";
+      render();
+    });
+    el.chartTab.addEventListener("click", () => {
+      state.detailTab = "chart";
+      render();
+    });
+    Object.entries(el.rangeButtons).forEach(([range, button]) => {
+      button.addEventListener("click", () => {
+        state.chartRange = range;
+        state.detailTab = "chart";
+        render();
+      });
+    });
     el.rows.addEventListener("click", event => {
+      const watchButton = event.target.closest("[data-watch-code]");
+      if (watchButton) {
+        event.stopPropagation();
+        toggleWatch(watchButton.dataset.watchCode);
+        render();
+        return;
+      }
       const row = event.target.closest("tr[data-code]");
       if (!row) return;
       state.selectedCode = row.dataset.code;
@@ -1997,6 +2259,7 @@
       renderTechnical(rows);
     });
 
+    loadWatchlist();
     loadBundledDataset();
   </script>
 </body>

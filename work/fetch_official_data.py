@@ -4,11 +4,13 @@ import json
 import os
 import re
 import time
+import zipfile
 import xlrd
 from io import BytesIO
 from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
+from xml.etree import ElementTree
 from urllib.error import URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
@@ -37,6 +39,14 @@ from tdnet_connector import (
     analyze_disclosures,
     fetch_recent_disclosures,
     fetch_theme_news_counts,
+)
+from edinet_connector import (
+    EDINET_DOCUMENTS_URL,
+    EdinetError,
+    calculate_valuation_metrics,
+    download_xbrl_zip,
+    fetch_recent_securities_reports,
+    parse_financial_metrics_from_xbrl,
 )
 
 
@@ -163,10 +173,17 @@ def parse_prime_components(content: bytes, nikkei_codes: set[str]) -> tuple[list
         if re.fullmatch(r"\d{8}", date_text):
             as_of = f"{date_text[:4]}-{date_text[4:6]}-{date_text[6:]}"
         if re.fullmatch(r"[0-9A-Z]{4}", code) and name:
+            industry = ""
+            for header_name in ("33業種区分", "17業種区分", "規模区分"):
+                if header_name in headers:
+                    industry = str(row[headers.index(header_name)]).strip()
+                    if industry and industry != "-":
+                        break
             components.append({
                 "code": code,
                 "name": name,
                 "market": "東証プライム",
+                "industry": industry or "業種未分類",
                 "isNikkei225": code in nikkei_codes,
             })
     return components, as_of
@@ -675,6 +692,7 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
 
     price_map = {str(item["code"]): item for item in prices}
     margin_map = {str(item["code"]): item for item in margins}
+    component_map = {str(item.get("code", "")): item for item in components if isinstance(item, dict)}
     financials, themes, theme_map = analyze_disclosures(
         codes,
         disclosures,
@@ -720,10 +738,12 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
         primary_theme_detail = theme_detail_map.get(primary_theme, {})
         price_sources = price.get("sources", {})
         candidate_name = str(margin.get("name") or price.get("name") or code)
+        component = component_map.get(code, {})
         search_universe.append({
             "code": code,
             "name": candidate_name,
             "market": "東証プライム",
+            "industry": str(component.get("industry") or "業種未分類"),
             "isNikkei225": code in nikkei_codes,
             "themes": assigned_themes or ["テーマ未分類"],
             "theme": theme_score,
@@ -804,6 +824,138 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
     )
 
 
+def _supply_score(item: dict[str, object]) -> int:
+    margin = float(item.get("margin") or 99)
+    months = float(item.get("monthsFromHigh") or 0)
+    ratio_score = max(0, 100 - (margin - 0.5) * 16)
+    high_score = min(100, months / 12 * 100)
+    return round(ratio_score * 0.6 + high_score * 0.4)
+
+
+def _total_score(item: dict[str, object]) -> int:
+    liquidity = int(item.get("liquidity") or 60)
+    relative = int(item.get("relative") or 60)
+    earnings = int(item.get("earnings") or 50)
+    risk = int(item.get("risk") or 50)
+    return round(
+        int(item.get("theme") or 0) * 0.22
+        + _supply_score(item) * 0.22
+        + int(item.get("technical") or 0) * 0.16
+        + relative * 0.14
+        + earnings * 0.14
+        + liquidity * 0.08
+        + (100 - risk) * 0.04
+    )
+
+
+def collect_edinet_fundamentals(
+    dataset: dict[str, object],
+    generated_at: str,
+    previous_dataset: dict[str, object],
+) -> None:
+    sources = dataset["sources"]  # type: ignore[assignment]
+    source = sources["edinetFundamentals"]  # type: ignore[index]
+    search_universe = dataset.get("searchUniverse")
+    if not isinstance(search_universe, list) or not search_universe:
+        source["status"] = "blocked"
+        source["reason"] = "ランキング対象銘柄の生成後にEDINET財務指標を取得します。"
+        return
+
+    def attach(metrics: list[dict[str, object]]) -> None:
+        metric_map = {str(item.get("code")): item for item in metrics}
+        for key in ("searchUniverse", "candidates"):
+            rows = dataset.get(key)
+            if not isinstance(rows, list):
+                continue
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                metric = metric_map.get(str(row.get("code")))
+                if metric:
+                    row["fundamentals"] = metric
+                    row.setdefault("sources", {})["edinet"] = {  # type: ignore[index]
+                        "url": metric.get("url"),
+                        "updatedAt": metric.get("asOf") or metric.get("submitDateTime"),
+                    }
+
+    previous_metrics = previous_dataset.get("edinetFundamentals")
+    reusable_metrics = previous_metrics if isinstance(previous_metrics, list) else []
+    api_key = os.environ.get("EDINET_API_KEY", "").strip()
+    if not api_key:
+        if reusable_metrics:
+            dataset["edinetFundamentals"] = reusable_metrics
+            attach(reusable_metrics)  # type: ignore[arg-type]
+            source["status"] = "api-key-required"
+            source["recordCount"] = len(reusable_metrics)
+            source["checkedAt"] = generated_at
+            source["reason"] = "EDINET_API_KEY未設定のため、前回取得済みのEDINET財務指標を再利用しました。"
+        else:
+            source["status"] = "api-key-required"
+            source["checkedAt"] = generated_at
+            source["reason"] = "EDINET API v2は無料登録のAPIキーが必要です。EDINET_API_KEYを設定するとPER/PBR/ROE等を算出します。"
+        return
+
+    max_downloads = max(1, int(os.environ.get("EDINET_MAX_DOWNLOADS", "120")))
+    lookback_days = max(30, int(os.environ.get("EDINET_LOOKBACK_DAYS", "430")))
+    ranked = sorted(
+        [item for item in search_universe if isinstance(item, dict) and re.fullmatch(r"\d{4}", str(item.get("code", "")))],
+        key=_total_score,
+        reverse=True,
+    )
+    target_codes = {str(item.get("code")) for item in ranked[:max_downloads]}
+    metrics: list[dict[str, object]] = []
+    errors: list[str] = []
+    try:
+        reports, report_errors = fetch_recent_securities_reports(target_codes, api_key, lookback_days=lookback_days)
+        errors.extend(report_errors[:10])
+    except EdinetError as error:
+        source["status"] = "error"
+        source["checkedAt"] = generated_at
+        source["reason"] = str(error)
+        return
+
+    price_map = {str(item.get("code")): item for item in search_universe if isinstance(item, dict)}
+    for code in [str(item.get("code")) for item in ranked[:max_downloads]]:
+        report = reports.get(code)
+        if not report:
+            continue
+        try:
+            zip_bytes, download_url = download_xbrl_zip(str(report["docID"]), api_key)
+            parsed = parse_financial_metrics_from_xbrl(zip_bytes)
+            latest_close = price_map.get(code, {}).get("latestClose")
+            valuation = calculate_valuation_metrics(
+                parsed,
+                float(latest_close) if isinstance(latest_close, (int, float)) else None,
+            )
+            metrics.append({
+                "code": code,
+                "name": price_map.get(code, {}).get("name"),
+                **valuation,
+                "docID": report.get("docID"),
+                "edinetCode": report.get("edinetCode"),
+                "submitDateTime": report.get("submitDateTime"),
+                "docDescription": report.get("docDescription"),
+                "url": download_url,
+                "provider": "EDINET API v2",
+            })
+        except (EdinetError, ValueError, KeyError, zipfile.BadZipFile, ElementTree.ParseError) as error:
+            errors.append(f"{code}: {error}")
+
+    if metrics:
+        dataset["edinetFundamentals"] = metrics
+        attach(metrics)
+    source["status"] = "available" if metrics else "partial"
+    source["recordCount"] = len(metrics)
+    source["targetCount"] = len(target_codes)
+    source["checkedAt"] = generated_at
+    source["errors"] = errors[:10]
+    source["reason"] = (
+        f"EDINET有価証券報告書XBRLから{len(metrics)}/{len(target_codes)}銘柄の財務指標を算出しました。"
+        if metrics
+        else "EDINET APIには接続できましたが、対象銘柄の財務指標を算出できませんでした。"
+    )
+
+
 def main() -> None:
     generated_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     previous_dataset: dict[str, object] = {}
@@ -848,6 +1000,13 @@ def main() -> None:
                 "provider": "J-Quants V2",
                 "status": "not-checked",
                 "checkedAt": generated_at,
+            },
+            "edinetFundamentals": {
+                "url": EDINET_DOCUMENTS_URL,
+                "provider": "EDINET API v2",
+                "status": "not-checked",
+                "checkedAt": generated_at,
+                "reason": "EDINET_API_KEYが設定されている場合に有価証券報告書XBRLから財務指標を算出します。",
             },
             "themeNews": {
                 "url": "https://jpx-jquants.com/ja",
@@ -996,6 +1155,7 @@ def main() -> None:
     if not collect_jquants_metrics(dataset, generated_at):
         collect_free_market_metrics(dataset, generated_at, previous_dataset)
     collect_tdnet_and_build_candidates(dataset, generated_at)
+    collect_edinet_fundamentals(dataset, generated_at, previous_dataset)
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     sources = dataset["sources"]  # type: ignore[assignment]
@@ -1005,6 +1165,7 @@ def main() -> None:
     price_source = sources["priceHistory"]  # type: ignore[index]
     theme_source = sources["themeNews"]  # type: ignore[index]
     financial_source = sources["fundamentals"]  # type: ignore[index]
+    edinet_source = sources["edinetFundamentals"]  # type: ignore[index]
     dataset["qualityChecks"] = [
         {
             "label": "東証プライム上場銘柄",
@@ -1045,6 +1206,13 @@ def main() -> None:
             "required": True,
             "message": financial_source.get("reason", "未確認"),
             "url": financial_source.get("url"),
+        },
+        {
+            "label": "EDINET財務指標",
+            "status": edinet_source["status"],
+            "required": False,
+            "message": edinet_source.get("reason", "未確認"),
+            "url": edinet_source.get("url"),
         },
     ]
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
