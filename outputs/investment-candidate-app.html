@@ -1,0 +1,2003 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capital Gain Radar</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1d2430;
+      --muted: #627083;
+      --line: #dce3ea;
+      --panel: #f7f9fb;
+      --white: #ffffff;
+      --green: #0f8f6a;
+      --blue: #246bce;
+      --amber: #b26a00;
+      --red: #bc3b42;
+      --shadow: 0 10px 28px rgba(26, 42, 63, .08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Yu Gothic UI", "Meiryo", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #edf2f6;
+      color: var(--ink);
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+    }
+
+    aside {
+      background: #152033;
+      color: #f3f7fb;
+      padding: 22px 18px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255,255,255,.28);
+      border-radius: 8px;
+      background: #233554;
+      color: #8ee0c2;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.15;
+    }
+
+    .subhead {
+      margin: 4px 0 0;
+      color: #b9c7d6;
+      font-size: 12px;
+    }
+
+    .control-group {
+      border-top: 1px solid rgba(255,255,255,.12);
+      padding-top: 18px;
+      margin-top: 18px;
+    }
+
+    .control-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 13px;
+      color: #dbe6f0;
+      margin-bottom: 12px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: #c3cfdb;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: #25b993;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    select,
+    .search {
+      width: 100%;
+      min-height: 38px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 7px;
+      color: #f3f7fb;
+      background: #1e2c43;
+      padding: 0 10px;
+      outline: none;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .segmented button,
+    .icon-button {
+      min-height: 38px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 7px;
+      color: #dce7f2;
+      background: #1e2c43;
+      cursor: pointer;
+    }
+
+    .segmented button.active {
+      color: #102235;
+      background: #8ee0c2;
+      border-color: #8ee0c2;
+      font-weight: 700;
+    }
+
+    main {
+      min-width: 0;
+      padding: 22px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .page-title {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.25;
+    }
+
+    .updated {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .primary,
+    .secondary {
+      min-height: 38px;
+      border-radius: 7px;
+      padding: 0 12px;
+      cursor: pointer;
+      border: 1px solid var(--line);
+      background: var(--white);
+      color: var(--ink);
+    }
+
+    .primary {
+      background: var(--blue);
+      color: white;
+      border-color: var(--blue);
+      font-weight: 700;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .metric,
+    .panel {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .metric {
+      padding: 14px;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric-value {
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .side-stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+      font-size: 13px;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      background: #fafbfd;
+      white-space: nowrap;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    tbody tr {
+      cursor: pointer;
+    }
+
+    tbody tr.selected-row td {
+      background: #f0f8ff;
+    }
+
+    .code {
+      color: var(--muted);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .name {
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .evidence-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 5px;
+      font-size: 11px;
+    }
+
+    .evidence-links a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .evidence-links a:hover {
+      text-decoration: underline;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #eef5ff;
+      color: #285eab;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .score {
+      display: inline-grid;
+      place-items: center;
+      min-width: 46px;
+      height: 30px;
+      border-radius: 7px;
+      color: white;
+      font-weight: 800;
+      background: var(--green);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bar {
+      height: 8px;
+      width: 92px;
+      background: #e7edf3;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar span {
+      display: block;
+      height: 100%;
+      background: var(--green);
+    }
+
+    .status {
+      font-weight: 800;
+    }
+
+    .good {
+      color: var(--green);
+    }
+
+    .watch {
+      color: var(--amber);
+    }
+
+    .bad {
+      color: var(--red);
+    }
+
+    .side-list {
+      padding: 14px 16px 16px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .theme-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .theme-item:last-child {
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .theme-name {
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .theme-meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .rank {
+      min-width: 34px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 7px;
+      background: #ecf8f4;
+      color: var(--green);
+      font-weight: 800;
+    }
+
+    .note {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .source-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .source-card {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .source-label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    .source-value {
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .source-link {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    .source-link:hover {
+      text-decoration: underline;
+    }
+
+    .quality-panel {
+      margin-bottom: 16px;
+    }
+
+    .quality-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      padding: 14px 16px 16px;
+    }
+
+    .quality-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      min-width: 0;
+      background: #fbfcfe;
+    }
+
+    .quality-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .quality-message {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .badge.warn {
+      background: #fff6df;
+      color: #945b00;
+    }
+
+    .badge.ok {
+      background: #e9f8f3;
+      color: var(--green);
+    }
+
+    .factor-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .factor {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      min-width: 0;
+    }
+
+    .factor-title {
+      font-weight: 800;
+      font-size: 14px;
+      margin-bottom: 6px;
+    }
+
+    .factor-text {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .empty {
+      padding: 24px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .technical-body {
+      padding: 14px 16px 16px;
+    }
+
+    .selected-stock {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .selected-stock strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1.35;
+    }
+
+    .selected-stock span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chart-wrap {
+      width: 100%;
+      height: 520px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      overflow: hidden;
+    }
+
+    #priceChart {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      white-space: nowrap;
+    }
+
+    .legend-line {
+      width: 14px;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--blue);
+    }
+
+    .indicator-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .indicator {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 9px;
+      min-width: 0;
+      background: #fbfcfe;
+    }
+
+    .indicator-label {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    .indicator-value {
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .signal-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .signal-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .signal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-top: 5px;
+      background: var(--amber);
+    }
+
+    .signal-dot.good {
+      background: var(--green);
+    }
+
+    .signal-dot.bad {
+      background: var(--red);
+    }
+
+    .chart-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 1050px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      aside {
+        position: static;
+      }
+
+      .layout,
+      .summary-grid,
+      .source-strip,
+      .quality-list,
+      .factor-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .chart-wrap {
+        height: 500px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      main {
+        padding: 14px;
+      }
+
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .actions {
+        justify-content: flex-start;
+      }
+
+      .layout,
+      .summary-grid,
+      .source-strip,
+      .quality-list,
+      .factor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .chart-wrap {
+        height: 480px;
+      }
+
+      .page-title {
+        font-size: 21px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside>
+      <div class="brand">
+        <div class="mark">CG</div>
+        <div>
+          <h1>Capital Gain Radar</h1>
+          <p class="subhead">東証プライム候補スクリーナー</p>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-title">
+          <strong>対象銘柄</strong>
+        </div>
+        <div class="segmented" aria-label="対象銘柄">
+          <button id="primeUniverse" class="active" type="button">東証プライム</button>
+          <button id="nikkeiUniverse" type="button">日経225</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-title">
+          <strong>スコア条件</strong>
+          <span id="resultCount">0件</span>
+        </div>
+
+        <div class="field">
+          <label for="themeMin"><span>テーマ人気</span><strong id="themeValue">65以上</strong></label>
+          <input id="themeMin" type="range" min="40" max="95" value="65">
+        </div>
+
+        <div class="field">
+          <label for="marginMax"><span>信用倍率</span><strong id="marginValue">3.0倍以下</strong></label>
+          <input id="marginMax" type="range" min="0.5" max="8" step="0.1" value="3">
+        </div>
+
+        <div class="field">
+          <label for="highMin"><span>終値高値から</span><strong id="highValue">6か月以上</strong></label>
+          <input id="highMin" type="range" min="0" max="18" value="6">
+        </div>
+
+        <div class="field">
+          <label for="liquidityMin"><span>売買代金</span><strong id="liquidityValue">十分</strong></label>
+          <input id="liquidityMin" type="range" min="40" max="95" value="65">
+        </div>
+
+        <div class="field">
+          <label for="relativeMin"><span>相対強度</span><strong id="relativeValue">60以上</strong></label>
+          <input id="relativeMin" type="range" min="40" max="95" value="60">
+        </div>
+
+        <div class="field">
+          <label for="earningsMin"><span>業績モメンタム</span><strong id="earningsValue">55以上</strong></label>
+          <input id="earningsMin" type="range" min="30" max="95" value="55">
+        </div>
+
+        <div class="field">
+          <label for="riskMax"><span>リスク上限</span><strong id="riskValue">70以下</strong></label>
+          <input id="riskMax" type="range" min="30" max="100" value="70">
+        </div>
+
+        <div class="field">
+          <label for="sortBy"><span>並び順</span></label>
+          <select id="sortBy">
+            <option value="score">総合スコア</option>
+            <option value="supply">需給</option>
+            <option value="theme">テーマ人気</option>
+            <option value="technical">チャート</option>
+            <option value="liquidity">売買代金</option>
+            <option value="relative">相対強度</option>
+            <option value="earnings">業績</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-title">
+          <strong>表示</strong>
+        </div>
+        <div class="segmented" aria-label="表示モード">
+          <button id="strictMode" class="active" type="button">厳選</button>
+          <button id="watchMode" type="button">監視</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="field">
+          <label for="searchBox"><span>銘柄検索</span></label>
+          <input id="searchBox" class="search" type="search" placeholder="コード・銘柄名・テーマ">
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="topbar">
+        <div>
+          <p class="page-title">今日の投資候補</p>
+          <div class="updated">実データ未接続: 候補は表示していません</div>
+        </div>
+        <div class="actions">
+          <button class="secondary" type="button" id="exportBtn" title="候補をCSVで出力">CSV</button>
+          <button class="secondary" type="button" id="importBtn" title="検証済みJSONを取り込む">JSON取込</button>
+          <input id="dataFile" type="file" accept="application/json,.json">
+          <button class="primary" type="button" id="refreshBtn" title="データを更新">↻ 更新</button>
+        </div>
+      </div>
+
+      <section class="source-strip" aria-label="データ取得状況">
+        <div class="source-card">
+          <div class="source-label">東証プライム上場銘柄</div>
+          <div class="source-value" id="primeStatus">未読込</div>
+        </div>
+        <div class="source-card">
+          <div class="source-label">日経225採用銘柄</div>
+          <div class="source-value" id="nikkeiStatus">未読込</div>
+        </div>
+        <div class="source-card">
+          <div class="source-label">信用取引週末残高</div>
+          <div class="source-value" id="marginStatus">未読込</div>
+        </div>
+        <div class="source-card">
+          <div class="source-label">候補表示</div>
+          <div class="source-value" id="candidateStatus"><span class="badge warn">実データ連携待ち</span></div>
+        </div>
+      </section>
+
+      <section class="panel quality-panel" aria-label="データ品質チェック">
+        <div class="panel-header">
+          <h2>データ品質チェック</h2>
+          <span class="updated" id="qualitySummary">候補表示前の必須確認</span>
+        </div>
+        <div class="quality-list" id="qualityList"></div>
+      </section>
+
+      <section class="summary-grid" aria-label="サマリー">
+        <div class="metric">
+          <div class="metric-label">候補数</div>
+          <div class="metric-value" id="metricCandidates">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">平均スコア</div>
+          <div class="metric-value" id="metricScore">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">平均信用倍率</div>
+          <div class="metric-value" id="metricMargin">0.0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">人気テーマ</div>
+          <div class="metric-value" id="metricTheme">AI</div>
+        </div>
+      </section>
+
+      <div class="layout">
+        <section class="panel" aria-label="候補銘柄一覧">
+          <div class="panel-header">
+            <h2>ランキング</h2>
+            <span class="updated">投資判断ではなく候補抽出です</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>銘柄</th>
+                  <th>テーマ</th>
+                  <th>総合</th>
+                  <th>信用倍率</th>
+              <th>終値高値</th>
+                  <th>追加評価</th>
+                  <th>判定</th>
+                </tr>
+              </thead>
+              <tbody id="candidateRows"></tbody>
+            </table>
+            <div id="emptyState" class="empty" hidden>実データの取得・検証が完了していないため、候補を表示していません。</div>
+          </div>
+        </section>
+
+        <div class="side-stack">
+          <section class="panel" aria-label="テクニカル分析">
+            <div class="panel-header">
+              <h2>テクニカル分析</h2>
+              <span class="updated" id="technicalAsOf">銘柄未選択</span>
+            </div>
+            <div id="technicalEmpty" class="empty">ランキングから銘柄を選択すると、終値チャートと指標を表示します。</div>
+            <div id="technicalBody" class="technical-body" hidden>
+              <div class="selected-stock">
+                <div>
+                  <strong id="selectedName">-</strong>
+                  <span id="selectedCode">-</span>
+                </div>
+                <span class="badge ok" id="selectedJudgement">-</span>
+              </div>
+              <div class="chart-wrap">
+                <canvas id="priceChart" aria-label="終値チャート"></canvas>
+              </div>
+              <div class="chart-legend" id="chartLegend"></div>
+              <div class="indicator-grid" id="indicatorGrid"></div>
+              <div class="signal-list" id="signalList"></div>
+              <div class="chart-note" id="chartNote">候補銘柄はローソク足・出来高つきで表示します。詳細OHLCVがない銘柄は、無料取得できる終値履歴を使ったラインチャートに切り替えます。</div>
+            </div>
+          </section>
+
+          <section class="panel" aria-label="テーマ一覧">
+            <div class="panel-header">
+              <h2>注目テーマ</h2>
+            </div>
+            <div class="side-list" id="themeList"></div>
+          </section>
+        </div>
+      </div>
+
+      <section class="factor-grid" aria-label="追加する評価軸">
+        <div class="factor">
+          <div class="factor-title">流動性</div>
+          <div class="factor-text">売買代金と出来高を見ます。買いやすさだけでなく、損切り時に逃げられるかを確認します。</div>
+        </div>
+        <div class="factor">
+          <div class="factor-title">相対強度</div>
+          <div class="factor-text">日経平均や業種指数より強いかを見ます。指数上昇に乗っているだけの銘柄を分けます。</div>
+        </div>
+        <div class="factor">
+          <div class="factor-title">業績モメンタム</div>
+          <div class="factor-text">上方修正、決算進捗、コンセンサス変化を見ます。テーマ人気だけの銘柄を避けます。</div>
+        </div>
+        <div class="factor">
+          <div class="factor-title">リスク</div>
+          <div class="factor-text">決算日、急騰後の過熱、ボラティリティ、支持線までの距離を見ます。候補と買い時を分けます。</div>
+        </div>
+      </section>
+
+      <p class="note">
+        この画面では、検証済みデータだけを表示します。東証プライム上場判定、日経225採用判定、価格、ニュース、信用取引残高、決算情報を取得し、取得元リンクと更新日時を候補ごとに保存します。最終的な売買判断はご自身の確認が必要です。
+      </p>
+    </main>
+  </div>
+
+  <script>
+    let candidates = [];
+    let searchUniverse = [];
+    let priceMetricsByCode = new Map();
+    let officialDataset = null;
+
+    const state = {
+      themeMin: 65,
+      marginMax: 3,
+      highMin: 6,
+      liquidityMin: 65,
+      relativeMin: 60,
+      earningsMin: 55,
+      riskMax: 70,
+      sortBy: "score",
+      strict: true,
+      universe: "prime",
+      query: "",
+      selectedCode: "",
+    };
+
+    const dataStatus = {
+      liveConnected: false,
+      primeLoaded: false,
+      nikkeiLoaded: false,
+      marginLoaded: false,
+      message: "実データ連携待ち",
+    };
+
+    const el = {
+      themeMin: document.querySelector("#themeMin"),
+      marginMax: document.querySelector("#marginMax"),
+      highMin: document.querySelector("#highMin"),
+      liquidityMin: document.querySelector("#liquidityMin"),
+      relativeMin: document.querySelector("#relativeMin"),
+      earningsMin: document.querySelector("#earningsMin"),
+      riskMax: document.querySelector("#riskMax"),
+      sortBy: document.querySelector("#sortBy"),
+      primeUniverse: document.querySelector("#primeUniverse"),
+      nikkeiUniverse: document.querySelector("#nikkeiUniverse"),
+      strictMode: document.querySelector("#strictMode"),
+      watchMode: document.querySelector("#watchMode"),
+      searchBox: document.querySelector("#searchBox"),
+      rows: document.querySelector("#candidateRows"),
+      empty: document.querySelector("#emptyState"),
+      themeValue: document.querySelector("#themeValue"),
+      marginValue: document.querySelector("#marginValue"),
+      highValue: document.querySelector("#highValue"),
+      liquidityValue: document.querySelector("#liquidityValue"),
+      relativeValue: document.querySelector("#relativeValue"),
+      earningsValue: document.querySelector("#earningsValue"),
+      riskValue: document.querySelector("#riskValue"),
+      resultCount: document.querySelector("#resultCount"),
+      metricCandidates: document.querySelector("#metricCandidates"),
+      metricScore: document.querySelector("#metricScore"),
+      metricMargin: document.querySelector("#metricMargin"),
+      metricTheme: document.querySelector("#metricTheme"),
+      themeList: document.querySelector("#themeList"),
+      exportBtn: document.querySelector("#exportBtn"),
+      importBtn: document.querySelector("#importBtn"),
+      dataFile: document.querySelector("#dataFile"),
+      refreshBtn: document.querySelector("#refreshBtn"),
+      primeStatus: document.querySelector("#primeStatus"),
+      nikkeiStatus: document.querySelector("#nikkeiStatus"),
+      marginStatus: document.querySelector("#marginStatus"),
+      candidateStatus: document.querySelector("#candidateStatus"),
+      qualityList: document.querySelector("#qualityList"),
+      qualitySummary: document.querySelector("#qualitySummary"),
+      technicalAsOf: document.querySelector("#technicalAsOf"),
+      technicalEmpty: document.querySelector("#technicalEmpty"),
+      technicalBody: document.querySelector("#technicalBody"),
+      selectedName: document.querySelector("#selectedName"),
+      selectedCode: document.querySelector("#selectedCode"),
+      selectedJudgement: document.querySelector("#selectedJudgement"),
+      priceChart: document.querySelector("#priceChart"),
+      chartLegend: document.querySelector("#chartLegend"),
+      chartNote: document.querySelector("#chartNote"),
+      indicatorGrid: document.querySelector("#indicatorGrid"),
+      signalList: document.querySelector("#signalList"),
+    };
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[char]));
+    }
+
+    function formatDate(value) {
+      if (!value) return "未確認";
+      const text = String(value);
+      const [date, time] = text.split("T");
+      if (!time) return date.replaceAll("-", "/");
+      return `${date.replaceAll("-", "/")} ${time.slice(0, 5)}`;
+    }
+
+    function supplyScore(item) {
+      const ratioScore = Math.max(0, 100 - (item.margin - 0.5) * 16);
+      const highScore = Math.min(100, item.monthsFromHigh / 12 * 100);
+      return Math.round(ratioScore * 0.6 + highScore * 0.4);
+    }
+
+    function totalScore(item) {
+      const liquidity = item.liquidity ?? 60;
+      const relative = item.relative ?? 60;
+      const earnings = item.earnings ?? 50;
+      const riskPenalty = item.risk ?? 50;
+      return Math.round(
+        item.theme * 0.22 +
+        supplyScore(item) * 0.22 +
+        item.technical * 0.16 +
+        relative * 0.14 +
+        earnings * 0.14 +
+        liquidity * 0.08 +
+        (100 - riskPenalty) * 0.04
+      );
+    }
+
+    function hasRequiredCandidateFields(item) {
+      return Boolean(
+        item &&
+        item.code &&
+        item.name &&
+        Array.isArray(item.themes) &&
+        Number.isFinite(item.theme) &&
+        Number.isFinite(item.margin) &&
+        Number.isFinite(item.monthsFromHigh) &&
+        Number.isFinite(item.technical) &&
+        Number.isFinite(item.liquidity) &&
+        Number.isFinite(item.relative) &&
+        Number.isFinite(item.earnings) &&
+        Number.isFinite(item.risk)
+      );
+    }
+
+    function hasCandidateEvidence(item) {
+      const required = ["marginRatio", "priceHistory", "theme", "earnings"];
+      return Boolean(
+        item?.sources &&
+        required.every(key => {
+          const source = item.sources[key];
+          return source && source.url && (source.updatedAt || source.asOf || source.checkedAt);
+        })
+      );
+    }
+
+    function statusLabel(status) {
+      const labels = {
+        available: "確認済み",
+        partial: "一部確認",
+        "file-index-only": "ファイル候補のみ",
+        "metadata-only": "ページ確認のみ",
+        "not-connected": "未接続",
+        "api-key-required": "APIキー待ち",
+        "stale-data": "鮮度不足",
+        "source-selection-required": "方式選定待ち",
+        blocked: "前提待ち",
+        error: "取得失敗",
+        "invalid-count": "要確認",
+      };
+      return labels[status] || "要確認";
+    }
+
+    function statusBadgeClass(status) {
+      return status === "available" ? "ok" : "warn";
+    }
+
+    function buildQualityChecks(dataset, stats) {
+      const existing = Array.isArray(dataset?.qualityChecks) ? dataset.qualityChecks : [];
+      const checks = existing.length ? [...existing] : [
+        {
+          label: "東証プライム上場銘柄",
+          status: dataStatus.primeLoaded ? "available" : "not-connected",
+          required: true,
+          message: dataStatus.primeLoaded ? "JPX公式一覧を確認済み" : "公式データの確認が必要です。",
+        },
+        {
+          label: "日経225採用銘柄",
+          status: dataStatus.nikkeiLoaded ? "available" : "not-connected",
+          required: true,
+          message: dataStatus.nikkeiLoaded ? "225銘柄を確認済み" : "公式データの確認が必要です。",
+        },
+        {
+          label: "信用倍率",
+          status: dataStatus.marginLoaded ? "available" : "not-connected",
+          required: true,
+          message: "銘柄別の信用倍率が必要です。",
+        },
+        {
+          label: "価格履歴・前回高値",
+          status: dataset?.sources?.priceHistory?.status || "not-connected",
+          required: true,
+          message: dataset?.sources?.priceHistory?.reason || "信頼できる価格データソースの接続が必要です。",
+        },
+        {
+          label: "テーマ人気・ニュース",
+          status: dataset?.sources?.themeNews?.status || "not-connected",
+          required: true,
+          message: dataset?.sources?.themeNews?.reason || "ニュースとテーマ判定データの接続が必要です。",
+        },
+        {
+          label: "業績・リスク",
+          status: dataset?.sources?.fundamentals?.status || "not-connected",
+          required: true,
+          message: dataset?.sources?.fundamentals?.reason || "決算、修正、イベント日程の接続が必要です。",
+        },
+      ];
+
+      checks.push({
+        label: "候補データの根拠",
+        status: stats.accepted > 0 && stats.invalid === 0 ? "available" : "not-connected",
+        required: true,
+        message: stats.raw === 0
+          ? "候補JSONは空です。根拠つきデータが入るまで表示しません。"
+          : stats.accepted + "件を採用、" + stats.invalid + "件を非表示にしました。",
+      });
+      return checks;
+    }
+
+    function renderQuality(checks) {
+      const requiredChecks = checks.filter(check => check.required !== false);
+      const okCount = requiredChecks.filter(check => check.status === "available").length;
+      el.qualitySummary.textContent = okCount + "/" + requiredChecks.length + "項目が確認済み";
+      el.qualityList.innerHTML = checks.map(check => (
+        '<div class="quality-item">' +
+          '<div class="quality-title">' +
+            '<span>' + escapeHtml(check.label) + '</span>' +
+            '<span class="badge ' + statusBadgeClass(check.status) + '">' + escapeHtml(statusLabel(check.status)) + '</span>' +
+          '</div>' +
+          '<div class="quality-message">' +
+            escapeHtml(check.message || "確認待ち") +
+            (check.url ? ' <a class="source-link" href="' + escapeHtml(check.url) + '" target="_blank" rel="noreferrer">公式仕様</a>' : '') +
+          '</div>' +
+        '</div>'
+      )).join("");
+    }
+
+    function applyDataset(dataset, sourceLabel) {
+      officialDataset = dataset;
+      const sources = dataset?.sources || {};
+      const prime = sources.primeMarket || {};
+      const nikkei = sources.nikkei225 || {};
+      const margin = sources.marginWeekly || {};
+      const rawCandidates = Array.isArray(dataset?.candidates) ? dataset.candidates : [];
+      const rawSearchUniverse = Array.isArray(dataset?.searchUniverse) ? dataset.searchUniverse : rawCandidates;
+      const rawPrices = Array.isArray(dataset?.primeMarketPrices) ? dataset.primeMarketPrices : [];
+      const fieldCheckedCandidates = rawCandidates.filter(hasRequiredCandidateFields);
+      const loadedCandidates = fieldCheckedCandidates.filter(hasCandidateEvidence);
+      const loadedSearchUniverse = rawSearchUniverse.filter(hasRequiredCandidateFields);
+
+      dataStatus.primeLoaded = prime.status === "available" && Array.isArray(dataset?.primeMarketComponents) && dataset.primeMarketComponents.length >= 1000;
+      dataStatus.nikkeiLoaded = nikkei.status === "available" && Array.isArray(dataset?.nikkei225Components) && dataset.nikkei225Components.length === 225;
+      dataStatus.marginLoaded = margin.status === "available" && (margin.scope === "per-issue" || margin.hasPerIssueData === true);
+      dataStatus.liveConnected = loadedCandidates.length > 0 && dataStatus.primeLoaded && dataStatus.nikkeiLoaded && dataStatus.marginLoaded;
+      dataStatus.message = dataStatus.liveConnected ? "検証済みデータ表示中" : "候補算出に必要なデータ待ち";
+      candidates = dataStatus.liveConnected ? loadedCandidates : [];
+      searchUniverse = dataStatus.liveConnected ? loadedSearchUniverse : [];
+      priceMetricsByCode = new Map(rawPrices.map(item => [String(item.code), item]));
+      const stats = {
+        raw: rawCandidates.length,
+        accepted: loadedCandidates.length,
+        invalid: rawCandidates.length - loadedCandidates.length,
+      };
+
+      el.primeStatus.innerHTML = dataStatus.primeLoaded
+        ? `<a class="source-link" href="${escapeHtml(prime.url)}" target="_blank" rel="noreferrer">公式</a> / ${dataset.primeMarketComponents.length}銘柄 / 基準 ${escapeHtml(formatDate(prime.asOf))}`
+        : `<span class="badge warn">未取得</span>`;
+
+      el.nikkeiStatus.innerHTML = dataStatus.nikkeiLoaded
+        ? `<a class="source-link" href="${escapeHtml(nikkei.url)}" target="_blank" rel="noreferrer">公式</a> / ${dataset.nikkei225Components.length}銘柄 / ${escapeHtml(formatDate(nikkei.updatedAt || nikkei.checkedAt))}`
+        : `<span class="badge warn">未取得</span>`;
+
+      el.marginStatus.innerHTML = dataStatus.marginLoaded
+        ? `<a class="source-link" href="${escapeHtml(margin.url)}" target="_blank" rel="noreferrer">公式</a> / 基準 ${escapeHtml(formatDate(margin.asOf))} / 公表 ${escapeHtml(formatDate(margin.updatedAt || margin.checkedAt))}`
+        : `<span class="badge warn">${escapeHtml(margin.reason || "信用倍率未取得")}</span>`;
+
+      el.candidateStatus.innerHTML = dataStatus.liveConnected
+        ? `<span class="badge ok">${escapeHtml(dataStatus.message)}</span>`
+        : `<span class="badge warn">${escapeHtml(dataStatus.message)}</span>`;
+
+      renderQuality(buildQualityChecks(dataset, stats));
+      document.querySelector(".updated").textContent = `${sourceLabel}: ${formatDate(dataset?.generatedAt)}`;
+      render();
+    }
+
+    async function loadBundledDataset() {
+      try {
+        const response = await fetch("data/latest-candidates.json", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        applyDataset(await response.json(), "公式データ読込");
+      } catch (error) {
+        el.nikkeiStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
+        el.marginStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
+        el.candidateStatus.innerHTML = `<span class="badge warn">JSON取込待ち</span>`;
+        renderQuality([
+          {
+            label: "データファイル",
+            status: "not-connected",
+            required: true,
+            message: "JSON取込ボタンから検証済みファイルを選択できます。",
+          },
+        ]);
+        document.querySelector(".updated").textContent = "JSON未読込: JSON取込ボタンから検証済みファイルを選択できます";
+        render();
+      }
+    }
+
+    async function loadSelectedFile(file) {
+      if (!file) return;
+      try {
+        const text = await file.text();
+        applyDataset(JSON.parse(text), "手動JSON読込");
+      } catch (error) {
+        el.candidateStatus.innerHTML = `<span class="badge warn">JSONを読めません</span>`;
+      }
+    }
+
+    function passesScoreConditions(item) {
+      const baseMatch = item.theme >= state.themeMin && item.margin <= state.marginMax;
+      const highMatch = state.strict ? item.monthsFromHigh >= state.highMin : item.monthsFromHigh >= Math.max(0, state.highMin - 3);
+      const factorMatch =
+        (item.liquidity ?? 60) >= state.liquidityMin &&
+        (item.relative ?? 60) >= state.relativeMin &&
+        (item.earnings ?? 50) >= state.earningsMin &&
+        (item.risk ?? 50) <= state.riskMax;
+      return baseMatch && highMatch && factorMatch;
+    }
+
+    function matches(item) {
+      const haystack = `${item.code} ${item.name} ${item.themes.join(" ")}`.toLowerCase();
+      const queryMatch = haystack.includes(state.query.toLowerCase());
+      const universeMatch = state.universe === "prime" || item.isNikkei225 === true;
+      if (state.query.trim()) return dataStatus.liveConnected && universeMatch && queryMatch;
+      return dataStatus.liveConnected && universeMatch && queryMatch && passesScoreConditions(item);
+    }
+
+    function statusFor(item) {
+      if (state.query.trim() && !passesScoreConditions(item)) return ["条件外", "bad"];
+      if (item.margin <= 2 && item.monthsFromHigh >= 6 && totalScore(item) >= 80) return ["候補", "good"];
+      if (item.margin <= state.marginMax && totalScore(item) >= 65) return ["監視", "watch"];
+      return ["条件内", "watch"];
+    }
+
+    function evidenceLink(source, label) {
+      if (!source?.url) return "";
+      return `<a href="${escapeHtml(source.url)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`;
+    }
+
+    function chartRowsFor(item) {
+      const metrics = priceMetricsByCode.get(String(item?.code || ""));
+      const rows = Array.isArray(metrics?.chartHistory) ? metrics.chartHistory : [];
+      return rows
+        .map(row => ({
+          date: String(row.date || ""),
+          open: Number(row.open),
+          high: Number(row.high),
+          low: Number(row.low),
+          close: Number(row.close),
+          volume: Number(row.volume),
+        }))
+        .filter(row => row.date && Number.isFinite(row.close) && row.close > 0);
+    }
+
+    function latestAverage(values, period) {
+      if (values.length < period) return null;
+      const slice = values.slice(-period);
+      return slice.reduce((sum, value) => sum + value, 0) / period;
+    }
+
+    function movingAverageSeries(values, period) {
+      return values.map((_, index) => {
+        if (index + 1 < period) return null;
+        const slice = values.slice(index + 1 - period, index + 1);
+        return slice.reduce((sum, value) => sum + value, 0) / period;
+      });
+    }
+
+    function standardDeviation(values) {
+      if (!values.length) return null;
+      const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+      const variance = values.reduce((sum, value) => sum + Math.pow(value - average, 2), 0) / values.length;
+      return Math.sqrt(variance);
+    }
+
+    function bollingerSeries(values, period = 20, sigma = 2) {
+      return values.map((_, index) => {
+        if (index + 1 < period) return { middle: null, upper: null, lower: null };
+        const slice = values.slice(index + 1 - period, index + 1);
+        const middle = slice.reduce((sum, value) => sum + value, 0) / period;
+        const deviation = standardDeviation(slice);
+        return {
+          middle,
+          upper: middle + deviation * sigma,
+          lower: middle - deviation * sigma,
+        };
+      });
+    }
+
+    function emaSeries(values, period) {
+      if (!values.length) return [];
+      const multiplier = 2 / (period + 1);
+      const series = [];
+      let ema = values[0];
+      values.forEach((value, index) => {
+        ema = index === 0 ? value : value * multiplier + ema * (1 - multiplier);
+        series.push(ema);
+      });
+      return series;
+    }
+
+    function rsi(values, period = 14) {
+      if (values.length <= period) return null;
+      let gains = 0;
+      let losses = 0;
+      for (let index = values.length - period; index < values.length; index += 1) {
+        const change = values[index] - values[index - 1];
+        if (change >= 0) gains += change;
+        else losses += Math.abs(change);
+      }
+      if (losses === 0) return 100;
+      const rs = gains / losses;
+      return 100 - (100 / (1 + rs));
+    }
+
+    function rsiSeries(values, period = 14) {
+      return values.map((_, index) => {
+        if (index < period) return null;
+        return rsi(values.slice(0, index + 1), period);
+      });
+    }
+
+    function macdSeries(values) {
+      if (values.length < 35) return { macdLine: [], signal: [], histogram: [] };
+      const ema12 = emaSeries(values, 12);
+      const ema26 = emaSeries(values, 26);
+      const macdLine = values.map((_, index) => ema12[index] - ema26[index]);
+      const signal = emaSeries(macdLine, 9);
+      const histogram = macdLine.map((value, index) => value - signal[index]);
+      return { macdLine, signal, histogram };
+    }
+
+    function macd(values) {
+      const series = macdSeries(values);
+      return {
+        macdLine: series.macdLine.at(-1) ?? null,
+        macdSignal: series.signal.at(-1) ?? null,
+      };
+    }
+
+    function formatPrice(value) {
+      if (!Number.isFinite(value)) return "-";
+      return value >= 1000 ? Math.round(value).toLocaleString("ja-JP") + "円" : value.toFixed(1) + "円";
+    }
+
+    function formatPercent(value) {
+      if (!Number.isFinite(value)) return "-";
+      return (value * 100).toFixed(1) + "%";
+    }
+
+    function drawTechnicalChart(rows) {
+      const canvas = el.priceChart;
+      const context = canvas.getContext("2d");
+      const bounds = canvas.getBoundingClientRect();
+      const width = Math.max(320, Math.round(bounds.width));
+      const height = Math.max(460, Math.round(bounds.height));
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+
+      const data = rows.slice(-120);
+      if (data.length < 20) return;
+      const closes = data.map(row => row.close);
+      const ma200Source = rows.map(row => row.close);
+      const ma20 = movingAverageSeries(closes, 20);
+      const ma50 = movingAverageSeries(closes, 50);
+      const ma200Full = movingAverageSeries(ma200Source, 200);
+      const ma200 = ma200Full.slice(-120);
+      const bands = bollingerSeries(closes, 20, 2);
+      const upperBand = bands.map(item => item.upper);
+      const lowerBand = bands.map(item => item.lower);
+      const hasOhlc = data.every(row =>
+        Number.isFinite(row.open) &&
+        Number.isFinite(row.high) &&
+        Number.isFinite(row.low) &&
+        Number.isFinite(row.close)
+      );
+      const hasVolume = data.some(row => Number.isFinite(row.volume) && row.volume > 0);
+      const priceValues = hasOhlc
+        ? data.flatMap(row => [row.high, row.low])
+        : closes;
+      const values = [...priceValues, ...ma20, ...ma50, ...ma200, ...upperBand, ...lowerBand].filter(Number.isFinite);
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      const padding = Math.max((max - min) * 0.08, max * 0.01);
+      const chartMin = min - padding;
+      const chartMax = max + padding;
+      const left = 44;
+      const right = 14;
+      const top = 14;
+      const priceHeight = Math.round(height * 0.48);
+      const volumeTop = top + priceHeight + 18;
+      const volumeHeight = 58;
+      const rsiTop = volumeTop + volumeHeight + 22;
+      const rsiHeight = 70;
+      const macdTop = rsiTop + rsiHeight + 24;
+      const macdHeight = height - macdTop - 28;
+      const innerWidth = width - left - right;
+      const innerHeight = priceHeight;
+      const x = index => left + (innerWidth * index / Math.max(1, data.length - 1));
+      const y = value => top + innerHeight - ((value - chartMin) / (chartMax - chartMin)) * innerHeight;
+
+      const drawPanelGrid = (panelTop, panelHeight, labels = []) => {
+        context.strokeStyle = "#e2e8f0";
+        context.lineWidth = 1;
+        context.fillStyle = "#627083";
+        context.font = "11px Yu Gothic UI, Meiryo, sans-serif";
+        for (let step = 0; step <= 2; step += 1) {
+          const lineY = panelTop + panelHeight * step / 2;
+          context.beginPath();
+          context.moveTo(left, lineY);
+          context.lineTo(width - right, lineY);
+          context.stroke();
+          if (labels[step]) context.fillText(labels[step], 4, lineY + 4);
+        }
+      };
+
+      context.strokeStyle = "#e2e8f0";
+      context.lineWidth = 1;
+      context.fillStyle = "#627083";
+      context.font = "11px Yu Gothic UI, Meiryo, sans-serif";
+      for (let step = 0; step <= 4; step += 1) {
+        const lineY = top + innerHeight * step / 4;
+        context.beginPath();
+        context.moveTo(left, lineY);
+        context.lineTo(width - right, lineY);
+        context.stroke();
+        const labelValue = chartMax - (chartMax - chartMin) * step / 4;
+        context.fillText(Math.round(labelValue).toLocaleString("ja-JP"), 4, lineY + 4);
+      }
+
+      const drawSeries = (series, color, widthLine = 2, mapY = y) => {
+        context.strokeStyle = color;
+        context.lineWidth = widthLine;
+        context.beginPath();
+        let started = false;
+        series.forEach((value, index) => {
+          if (!Number.isFinite(value)) return;
+          if (!started) {
+            context.moveTo(x(index), mapY(value));
+            started = true;
+          } else {
+            context.lineTo(x(index), mapY(value));
+          }
+        });
+        if (started) context.stroke();
+      };
+
+      const drawBandFill = () => {
+        context.beginPath();
+        let started = false;
+        upperBand.forEach((value, index) => {
+          if (!Number.isFinite(value) || !Number.isFinite(lowerBand[index])) return;
+          if (!started) {
+            context.moveTo(x(index), y(value));
+            started = true;
+          } else {
+            context.lineTo(x(index), y(value));
+          }
+        });
+        [...lowerBand].reverse().forEach((value, reverseIndex) => {
+          const index = lowerBand.length - 1 - reverseIndex;
+          if (!Number.isFinite(value) || !Number.isFinite(upperBand[index])) return;
+          context.lineTo(x(index), y(value));
+        });
+        if (started) {
+          context.closePath();
+          context.fillStyle = "rgba(36, 107, 206, .08)";
+          context.fill();
+        }
+      };
+
+      drawBandFill();
+      drawSeries(upperBand, "#8aa8d8", 1);
+      drawSeries(lowerBand, "#8aa8d8", 1);
+
+      if (hasOhlc) {
+        const candleWidth = Math.max(2, Math.min(8, innerWidth / data.length * 0.62));
+        data.forEach((row, index) => {
+          const up = row.close >= row.open;
+          const color = up ? "#0f8f6a" : "#bc3b42";
+          const centerX = x(index);
+          const openY = y(row.open);
+          const closeY = y(row.close);
+          context.strokeStyle = color;
+          context.fillStyle = color;
+          context.lineWidth = 1;
+          context.beginPath();
+          context.moveTo(centerX, y(row.high));
+          context.lineTo(centerX, y(row.low));
+          context.stroke();
+          const bodyTop = Math.min(openY, closeY);
+          const bodyHeight = Math.max(2, Math.abs(closeY - openY));
+          context.fillRect(centerX - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
+        });
+      } else {
+        drawSeries(closes, "#246bce", 2.4);
+      }
+      drawSeries(ma20, "#0f8f6a", 1.6);
+      drawSeries(ma50, "#b26a00", 1.4);
+      drawSeries(ma200, "#627083", 1.2);
+
+      context.fillStyle = "#1d2430";
+      context.font = "12px Yu Gothic UI, Meiryo, sans-serif";
+      context.fillText(hasOhlc ? "ローソク足 + BB(±2σ)" : "終値ライン + BB(±2σ)", left, top + 13);
+
+      drawPanelGrid(volumeTop, volumeHeight, ["出来高", "", ""]);
+      if (hasVolume) {
+        const maxVolume = Math.max(...data.map(row => Number(row.volume) || 0));
+        const barWidth = Math.max(1, innerWidth / data.length * 0.65);
+        data.forEach((row, index) => {
+          const barHeight = maxVolume > 0 ? (Number(row.volume) || 0) / maxVolume * volumeHeight : 0;
+          context.fillStyle = row.close >= (row.open || row.close) ? "rgba(15,143,106,.5)" : "rgba(188,59,66,.45)";
+          context.fillRect(x(index) - barWidth / 2, volumeTop + volumeHeight - barHeight, barWidth, barHeight);
+        });
+      } else {
+        context.fillStyle = "#627083";
+        context.fillText("出来高データ未取得", left + 8, volumeTop + 34);
+      }
+
+      const rsiValues = rsiSeries(closes, 14);
+      const rsiY = value => rsiTop + rsiHeight - (value / 100) * rsiHeight;
+      drawPanelGrid(rsiTop, rsiHeight, ["RSI", "50", ""]);
+      context.strokeStyle = "#f0c36a";
+      [70, 30].forEach(level => {
+        context.beginPath();
+        context.moveTo(left, rsiY(level));
+        context.lineTo(width - right, rsiY(level));
+        context.stroke();
+      });
+      drawSeries(rsiValues, "#246bce", 1.5, rsiY);
+
+      const macdValues = macdSeries(closes);
+      const macdLine = macdValues.macdLine.slice(-data.length);
+      const macdSignal = macdValues.signal.slice(-data.length);
+      const macdHistogram = macdValues.histogram.slice(-data.length);
+      const macdAbsValues = [...macdLine, ...macdSignal, ...macdHistogram]
+        .filter(Number.isFinite)
+        .map(value => Math.abs(value));
+      const macdMax = Math.max(1, ...macdAbsValues);
+      const macdMin = -macdMax;
+      const macdY = value => macdTop + macdHeight - ((value - macdMin) / (macdMax - macdMin)) * macdHeight;
+      drawPanelGrid(macdTop, macdHeight, ["MACD", "0", ""]);
+      const zeroY = macdY(0);
+      context.strokeStyle = "#cbd5df";
+      context.beginPath();
+      context.moveTo(left, zeroY);
+      context.lineTo(width - right, zeroY);
+      context.stroke();
+      const histWidth = Math.max(1, innerWidth / data.length * 0.58);
+      macdHistogram.forEach((value, index) => {
+        if (!Number.isFinite(value)) return;
+        context.fillStyle = value >= 0 ? "rgba(15,143,106,.55)" : "rgba(188,59,66,.5)";
+        const topY = macdY(Math.max(0, value));
+        const bottomY = macdY(Math.min(0, value));
+        context.fillRect(x(index) - histWidth / 2, topY, histWidth, Math.max(1, bottomY - topY));
+      });
+      drawSeries(macdLine, "#246bce", 1.5, macdY);
+      drawSeries(macdSignal, "#b26a00", 1.3, macdY);
+
+      context.fillStyle = "#1d2430";
+      context.font = "12px Yu Gothic UI, Meiryo, sans-serif";
+      context.fillText(data[0].date.slice(5).replace("-", "/"), left, height - 9);
+      context.fillText(data.at(-1).date.slice(5).replace("-", "/"), width - 56, height - 9);
+    }
+
+    function technicalSignals(item, rows, stats) {
+      const signals = [];
+      const close = stats.close;
+      if (Number.isFinite(stats.ma50) && Number.isFinite(stats.ma200)) {
+        if (close > stats.ma50 && stats.ma50 > stats.ma200) {
+          signals.push(["good", "終値が50日線を上回り、50日線も200日線の上にあります。中期トレンドは良好です。"]);
+        } else if (close < stats.ma50) {
+          signals.push(["bad", "終値が50日線を下回っています。反発確認までは監視寄りです。"]);
+        } else {
+          signals.push(["watch", "終値は50日線付近です。方向感の確認が必要です。"]);
+        }
+      }
+      if (Number.isFinite(stats.rsi)) {
+        if (stats.rsi >= 70) signals.push(["bad", "RSIが70以上で短期的な過熱感があります。"]);
+        else if (stats.rsi <= 30) signals.push(["good", "RSIが30以下で売られ過ぎ圏です。反転確認に向きます。"]);
+        else signals.push(["watch", "RSIは中立圏です。過熱・売られ過ぎの偏りは大きくありません。"]);
+      }
+      if (Number.isFinite(stats.bbUpper) && Number.isFinite(stats.bbLower)) {
+        if (close >= stats.bbUpper) signals.push(["bad", "終値がボリンジャーバンド+2σ付近です。短期の過熱に注意します。"]);
+        else if (close <= stats.bbLower) signals.push(["good", "終値がボリンジャーバンド-2σ付近です。反転候補として監視できます。"]);
+        else signals.push(["watch", "終値はボリンジャーバンド内にあります。バンド上限・下限のどちらへ寄るかを見ます。"]);
+      }
+      if (Number.isFinite(stats.macdLine) && Number.isFinite(stats.macdSignal)) {
+        signals.push(stats.macdLine > stats.macdSignal
+          ? ["good", "MACDはシグナルを上回っています。短期モメンタムは上向きです。"]
+          : ["watch", "MACDはシグナル以下です。勢いの回復待ちです。"]);
+      }
+      if (Number.isFinite(item.return20)) {
+        signals.push(item.return20 > 0
+          ? ["good", "直近20営業日のリターンはプラスです。"]
+          : ["watch", "直近20営業日のリターンはマイナスです。"]);
+      }
+      return signals.slice(0, 4);
+    }
+
+    function currentRows() {
+      const key = state.sortBy;
+      const sourceRows = state.query.trim() ? searchUniverse : candidates;
+      return sourceRows
+        .map(item => ({
+          ...item,
+          liquidity: item.liquidity ?? 60,
+          relative: item.relative ?? 60,
+          earnings: item.earnings ?? 50,
+          risk: item.risk ?? 50,
+          score: totalScore(item),
+          supply: supplyScore(item)
+        }))
+        .filter(matches)
+        .sort((a, b) => b[key] - a[key]);
+    }
+
+    function renderRows(rows) {
+      if (rows.length && !rows.some(item => String(item.code) === state.selectedCode)) {
+        state.selectedCode = String(rows[0].code);
+      }
+      if (!rows.length) state.selectedCode = "";
+      el.rows.innerHTML = rows.map(item => {
+        const [label, className] = statusFor(item);
+        const selectedClass = String(item.code) === state.selectedCode ? " selected-row" : "";
+        return `
+          <tr class="${selectedClass}" data-code="${escapeHtml(item.code)}" tabindex="0">
+            <td>
+              <div class="code">${escapeHtml(item.code)}</div>
+              <div class="name">${escapeHtml(item.name)}</div>
+              <div class="evidence-links">
+                ${evidenceLink(item.sources?.priceHistory, "価格")}
+                ${evidenceLink(item.sources?.priceValidation, "価格照合")}
+                ${evidenceLink(item.sources?.marginRatio, "信用")}
+                ${evidenceLink(item.sources?.theme, "テーマ")}
+                ${evidenceLink(item.sources?.earnings, "業績")}
+              </div>
+            </td>
+            <td><div class="pill-row">${item.themes.map(t => `<span class="pill">${escapeHtml(t)}</span>`).join("")}</div></td>
+            <td><span class="score">${item.score}</span></td>
+            <td>
+              <strong>${item.margin.toFixed(1)}倍</strong>
+              <div class="theme-meta">${escapeHtml(item.supplyMemo || "検証済み")}</div>
+            </td>
+            <td>${item.monthsFromHigh}か月</td>
+            <td>
+              <div>RS ${item.relative ?? "-"} / 業績 ${item.earnings ?? "-"}</div>
+              <div class="bar" aria-label="相対強度"><span style="width:${item.relative ?? 0}%"></span></div>
+            </td>
+            <td><span class="status ${className}">${label}</span></td>
+          </tr>
+        `;
+      }).join("");
+      el.empty.hidden = rows.length > 0;
+    }
+
+    function renderThemes(rows) {
+      if (!dataStatus.liveConnected) {
+        el.themeList.innerHTML = `
+          <div class="theme-item">
+            <div>
+              <div class="theme-name">未表示</div>
+              <div class="theme-meta">ニュース・価格・対象銘柄の照合後に表示します</div>
+            </div>
+            <div class="rank">待</div>
+          </div>
+        `;
+        el.metricTheme.textContent = "-";
+        return;
+      }
+      const counts = new Map();
+      candidates.filter(item => state.universe === "prime" || item.isNikkei225 === true).forEach(item => {
+        item.themes.forEach(theme => {
+          const current = counts.get(theme) || { total: 0, score: 0 };
+          current.total += 1;
+          current.score += item.theme;
+          counts.set(theme, current);
+        });
+      });
+      const themes = [...counts.entries()]
+        .map(([name, value]) => ({ name, total: value.total, score: Math.round(value.score / value.total) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 6);
+      el.themeList.innerHTML = themes.map((theme, index) => `
+        <div class="theme-item">
+          <div>
+            <div class="theme-name">${escapeHtml(theme.name)}</div>
+            <div class="theme-meta">${theme.total}銘柄 / 人気度 ${theme.score}</div>
+          </div>
+          <div class="rank">${index + 1}</div>
+        </div>
+      `).join("");
+      el.metricTheme.textContent = rows[0]?.themes[0] || themes[0]?.name || "-";
+    }
+
+    function renderTechnical(rows) {
+      const item = rows.find(row => String(row.code) === state.selectedCode);
+      if (!dataStatus.liveConnected || !item) {
+        el.technicalAsOf.textContent = "銘柄未選択";
+        el.technicalEmpty.hidden = false;
+        el.technicalBody.hidden = true;
+        return;
+      }
+
+      const priceMetrics = priceMetricsByCode.get(String(item.code)) || {};
+      const chartRows = chartRowsFor(item);
+      if (chartRows.length < 50) {
+        el.technicalAsOf.textContent = "履歴不足";
+        el.technicalEmpty.textContent = "この銘柄はチャート表示に必要な価格履歴が不足しています。";
+        el.technicalEmpty.hidden = false;
+        el.technicalBody.hidden = true;
+        return;
+      }
+
+      const closes = chartRows.map(row => row.close);
+      const latestBands = bollingerSeries(closes, 20, 2).at(-1) || {};
+      const hasOhlc = chartRows.every(row =>
+        Number.isFinite(row.open) &&
+        Number.isFinite(row.high) &&
+        Number.isFinite(row.low) &&
+        Number.isFinite(row.close)
+      );
+      const stats = {
+        close: closes.at(-1),
+        ma20: latestAverage(closes, 20),
+        ma50: latestAverage(closes, 50),
+        ma200: latestAverage(closes, 200),
+        bbUpper: latestBands.upper,
+        bbLower: latestBands.lower,
+        rsi: rsi(closes, 14),
+        ...macd(closes),
+      };
+      const [label, className] = statusFor(item);
+      el.technicalAsOf.textContent = `基準 ${formatDate(priceMetrics.asOf || item.priceAsOf)}`;
+      el.technicalEmpty.hidden = true;
+      el.technicalBody.hidden = false;
+      el.selectedName.textContent = item.name;
+      el.selectedCode.textContent = `${item.code} / ${item.isNikkei225 ? "日経225" : "東証プライム"}`;
+      el.selectedJudgement.textContent = label;
+      el.selectedJudgement.className = `badge ${className === "good" ? "ok" : "warn"}`;
+      el.chartLegend.innerHTML = [
+        ["#246bce", hasOhlc ? "ローソク足" : "終値"],
+        ["#8aa8d8", "BB ±2σ"],
+        ["#0f8f6a", "MA20"],
+        ["#b26a00", "MA50 / MACD Signal"],
+        ["#627083", "MA200"],
+      ].map(([color, text]) => `
+        <span class="legend-item"><span class="legend-line" style="background:${color}"></span>${escapeHtml(text)}</span>
+      `).join("");
+      el.chartNote.textContent = hasOhlc
+        ? "この銘柄は詳細OHLCVを取得済みのため、ローソク足・出来高・RSI・MACDを表示しています。"
+        : "この銘柄は詳細OHLCVがないため、終値ラインで表示しています。出来高とローソク足は候補銘柄の詳細取得時に表示されます。";
+      el.indicatorGrid.innerHTML = [
+        ["チャート", hasOhlc ? "ローソク足" : "終値ライン"],
+        ["終値", formatPrice(stats.close)],
+        ["MA20", formatPrice(stats.ma20)],
+        ["MA50", formatPrice(stats.ma50)],
+        ["MA200", formatPrice(stats.ma200)],
+        ["BB +2σ", formatPrice(stats.bbUpper)],
+        ["BB -2σ", formatPrice(stats.bbLower)],
+        ["RSI14", Number.isFinite(stats.rsi) ? stats.rsi.toFixed(1) : "-"],
+        ["MACD", Number.isFinite(stats.macdLine) && Number.isFinite(stats.macdSignal)
+          ? `${stats.macdLine.toFixed(1)} / ${stats.macdSignal.toFixed(1)}`
+          : "-"],
+        ["20日騰落", formatPercent(priceMetrics.return20)],
+        ["年率ボラ", formatPercent(priceMetrics.annualizedVolatility)],
+      ].map(([labelText, value]) => `
+        <div class="indicator">
+          <div class="indicator-label">${escapeHtml(labelText)}</div>
+          <div class="indicator-value">${escapeHtml(value)}</div>
+        </div>
+      `).join("");
+      el.signalList.innerHTML = technicalSignals(priceMetrics, chartRows, stats).map(([tone, text]) => `
+        <div class="signal-item">
+          <span class="signal-dot ${tone}"></span>
+          <span>${escapeHtml(text)}</span>
+        </div>
+      `).join("");
+      requestAnimationFrame(() => drawTechnicalChart(chartRows));
+    }
+
+    function renderMetrics(rows) {
+      const avg = (values) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      el.metricCandidates.textContent = rows.length;
+      el.metricScore.textContent = rows.length ? Math.round(avg(rows.map(item => item.score))) : "-";
+      el.metricMargin.textContent = rows.length ? avg(rows.map(item => item.margin)).toFixed(1) : "-";
+      el.resultCount.textContent = `${rows.length}件`;
+    }
+
+    function syncLabels() {
+      el.themeValue.textContent = `${state.themeMin}以上`;
+      el.marginValue.textContent = `${Number(state.marginMax).toFixed(1)}倍以下`;
+      el.highValue.textContent = `${state.highMin}か月以上`;
+      el.liquidityValue.textContent = `${state.liquidityMin}以上`;
+      el.relativeValue.textContent = `${state.relativeMin}以上`;
+      el.earningsValue.textContent = `${state.earningsMin}以上`;
+      el.riskValue.textContent = `${state.riskMax}以下`;
+      el.strictMode.classList.toggle("active", state.strict);
+      el.watchMode.classList.toggle("active", !state.strict);
+      el.primeUniverse.classList.toggle("active", state.universe === "prime");
+      el.nikkeiUniverse.classList.toggle("active", state.universe === "nikkei225");
+    }
+
+    function render() {
+      syncLabels();
+      const rows = currentRows();
+      renderRows(rows);
+      renderTechnical(rows);
+      renderThemes(rows);
+      renderMetrics(rows);
+    }
+
+    function downloadCsv() {
+      const rows = currentRows();
+      const header = ["コード", "銘柄", "テーマ", "総合スコア", "信用倍率", "前回高値から", "流動性", "相対強度", "業績", "リスク", "判定"];
+      const body = rows.map(item => {
+        const [label] = statusFor(item);
+        return [item.code, item.name, item.themes.join("/"), item.score, item.margin, item.monthsFromHigh, item.liquidity, item.relative, item.earnings, item.risk, label];
+      });
+      const csv = [header, ...body].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
+      const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "capital-gain-candidates.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    el.themeMin.addEventListener("input", event => {
+      state.themeMin = Number(event.target.value);
+      render();
+    });
+    el.marginMax.addEventListener("input", event => {
+      state.marginMax = Number(event.target.value);
+      render();
+    });
+    el.highMin.addEventListener("input", event => {
+      state.highMin = Number(event.target.value);
+      render();
+    });
+    el.liquidityMin.addEventListener("input", event => {
+      state.liquidityMin = Number(event.target.value);
+      render();
+    });
+    el.relativeMin.addEventListener("input", event => {
+      state.relativeMin = Number(event.target.value);
+      render();
+    });
+    el.earningsMin.addEventListener("input", event => {
+      state.earningsMin = Number(event.target.value);
+      render();
+    });
+    el.riskMax.addEventListener("input", event => {
+      state.riskMax = Number(event.target.value);
+      render();
+    });
+    el.sortBy.addEventListener("change", event => {
+      state.sortBy = event.target.value;
+      render();
+    });
+    el.primeUniverse.addEventListener("click", () => {
+      state.universe = "prime";
+      render();
+    });
+    el.nikkeiUniverse.addEventListener("click", () => {
+      state.universe = "nikkei225";
+      render();
+    });
+    el.strictMode.addEventListener("click", () => {
+      state.strict = true;
+      render();
+    });
+    el.watchMode.addEventListener("click", () => {
+      state.strict = false;
+      render();
+    });
+    el.searchBox.addEventListener("input", event => {
+      state.query = event.target.value;
+      render();
+    });
+    el.rows.addEventListener("click", event => {
+      const row = event.target.closest("tr[data-code]");
+      if (!row) return;
+      state.selectedCode = row.dataset.code;
+      render();
+    });
+    el.rows.addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const row = event.target.closest("tr[data-code]");
+      if (!row) return;
+      event.preventDefault();
+      state.selectedCode = row.dataset.code;
+      render();
+    });
+    el.exportBtn.addEventListener("click", downloadCsv);
+    el.importBtn.addEventListener("click", () => {
+      el.dataFile.click();
+    });
+    el.dataFile.addEventListener("change", event => {
+      loadSelectedFile(event.target.files?.[0]);
+    });
+    el.refreshBtn.addEventListener("click", loadBundledDataset);
+    window.addEventListener("resize", () => {
+      const rows = currentRows();
+      renderTechnical(rows);
+    });
+
+    loadBundledDataset();
+  </script>
+</body>
+</html>
