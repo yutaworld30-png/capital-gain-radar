@@ -882,7 +882,7 @@ def collect_edinet_fundamentals(
     reusable_metrics = previous_metrics if isinstance(previous_metrics, list) else []
     raw_api_key = os.environ.get("EDINET_API_KEY", "")
     ascii_tokens = re.findall(r"[A-Za-z0-9_-]{20,}", raw_api_key)
-    api_key = max(ascii_tokens, key=len) if ascii_tokens else re.sub(r"\s+", "", raw_api_key)
+    api_key = max(ascii_tokens, key=len) if ascii_tokens else ""
     if not api_key:
         if reusable_metrics:
             dataset["edinetFundamentals"] = reusable_metrics
