@@ -880,7 +880,7 @@ def collect_edinet_fundamentals(
 
     previous_metrics = previous_dataset.get("edinetFundamentals")
     reusable_metrics = previous_metrics if isinstance(previous_metrics, list) else []
-    api_key = os.environ.get("EDINET_API_KEY", "").strip()
+    api_key = re.sub(r"\s+", "", os.environ.get("EDINET_API_KEY", ""))
     if not api_key:
         if reusable_metrics:
             dataset["edinetFundamentals"] = reusable_metrics
