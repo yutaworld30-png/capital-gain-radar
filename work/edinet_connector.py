@@ -147,6 +147,7 @@ def _find_value(
     contexts: dict[str, dict[str, object]],
     tag_names: tuple[str, ...],
     duration: bool,
+    consolidated_only: bool = True,
 ) -> tuple[float | None, str | None]:
     candidates: list[tuple[str, float]] = []
     for element in root.iter():
@@ -157,7 +158,9 @@ def _find_value(
         if value is None:
             continue
         context = contexts.get(element.attrib.get("contextRef", ""))
-        if not context or not context.get("consolidated", False):
+        if not context:
+            continue
+        if consolidated_only and not context.get("consolidated", False):
             continue
         key = str(context.get("endDate" if duration else "instant") or "")
         if duration and not context.get("startDate"):
@@ -169,6 +172,18 @@ def _find_value(
         return None, None
     candidates.sort(key=lambda item: item[0])
     return candidates[-1][1], candidates[-1][0]
+
+
+def _find_best_value(
+    root: ElementTree.Element,
+    contexts: dict[str, dict[str, object]],
+    tag_names: tuple[str, ...],
+    duration: bool,
+) -> tuple[float | None, str | None]:
+    value, as_of = _find_value(root, contexts, tag_names, duration, consolidated_only=True)
+    if value is not None:
+        return value, as_of
+    return _find_value(root, contexts, tag_names, duration, consolidated_only=False)
 
 
 def _ratio(numerator: float | None, denominator: float | None) -> float | None:
@@ -195,36 +210,68 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         root = ElementTree.fromstring(archive.read(xbrl_name))
 
     contexts = _contexts(root)
-    assets, instant_as_of = _find_value(root, contexts, (
+    assets, instant_as_of = _find_best_value(root, contexts, (
         "Assets",
         "AssetsIFRS",
     ), duration=False)
-    equity, equity_as_of = _find_value(root, contexts, (
+    equity, equity_as_of = _find_best_value(root, contexts, (
         "Equity",
         "EquityAttributableToOwnersOfParent",
         "NetAssets",
         "NetAssetsSummaryOfBusinessResults",
     ), duration=False)
-    profit, duration_as_of = _find_value(root, contexts, (
+    profit, duration_as_of = _find_best_value(root, contexts, (
         "ProfitLossAttributableToOwnersOfParent",
         "ProfitLoss",
         "ProfitLossIFRS",
         "NetIncomeLoss",
+        "NetIncomeLossAttributableToOwnersOfParent",
     ), duration=True)
-    eps, _ = _find_value(root, contexts, (
+    eps, _ = _find_best_value(root, contexts, (
         "BasicEarningsLossPerShare",
         "BasicEarningsLossPerShareSummaryOfBusinessResults",
+        "BasicEarningsLossPerShareIFRS",
+        "BasicEarningsLossPerShareUSGAAP",
     ), duration=True)
-    bps, _ = _find_value(root, contexts, (
+    bps, _ = _find_best_value(root, contexts, (
         "NetAssetsPerShare",
         "EquityAttributableToOwnersOfParentPerShare",
         "NetAssetsPerShareSummaryOfBusinessResults",
+        "EquityAttributableToOwnersOfParentPerShareIFRS",
     ), duration=False)
-    dps, _ = _find_value(root, contexts, (
+    dps, _ = _find_best_value(root, contexts, (
         "DividendPaidPerShare",
         "AnnualDividendsPerShare",
         "CashDividendsPerShare",
+        "CashDividendsPerShareSummaryOfBusinessResults",
+        "DividendPerShare",
     ), duration=True)
+    issued_shares, _ = _find_best_value(root, contexts, (
+        "TotalNumberOfIssuedShares",
+        "TotalNumberOfIssuedSharesSummaryOfBusinessResults",
+        "NumberOfIssuedAndOutstandingSharesAtTheEndOfFiscalYearIncludingTreasuryStock",
+        "NumberOfIssuedAndOutstandingSharesAtTheEndOfFiscalYear",
+        "IssuedSharesTotalNumberOfSharesEtc",
+        "TotalNumberOfIssuedSharesAsOfFiscalYearEndIssuedSharesTotalNumberOfSharesEtc",
+    ), duration=False)
+    treasury_shares, _ = _find_best_value(root, contexts, (
+        "NumberOfTreasuryStockAtTheEndOfFiscalYear",
+        "NumberOfTreasuryStockAtTheEndOfFiscalYearTreasuryStockEtc",
+        "TreasuryStockShares",
+    ), duration=False)
+    average_shares, _ = _find_best_value(root, contexts, (
+        "AverageNumberOfShares",
+        "AverageNumberOfSharesSummaryOfBusinessResults",
+        "AverageNumberOfSharesDuringTheFiscalYear",
+        "AverageNumberOfSharesDuringThePeriod",
+    ), duration=True)
+    shares_outstanding = None
+    if issued_shares is not None:
+        shares_outstanding = max(0, issued_shares - (treasury_shares or 0))
+    if eps is None:
+        eps = _ratio(profit, average_shares or shares_outstanding)
+    if bps is None:
+        bps = _ratio(equity, shares_outstanding)
 
     return {
         "assets": assets,
@@ -233,6 +280,10 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         "eps": eps,
         "bps": bps,
         "dps": dps,
+        "issuedShares": issued_shares,
+        "treasuryShares": treasury_shares,
+        "sharesOutstanding": shares_outstanding,
+        "averageShares": average_shares,
         "roe": _ratio(profit, equity),
         "roa": _ratio(profit, assets),
         "equityRatio": _ratio(equity, assets),
@@ -251,8 +302,14 @@ def calculate_valuation_metrics(
     dps = fundamentals.get("dps")
     equity = fundamentals.get("equity")
     profit = fundamentals.get("profit")
+    shares_outstanding = fundamentals.get("sharesOutstanding")
     return {
         **fundamentals,
+        "marketCap": (
+            close * shares_outstanding
+            if close is not None and isinstance(shares_outstanding, (int, float)) and shares_outstanding > 0
+            else None
+        ),
         "per": _ratio(close, eps if isinstance(eps, (int, float)) else None),
         "pbr": _ratio(close, bps if isinstance(bps, (int, float)) else None),
         "dividendYield": _ratio(dps if isinstance(dps, (int, float)) else None, close),
