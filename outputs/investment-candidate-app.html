@@ -464,7 +464,7 @@
 
     .source-strip {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 10px;
       margin-bottom: 16px;
     }
@@ -889,6 +889,10 @@
             <option value="liquidity">売買代金</option>
             <option value="relative">相対強度</option>
             <option value="earnings">業績</option>
+            <option value="valuation">割安・収益性</option>
+            <option value="per">PER低い順</option>
+            <option value="pbr">PBR低い順</option>
+            <option value="roe">ROE高い順</option>
           </select>
         </div>
       </div>
@@ -927,6 +931,10 @@
         <div class="source-card">
           <div class="source-label">信用取引週末残高</div>
           <div class="source-value" id="marginStatus">未読込</div>
+        </div>
+        <div class="source-card">
+          <div class="source-label">EDINET財務指標</div>
+          <div class="source-value" id="edinetStatus">未読込</div>
         </div>
         <div class="source-card">
           <div class="source-label">候補表示</div>
@@ -977,6 +985,7 @@
                   <th>総合</th>
                   <th>信用倍率</th>
                   <th>終値高値</th>
+                  <th>PER/PBR/ROE</th>
                   <th>追加評価</th>
                   <th>判定</th>
                   <th>監視</th>
@@ -1120,6 +1129,7 @@
       primeStatus: document.querySelector("#primeStatus"),
       nikkeiStatus: document.querySelector("#nikkeiStatus"),
       marginStatus: document.querySelector("#marginStatus"),
+      edinetStatus: document.querySelector("#edinetStatus"),
       candidateStatus: document.querySelector("#candidateStatus"),
       qualityList: document.querySelector("#qualityList"),
       qualitySummary: document.querySelector("#qualitySummary"),
@@ -1194,18 +1204,42 @@
       return Math.round(ratioScore * 0.6 + highScore * 0.4);
     }
 
+    function rangeScore(value, low, high, lowerIsBetter) {
+      if (!Number.isFinite(value)) return 50;
+      if (lowerIsBetter) {
+        if (value <= low) return 100;
+        if (value >= high) return 0;
+        return Math.round(100 - (value - low) / (high - low) * 100);
+      }
+      if (value >= high) return 100;
+      if (value <= low) return 0;
+      return Math.round((value - low) / (high - low) * 100);
+    }
+
+    function valuationScore(item) {
+      const per = valueFrom(item, ["per", "PER"]);
+      const pbr = valueFrom(item, ["pbr", "PBR"]);
+      const roe = valueFrom(item, ["roe", "ROE"]);
+      const perScore = !Number.isFinite(per) || per <= 0 ? 50 : rangeScore(per, 8, 35, true);
+      const pbrScore = !Number.isFinite(pbr) || pbr <= 0 ? 50 : rangeScore(pbr, 0.8, 5, true);
+      const roeScore = rangeScore(roe, 0, 0.18, false);
+      return Math.round(perScore * 0.35 + pbrScore * 0.25 + roeScore * 0.4);
+    }
+
     function totalScore(item) {
       const liquidity = item.liquidity ?? 60;
       const relative = item.relative ?? 60;
       const earnings = item.earnings ?? 50;
       const riskPenalty = item.risk ?? 50;
+      const valuation = item.valuation ?? valuationScore(item);
       return Math.round(
-        item.theme * 0.22 +
-        supplyScore(item) * 0.22 +
-        item.technical * 0.16 +
-        relative * 0.14 +
-        earnings * 0.14 +
-        liquidity * 0.08 +
+        item.theme * 0.20 +
+        supplyScore(item) * 0.20 +
+        item.technical * 0.15 +
+        relative * 0.13 +
+        earnings * 0.13 +
+        liquidity * 0.07 +
+        valuation * 0.08 +
         (100 - riskPenalty) * 0.04
       );
     }
@@ -1344,6 +1378,7 @@
       const prime = sources.primeMarket || {};
       const nikkei = sources.nikkei225 || {};
       const margin = sources.marginWeekly || {};
+      const edinet = sources.edinetFundamentals || {};
       const rawCandidates = Array.isArray(dataset?.candidates) ? dataset.candidates : [];
       const rawSearchUniverse = Array.isArray(dataset?.searchUniverse) ? dataset.searchUniverse : rawCandidates;
       const rawPrices = Array.isArray(dataset?.primeMarketPrices) ? dataset.primeMarketPrices : [];
@@ -1377,6 +1412,10 @@
         ? `<a class="source-link" href="${escapeHtml(margin.url)}" target="_blank" rel="noreferrer">公式</a> / 基準 ${escapeHtml(formatDate(margin.asOf))} / 公表 ${escapeHtml(formatDate(margin.updatedAt || margin.checkedAt))}`
         : `<span class="badge warn">${escapeHtml(margin.reason || "信用倍率未取得")}</span>`;
 
+      el.edinetStatus.innerHTML = edinet.status === "available" || edinet.recordCount
+        ? `<a class="source-link" href="${escapeHtml(edinet.url)}" target="_blank" rel="noreferrer">公式</a> / ${Number(edinet.recordCount || 0)}銘柄 / PER ${Number(edinet.perCount || 0)}・PBR ${Number(edinet.pbrCount || 0)}・ROE ${Number(edinet.roeCount || 0)}`
+        : `<span class="badge warn">${escapeHtml(edinet.reason || "EDINET未取得")}</span>`;
+
       el.candidateStatus.innerHTML = dataStatus.liveConnected
         ? `<span class="badge ok">${escapeHtml(dataStatus.message)}</span>`
         : `<span class="badge warn">${escapeHtml(dataStatus.message)}</span>`;
@@ -1394,6 +1433,7 @@
       } catch (error) {
         el.nikkeiStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
         el.marginStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
+        el.edinetStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
         el.candidateStatus.innerHTML = `<span class="badge warn">JSON取込待ち</span>`;
         renderQuality([
           {
@@ -1559,6 +1599,14 @@
 
     function formatRatio(value, suffix = "倍") {
       return Number.isFinite(value) ? `${value.toFixed(2)}${suffix}` : "未取得";
+    }
+
+    function formatCompactRatio(value) {
+      return Number.isFinite(value) ? value.toFixed(1) : "-";
+    }
+
+    function formatCompactPercent(value) {
+      return Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "-";
     }
 
     function formatMarketCap(value) {
@@ -1887,6 +1935,27 @@
       return signals.slice(0, 4);
     }
 
+    function sortValue(item, key) {
+      if (["per", "pbr", "roe"].includes(key)) {
+        return valueFrom(item, [key, key.toUpperCase()]);
+      }
+      return item[key];
+    }
+
+    function compareRows(a, b, key) {
+      const aRaw = sortValue(a, key);
+      const bRaw = sortValue(b, key);
+      const aValue = Number(aRaw);
+      const bValue = Number(bRaw);
+      const aValid = aRaw !== null && aRaw !== undefined && aRaw !== "" && Number.isFinite(aValue);
+      const bValid = bRaw !== null && bRaw !== undefined && bRaw !== "" && Number.isFinite(bValue);
+      if (aValid && !bValid) return -1;
+      if (!aValid && bValid) return 1;
+      if (!aValid && !bValid) return b.score - a.score;
+      if (["per", "pbr"].includes(key)) return aValue - bValue || b.score - a.score;
+      return bValue - aValue || b.score - a.score;
+    }
+
     function currentRows() {
       const key = state.sortBy;
       const rankedRows = searchUniverse
@@ -1896,11 +1965,12 @@
           relative: item.relative ?? 60,
           earnings: item.earnings ?? 50,
           risk: item.risk ?? 50,
+          valuation: item.valuation ?? valuationScore(item),
           score: totalScore(item),
           supply: supplyScore(item)
         }))
         .filter(matches)
-        .sort((a, b) => b[key] - a[key]);
+        .sort((a, b) => compareRows(a, b, key));
 
       if (state.view === "theme") {
         return topRowsByGroup(rankedRows, item => item.themes);
@@ -1950,6 +2020,7 @@
                 ${evidenceLink(item.sources?.marginRatio, "信用")}
                 ${evidenceLink(item.sources?.theme, "テーマ")}
                 ${evidenceLink(item.sources?.earnings, "業績")}
+                ${evidenceLink(item.sources?.edinet, "EDINET")}
               </div>
             </td>
             <td><div class="pill-row">${item.themes.map(t => `<span class="pill">${escapeHtml(t)}</span>`).join("")}</div></td>
@@ -1960,6 +2031,10 @@
               <div class="theme-meta">${escapeHtml(item.supplyMemo || "検証済み")}</div>
             </td>
             <td>${item.monthsFromHigh}か月</td>
+            <td>
+              <div>PER ${formatCompactRatio(valueFrom(item, ["per", "PER"]))}</div>
+              <div class="theme-meta">PBR ${formatCompactRatio(valueFrom(item, ["pbr", "PBR"]))} / ROE ${formatCompactPercent(valueFrom(item, ["roe", "ROE"]))} / 評価 ${item.valuation ?? "-"}</div>
+            </td>
             <td>
               <div>RS ${item.relative ?? "-"} / 業績 ${item.earnings ?? "-"}</div>
               <div class="bar" aria-label="相対強度"><span style="width:${item.relative ?? 0}%"></span></div>
@@ -2155,10 +2230,10 @@
 
     function downloadCsv() {
       const rows = currentRows();
-      const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "信用倍率", "前回高値から", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
+      const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "信用倍率", "前回高値から", "PER", "PBR", "ROE", "割安・収益性", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
       const body = rows.map(item => {
         const [label] = statusFor(item);
-        return [item.groupLabel || "", item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.margin, item.monthsFromHigh, item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
+        return [item.groupLabel || "", item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.margin, item.monthsFromHigh, valueFrom(item, ["per", "PER"]) ?? "", valueFrom(item, ["pbr", "PBR"]) ?? "", valueFrom(item, ["roe", "ROE"]) ?? "", item.valuation ?? "", item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
       });
       const csv = [header, ...body].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });

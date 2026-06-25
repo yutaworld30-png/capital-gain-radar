@@ -832,20 +832,76 @@ def _supply_score(item: dict[str, object]) -> int:
     return round(ratio_score * 0.6 + high_score * 0.4)
 
 
+def _numeric_value(item: dict[str, object], key: str) -> float | None:
+    value = item.get(key)
+    if isinstance(value, (int, float)):
+        return float(value)
+    fundamentals = item.get("fundamentals")
+    if isinstance(fundamentals, dict):
+        value = fundamentals.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
+
+def _range_score(value: float | None, low: float, high: float, *, lower_is_better: bool) -> int:
+    if value is None:
+        return 50
+    if lower_is_better:
+        if value <= low:
+            return 100
+        if value >= high:
+            return 0
+        return round(100 - (value - low) / (high - low) * 100)
+    if value >= high:
+        return 100
+    if value <= low:
+        return 0
+    return round((value - low) / (high - low) * 100)
+
+
+def _valuation_score(item: dict[str, object]) -> int:
+    per = _numeric_value(item, "per")
+    pbr = _numeric_value(item, "pbr")
+    roe = _numeric_value(item, "roe")
+    per_score = 50 if per is None or per <= 0 else _range_score(per, 8, 35, lower_is_better=True)
+    pbr_score = 50 if pbr is None or pbr <= 0 else _range_score(pbr, 0.8, 5, lower_is_better=True)
+    roe_score = _range_score(roe, 0.0, 0.18, lower_is_better=False)
+    return round(per_score * 0.35 + pbr_score * 0.25 + roe_score * 0.4)
+
+
 def _total_score(item: dict[str, object]) -> int:
     liquidity = int(item.get("liquidity") or 60)
     relative = int(item.get("relative") or 60)
     earnings = int(item.get("earnings") or 50)
     risk = int(item.get("risk") or 50)
+    valuation = int(item.get("valuation") or _valuation_score(item))
     return round(
-        int(item.get("theme") or 0) * 0.22
-        + _supply_score(item) * 0.22
-        + int(item.get("technical") or 0) * 0.16
-        + relative * 0.14
-        + earnings * 0.14
-        + liquidity * 0.08
+        int(item.get("theme") or 0) * 0.20
+        + _supply_score(item) * 0.20
+        + int(item.get("technical") or 0) * 0.15
+        + relative * 0.13
+        + earnings * 0.13
+        + liquidity * 0.07
+        + valuation * 0.08
         + (100 - risk) * 0.04
     )
+
+
+def _count_numeric(metrics: list[dict[str, object]], key: str) -> int:
+    return sum(1 for item in metrics if isinstance(item.get(key), (int, float)))
+
+
+def _attach_scores(dataset: dict[str, object]) -> None:
+    for key in ("searchUniverse", "candidates"):
+        rows = dataset.get(key)
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            if isinstance(row, dict):
+                row["supply"] = _supply_score(row)
+                row["valuation"] = _valuation_score(row)
+                row["score"] = _total_score(row)
 
 
 def collect_edinet_fundamentals(
@@ -873,6 +929,8 @@ def collect_edinet_fundamentals(
                 metric = metric_map.get(str(row.get("code")))
                 if metric:
                     row["fundamentals"] = metric
+                    for field in ("per", "pbr", "roe", "marketCap", "dividendYield", "equityRatio"):
+                        row[field] = metric.get(field)
                     row.setdefault("sources", {})["edinet"] = {  # type: ignore[index]
                         "url": metric.get("url"),
                         "updatedAt": metric.get("asOf") or metric.get("submitDateTime"),
@@ -889,6 +947,9 @@ def collect_edinet_fundamentals(
             attach(reusable_metrics)  # type: ignore[arg-type]
             source["status"] = "api-key-required"
             source["recordCount"] = len(reusable_metrics)
+            source["perCount"] = _count_numeric(reusable_metrics, "per")
+            source["pbrCount"] = _count_numeric(reusable_metrics, "pbr")
+            source["roeCount"] = _count_numeric(reusable_metrics, "roe")
             source["checkedAt"] = generated_at
             source["reason"] = "EDINET_API_KEY未設定のため、前回取得済みのEDINET財務指標を再利用しました。"
         else:
@@ -949,6 +1010,9 @@ def collect_edinet_fundamentals(
     source["status"] = "available" if metrics else "partial"
     source["recordCount"] = len(metrics)
     source["targetCount"] = len(target_codes)
+    source["perCount"] = _count_numeric(metrics, "per")
+    source["pbrCount"] = _count_numeric(metrics, "pbr")
+    source["roeCount"] = _count_numeric(metrics, "roe")
     source["checkedAt"] = generated_at
     source["errors"] = errors[:10]
     source["reason"] = (
@@ -1158,6 +1222,7 @@ def main() -> None:
         collect_free_market_metrics(dataset, generated_at, previous_dataset)
     collect_tdnet_and_build_candidates(dataset, generated_at)
     collect_edinet_fundamentals(dataset, generated_at, previous_dataset)
+    _attach_scores(dataset)
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     sources = dataset["sources"]  # type: ignore[assignment]
