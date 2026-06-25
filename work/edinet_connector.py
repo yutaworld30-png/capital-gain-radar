@@ -179,13 +179,19 @@ def _ratio(numerator: float | None, denominator: float | None) -> float | None:
 
 def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
     with zipfile.ZipFile(BytesIO(zip_bytes)) as archive:
-        names = [
-            name for name in archive.namelist()
-            if name.endswith(".xbrl") and "/XBRL/PublicDoc/" in name
-        ]
+        names = [name for name in archive.namelist() if name.lower().endswith(".xbrl")]
         if not names:
             raise EdinetError("EDINET ZIP内にPublicDocのXBRLがありません。")
-        xbrl_name = sorted(names, key=len)[0]
+        def priority(name: str) -> tuple[int, int, int, int]:
+            lowered = name.lower().replace("\\", "/")
+            return (
+                0 if "/publicdoc/" in lowered else 1,
+                0 if "jpcrp" in lowered else 1,
+                1 if "/auditdoc/" in lowered else 0,
+                len(name),
+            )
+
+        xbrl_name = sorted(names, key=priority)[0]
         root = ElementTree.fromstring(archive.read(xbrl_name))
 
     contexts = _contexts(root)
