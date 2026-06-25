@@ -52,7 +52,9 @@ from edinet_connector import (
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "outputs" / "data" / "latest-candidates.json"
+SCORE_HISTORY_OUTPUT = ROOT / "outputs" / "data" / "score-history.json"
 PDF_INSPECTION_DIR = ROOT / "work" / "tmp" / "pdfs"
+PAGES_BASE_URL = "https://yutaworld30-png.github.io/capital-gain-radar"
 NIKKEI_URL = "https://indexes.nikkei.co.jp/en/nkave/index/component?idx=nk225"
 JPX_LIST_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/01.html"
 JPX_LIST_FILE_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
@@ -127,6 +129,10 @@ def fetch_bytes(url: str) -> bytes:
     request = Request(url, headers={"User-Agent": "CapitalGainRadar/0.1"})
     with urlopen(request, timeout=60) as response:
         return response.read()
+
+
+def load_json_url(url: str) -> dict[str, object]:
+    return json.loads(fetch_text(url))
 
 
 def parse_nikkei_components(html: str) -> list[dict[str, str]]:
@@ -904,6 +910,107 @@ def _attach_scores(dataset: dict[str, object]) -> None:
                 row["score"] = _total_score(row)
 
 
+def _compact_score_row(row: dict[str, object]) -> dict[str, object]:
+    fields = (
+        "code",
+        "name",
+        "industry",
+        "isNikkei225",
+        "score",
+        "supply",
+        "valuation",
+        "theme",
+        "technical",
+        "relative",
+        "earnings",
+        "liquidity",
+        "risk",
+        "margin",
+        "monthsFromHigh",
+        "latestClose",
+        "priceAsOf",
+        "per",
+        "pbr",
+        "roe",
+    )
+    return {
+        key: row[key]
+        for key in fields
+        if key in row and row[key] is not None
+    }
+
+
+def _load_existing_score_history() -> dict[str, object]:
+    if SCORE_HISTORY_OUTPUT.exists():
+        try:
+            loaded = json.loads(SCORE_HISTORY_OUTPUT.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                return loaded
+        except (OSError, json.JSONDecodeError):
+            pass
+    history_url = os.environ.get("SCORE_HISTORY_URL", f"{PAGES_BASE_URL}/data/score-history.json")
+    try:
+        loaded = load_json_url(history_url)
+        if isinstance(loaded, dict):
+            return loaded
+    except (URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
+        pass
+    return {"schemaVersion": 1, "snapshots": []}
+
+
+def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[str, object]:
+    rows = dataset.get("searchUniverse")
+    if not isinstance(rows, list):
+        rows = dataset.get("candidates")
+    compact_rows = [
+        _compact_score_row(row)
+        for row in rows
+        if isinstance(row, dict) and row.get("code")
+    ] if isinstance(rows, list) else []
+
+    history = _load_existing_score_history()
+    snapshots = history.get("snapshots")
+    if not isinstance(snapshots, list):
+        snapshots = []
+
+    snapshot_date = generated_at[:10]
+    snapshots = [
+        item for item in snapshots
+        if isinstance(item, dict) and item.get("date") != snapshot_date
+    ]
+    snapshots.append({
+        "date": snapshot_date,
+        "generatedAt": generated_at,
+        "rowCount": len(compact_rows),
+        "scoreMax": max((int(row["score"]) for row in compact_rows if isinstance(row.get("score"), int)), default=None),
+        "scoreMin": min((int(row["score"]) for row in compact_rows if isinstance(row.get("score"), int)), default=None),
+        "buy90Count": sum(1 for row in compact_rows if isinstance(row.get("score"), int) and int(row["score"]) >= 90),
+        "sell70Count": sum(1 for row in compact_rows if isinstance(row.get("score"), int) and int(row["score"]) <= 70),
+        "rows": compact_rows,
+    })
+
+    max_days = max(30, int(os.environ.get("SCORE_HISTORY_MAX_DAYS", "400")))
+    snapshots.sort(key=lambda item: str(item.get("date", "")))
+    snapshots = snapshots[-max_days:]
+
+    updated = {
+        "schemaVersion": 1,
+        "generatedAt": generated_at,
+        "retentionDays": max_days,
+        "snapshots": snapshots,
+    }
+    SCORE_HISTORY_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    SCORE_HISTORY_OUTPUT.write_text(json.dumps(updated, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    dataset["scoreHistorySummary"] = {
+        "status": "available" if compact_rows else "empty",
+        "snapshotCount": len(snapshots),
+        "latestDate": snapshot_date,
+        "latestRowCount": len(compact_rows),
+        "url": "data/score-history.json",
+    }
+    return updated
+
+
 def collect_edinet_fundamentals(
     dataset: dict[str, object],
     generated_at: str,
@@ -1282,9 +1389,12 @@ def main() -> None:
             "url": edinet_source.get("url"),
         },
     ]
+    score_history = update_score_history(dataset, generated_at)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(dataset, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Wrote {OUTPUT}")
+    print(f"Wrote {SCORE_HISTORY_OUTPUT}")
+    print(f"Score history snapshots: {len(score_history.get('snapshots', []))}")
     print(f"Nikkei 225 components: {len(dataset['nikkei225Components'])}")
     print(f"Prime Market components: {len(dataset['primeMarketComponents'])}")
     print(f"Margin status: {dataset['sources']['marginWeekly']['status']}")  # type: ignore[index]
