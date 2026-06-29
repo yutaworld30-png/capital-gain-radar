@@ -1616,11 +1616,11 @@
       return `${Math.round(value).toLocaleString("ja-JP")}円`;
     }
 
-    function latestPriceInfo(item, rows) {
+    function latestPriceInfo(item, rows, priceMetrics = {}) {
       const latest = rows.at(-1);
       const previous = rows.length >= 2 ? rows.at(-2) : null;
-      const close = Number(item.latestClose ?? latest?.close);
-      const previousClose = Number(item.previousClose ?? previous?.close);
+      const close = Number(priceMetrics.latestClose ?? latest?.close ?? item.latestClose);
+      const previousClose = Number(priceMetrics.previousClose ?? previous?.close ?? item.previousClose);
       const change = Number.isFinite(close) && Number.isFinite(previousClose) ? close - previousClose : null;
       const changeRate = Number.isFinite(change) && previousClose ? change / previousClose : null;
       return { close, previousClose, change, changeRate };
@@ -1635,13 +1635,17 @@
       return null;
     }
 
-    function renderFundamentals(item, rows) {
-      const price = latestPriceInfo(item, rows);
+    function renderFundamentals(item, rows, priceMetrics = {}) {
+      const price = latestPriceInfo(item, rows, priceMetrics);
       const changeClass = price.change > 0 ? "up" : price.change < 0 ? "down" : "";
+      const priceAsOf = priceMetrics.asOf || rows.at(-1)?.date || item.priceAsOf;
+      const fundamentalsAsOf = item.fundamentals?.asOf || item.fundamentals?.submitDateTime || officialDataset?.sources?.edinetFundamentals?.checkedAt;
       const fields = [
         ["現在の株価", formatPrice(price.close)],
         ["前日終値からの変化", `<span class="price-change ${changeClass}">${escapeHtml(formatSignedPrice(price.change))}</span>`],
         ["前日比", `<span class="price-change ${changeClass}">${escapeHtml(formatPercent(price.changeRate))}</span>`],
+        ["株価基準日", escapeHtml(formatDate(priceAsOf))],
+        ["財務基準日", escapeHtml(formatDate(fundamentalsAsOf))],
         ["時価総額", formatMarketCap(valueFrom(item, ["marketCap", "marketCapitalization"]))],
         ["PER", formatRatio(valueFrom(item, ["per", "PER"]))],
         ["PBR", formatRatio(valueFrom(item, ["pbr", "PBR"]))],
@@ -1658,7 +1662,7 @@
           <div class="fundamental-value">${String(value)}</div>
         </div>
       `).join("");
-      el.fundamentalNote.textContent = `株価は${formatDate(item.priceAsOf)}時点の取得値です。PER/PBR/ROEなどは無料データで構造化取得できた場合に表示し、未取得項目は「未取得」と表示します。`;
+      el.fundamentalNote.textContent = `株価は${formatDate(priceAsOf)}時点の取得値です。PER/PBRなど株価で変わる指標は、保存済み財務データを使う場合も最新株価で再計算します。未取得項目は「未取得」と表示します。`;
     }
 
     function chartRangeDays() {
@@ -1697,11 +1701,11 @@
       const data = rowsForSelectedRange(rows);
       if (data.length < 5) return;
       const closes = data.map(row => row.close);
-      const ma200Source = rows.map(row => row.close);
-      const ma20 = movingAverageSeries(closes, 20);
-      const ma50 = movingAverageSeries(closes, 50);
-      const ma200Full = movingAverageSeries(ma200Source, 200);
-      const ma200 = ma200Full.slice(-data.length);
+      const ma75Source = rows.map(row => row.close);
+      const ma5 = movingAverageSeries(closes, 5);
+      const ma25 = movingAverageSeries(closes, 25);
+      const ma75Full = movingAverageSeries(ma75Source, 75);
+      const ma75 = ma75Full.slice(-data.length);
       const bands = bollingerSeries(closes, 20, 2);
       const upperBand = bands.map(item => item.upper);
       const lowerBand = bands.map(item => item.lower);
@@ -1715,7 +1719,7 @@
       const priceValues = hasOhlc
         ? data.flatMap(row => [row.high, row.low])
         : closes;
-      const values = [...priceValues, ...ma20, ...ma50, ...ma200, ...upperBand, ...lowerBand].filter(Number.isFinite);
+      const values = [...priceValues, ...ma5, ...ma25, ...ma75, ...upperBand, ...lowerBand].filter(Number.isFinite);
       const min = Math.min(...values);
       const max = Math.max(...values);
       const padding = Math.max((max - min) * 0.08, max * 0.01);
@@ -1832,9 +1836,9 @@
       } else {
         drawSeries(closes, "#246bce", 2.4);
       }
-      drawSeries(ma20, "#0f8f6a", 1.6);
-      drawSeries(ma50, "#b26a00", 1.4);
-      drawSeries(ma200, "#627083", 1.2);
+      drawSeries(ma5, "#0f8f6a", 1.6);
+      drawSeries(ma25, "#b26a00", 1.4);
+      drawSeries(ma75, "#627083", 1.2);
 
       context.fillStyle = "#1d2430";
       context.font = "12px Yu Gothic UI, Meiryo, sans-serif";
@@ -1903,13 +1907,13 @@
     function technicalSignals(item, rows, stats) {
       const signals = [];
       const close = stats.close;
-      if (Number.isFinite(stats.ma50) && Number.isFinite(stats.ma200)) {
-        if (close > stats.ma50 && stats.ma50 > stats.ma200) {
-          signals.push(["good", "終値が50日線を上回り、50日線も200日線の上にあります。中期トレンドは良好です。"]);
-        } else if (close < stats.ma50) {
-          signals.push(["bad", "終値が50日線を下回っています。反発確認までは監視寄りです。"]);
+      if (Number.isFinite(stats.ma25) && Number.isFinite(stats.ma75)) {
+        if (close > stats.ma25 && stats.ma25 > stats.ma75) {
+          signals.push(["good", "終値が25日線を上回り、25日線も75日線の上にあります。中期トレンドは良好です。"]);
+        } else if (close < stats.ma25) {
+          signals.push(["bad", "終値が25日線を下回っています。反発確認までは監視寄りです。"]);
         } else {
-          signals.push(["watch", "終値は50日線付近です。方向感の確認が必要です。"]);
+          signals.push(["watch", "終値は25日線付近です。方向感の確認が必要です。"]);
         }
       }
       if (Number.isFinite(stats.rsi)) {
@@ -2124,9 +2128,9 @@
       );
       const stats = {
         close: closes.at(-1),
-        ma20: latestAverage(closes, 20),
-        ma50: latestAverage(closes, 50),
-        ma200: latestAverage(closes, 200),
+        ma5: latestAverage(closes, 5),
+        ma25: latestAverage(closes, 25),
+        ma75: latestAverage(closes, 75),
         bbUpper: latestBands.upper,
         bbLower: latestBands.lower,
         rsi: rsi(closes, 14),
@@ -2147,13 +2151,13 @@
       Object.entries(el.rangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.chartRange === range);
       });
-      renderFundamentals(item, chartRows);
+      renderFundamentals(item, chartRows, priceMetrics);
       el.chartLegend.innerHTML = [
         ["#246bce", hasOhlc ? "ローソク足" : "終値"],
         ["#8aa8d8", "BB ±2σ"],
-        ["#0f8f6a", "MA20"],
-        ["#b26a00", "MA50 / MACD Signal"],
-        ["#627083", "MA200"],
+        ["#0f8f6a", "MA5"],
+        ["#b26a00", "MA25 / MACD Signal"],
+        ["#627083", "MA75"],
       ].map(([color, text]) => `
         <span class="legend-item"><span class="legend-line" style="background:${color}"></span>${escapeHtml(text)}</span>
       `).join("");
@@ -2163,9 +2167,9 @@
       el.indicatorGrid.innerHTML = [
         ["チャート", hasOhlc ? "ローソク足" : "終値ライン"],
         ["終値", formatPrice(stats.close)],
-        ["MA20", formatPrice(stats.ma20)],
-        ["MA50", formatPrice(stats.ma50)],
-        ["MA200", formatPrice(stats.ma200)],
+        ["MA5", formatPrice(stats.ma5)],
+        ["MA25", formatPrice(stats.ma25)],
+        ["MA75", formatPrice(stats.ma75)],
         ["BB +2σ", formatPrice(stats.bbUpper)],
         ["BB -2σ", formatPrice(stats.bbLower)],
         ["RSI14", Number.isFinite(stats.rsi) ? stats.rsi.toFixed(1) : "-"],

@@ -1035,12 +1035,18 @@ def collect_edinet_fundamentals(
                     continue
                 metric = metric_map.get(str(row.get("code")))
                 if metric:
-                    row["fundamentals"] = metric
+                    latest_close = row.get("latestClose")
+                    row_metric = dict(metric)
+                    if isinstance(latest_close, (int, float)):
+                        refreshed = calculate_valuation_metrics(row_metric, float(latest_close))
+                        row_metric.update(refreshed)
+                        row_metric["valuationPriceAsOf"] = row.get("priceAsOf")
+                    row["fundamentals"] = row_metric
                     for field in ("per", "pbr", "roe", "marketCap", "dividendYield", "equityRatio"):
-                        row[field] = metric.get(field)
+                        row[field] = row_metric.get(field)
                     row.setdefault("sources", {})["edinet"] = {  # type: ignore[index]
-                        "url": metric.get("url"),
-                        "updatedAt": metric.get("asOf") or metric.get("submitDateTime"),
+                        "url": row_metric.get("url"),
+                        "updatedAt": row_metric.get("asOf") or row_metric.get("submitDateTime"),
                     }
 
     previous_metrics = previous_dataset.get("edinetFundamentals")
