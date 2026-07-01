@@ -298,6 +298,7 @@
       grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
       gap: 16px;
       align-items: start;
+      margin-bottom: 16px;
     }
 
     .side-stack {
@@ -584,7 +585,7 @@
 
     .guide-grid {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      grid-template-columns: 1fr;
       gap: 16px;
       margin-bottom: 16px;
     }
@@ -595,28 +596,61 @@
 
     .guide-list {
       margin: 0;
-      padding-left: 18px;
+      padding-left: 0;
       color: var(--muted);
       font-size: 13px;
       line-height: 1.7;
-    }
-
-    .score-formula {
+      list-style: none;
       display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
       gap: 8px;
-      margin: 0 0 12px;
+      counter-reset: guide-step;
     }
 
-    .formula-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      align-items: center;
-      padding: 8px 10px;
+    .guide-list li {
+      position: relative;
+      min-width: 0;
+      padding: 10px 10px 10px 38px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: #fbfcfe;
-      font-size: 13px;
+    }
+
+    .guide-list li::before {
+      counter-increment: guide-step;
+      content: counter(guide-step);
+      position: absolute;
+      left: 10px;
+      top: 10px;
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #ecf8f4;
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .score-guide-grid {
+      display: grid;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .score-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .score-factor-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
     }
 
     .formula-weight {
@@ -653,9 +687,9 @@
 
     .factor-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 10px;
-      margin-top: 16px;
+      margin-bottom: 16px;
     }
 
     .factor {
@@ -890,11 +924,15 @@
 
       .layout,
       .summary-grid,
-      .guide-grid,
+      .score-guide-grid,
       .source-strip,
       .quality-list,
       .factor-grid {
         grid-template-columns: 1fr 1fr;
+      }
+
+      .score-detail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .chart-wrap {
@@ -918,7 +956,8 @@
 
       .layout,
       .summary-grid,
-      .guide-grid,
+      .score-guide-grid,
+      .score-detail-grid,
       .source-strip,
       .quality-list,
       .factor-grid {
@@ -1023,35 +1062,65 @@
         </div>
       </div>
 
-      <section class="source-strip" aria-label="データ取得状況">
-        <div class="source-card">
-          <div class="source-label">東証プライム上場銘柄</div>
-          <div class="source-value" id="primeStatus">未読込</div>
+      <section class="guide-grid" aria-label="アプリ説明">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>アプリの使い方</h2>
+          </div>
+          <div class="guide-body">
+            <ol class="guide-list">
+              <li>対象銘柄で東証プライム全体、または日経225だけに切り替えます。</li>
+              <li>表示タブと並び順で、総合・テーマ・業種・ウォッチリストを見比べます。</li>
+              <li>銘柄検索はコード、銘柄名、テーマ、業種で絞り込みできます。入力途中に出る候補から直接選べます。</li>
+              <li>ランキング行を選ぶと、右側に基本情報とチャートを表示します。</li>
+              <li>CSVは表示中の候補を出力し、JSON取込は検証済みデータを手動で読み込みます。</li>
+            </ol>
+          </div>
         </div>
-        <div class="source-card">
-          <div class="source-label">日経225採用銘柄</div>
-          <div class="source-value" id="nikkeiStatus">未読込</div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>スコアの見方</h2>
+          </div>
+          <div class="guide-body">
+            <div class="score-guide-grid">
+              <div class="score-detail-grid">
+                <div class="factor">
+                  <div class="score-factor-title"><div class="factor-title">テーマ性</div><span class="formula-weight">20%</span></div>
+                  <div class="factor-text">直近ニュースやTDnet開示から、資金が集まりやすいテーマとの関連を見ます。</div>
+                </div>
+                <div class="factor">
+                  <div class="score-factor-title"><div class="factor-title">需給</div><span class="formula-weight">20%</span></div>
+                  <div class="factor-text">信用倍率と高値からの調整度合いを見ます。買い残の重さや反発余地を確認します。</div>
+                </div>
+                <div class="factor">
+                  <div class="score-factor-title"><div class="factor-title">テクニカル</div><span class="formula-weight">15%</span></div>
+                  <div class="factor-text">価格推移、移動平均線、過熱感などを見ます。上昇トレンドか崩れかけかを分けます。</div>
+                </div>
+                <div class="factor">
+                  <div class="score-factor-title"><div class="factor-title">相対強度</div><span class="formula-weight">13%</span></div>
+                  <div class="factor-text">日経平均や業種指数より強いかを見ます。指数上昇に乗っているだけの銘柄を分けます。</div>
+                </div>
+                <div class="factor">
+                  <div class="score-factor-title"><div class="factor-title">業績</div><span class="formula-weight">13%</span></div>
+                  <div class="factor-text">上方修正、決算進捗、増配・減配などを見ます。テーマ人気だけの銘柄を避けます。</div>
+                </div>
+                <div class="factor">
+                  <div class="score-factor-title"><div class="factor-title">流動性</div><span class="formula-weight">7%</span></div>
+                  <div class="factor-text">売買代金と出来高を見ます。買いやすさだけでなく、損切り時に逃げられるかを確認します。</div>
+                </div>
+                <div class="factor">
+                  <div class="score-factor-title"><div class="factor-title">割安・収益性</div><span class="formula-weight">8%</span></div>
+                  <div class="factor-text">PER、PBR、ROEを見ます。安さだけでなく、資本効率も合わせて確認します。</div>
+                </div>
+                <div class="factor">
+                  <div class="score-factor-title"><div class="factor-title">リスク控除</div><span class="formula-weight">4%</span></div>
+                  <div class="factor-text">決算日、急騰後の過熱、ボラティリティなどを見ます。候補と買い時を分けます。</div>
+                </div>
+              </div>
+              <div class="factor-text">未取得のPER/PBR/ROEは、過度に有利・不利にならないよう中立寄りで扱います。各カード右上の割合は総合スコアへの重みです。</div>
+            </div>
+          </div>
         </div>
-        <div class="source-card">
-          <div class="source-label">信用取引週末残高</div>
-          <div class="source-value" id="marginStatus">未読込</div>
-        </div>
-        <div class="source-card">
-          <div class="source-label">EDINET財務指標</div>
-          <div class="source-value" id="edinetStatus">未読込</div>
-        </div>
-        <div class="source-card">
-          <div class="source-label">候補表示</div>
-          <div class="source-value" id="candidateStatus"><span class="badge warn">実データ連携待ち</span></div>
-        </div>
-      </section>
-
-      <section class="panel quality-panel" aria-label="データ品質チェック">
-        <div class="panel-header">
-          <h2>データ品質チェック</h2>
-          <span class="updated" id="qualitySummary">候補表示前の必須確認</span>
-        </div>
-        <div class="quality-list" id="qualityList"></div>
       </section>
 
       <section class="summary-grid" aria-label="サマリー">
@@ -1070,41 +1139,6 @@
         <div class="metric">
           <div class="metric-label">トップ分類</div>
           <div class="metric-value" id="metricTheme">AI</div>
-        </div>
-      </section>
-
-      <section class="guide-grid" aria-label="アプリ説明">
-        <div class="panel">
-          <div class="panel-header">
-            <h2>アプリの使い方</h2>
-          </div>
-          <div class="guide-body">
-            <ol class="guide-list">
-              <li>対象銘柄で東証プライム全体、または日経225だけに切り替えます。</li>
-              <li>表示タブと並び順で、総合・テーマ・業種・ウォッチリストを見比べます。</li>
-              <li>銘柄検索はコード、銘柄名、テーマ、業種で絞り込みできます。入力途中に出る候補から直接選べます。</li>
-              <li>ランキング行を選ぶと、右側に基本情報とチャートを表示します。</li>
-              <li>CSVは表示中の候補を出力し、JSON取込は検証済みデータを手動で読み込みます。</li>
-            </ol>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-header">
-            <h2>スコアの算出方法</h2>
-          </div>
-          <div class="guide-body">
-            <div class="score-formula">
-              <div class="formula-row"><span>テーマ性</span><span class="formula-weight">20%</span></div>
-              <div class="formula-row"><span>需給</span><span class="formula-weight">20%</span></div>
-              <div class="formula-row"><span>テクニカル</span><span class="formula-weight">15%</span></div>
-              <div class="formula-row"><span>相対強度</span><span class="formula-weight">13%</span></div>
-              <div class="formula-row"><span>業績</span><span class="formula-weight">13%</span></div>
-              <div class="formula-row"><span>流動性</span><span class="formula-weight">7%</span></div>
-              <div class="formula-row"><span>PER/PBR/ROEなどの割安・収益性</span><span class="formula-weight">8%</span></div>
-              <div class="formula-row"><span>リスク控除</span><span class="formula-weight">4%</span></div>
-            </div>
-            <div class="factor-text">未取得のPER/PBR/ROEは、過度に有利・不利にならないよう中立寄りで扱います。最終判断は個別確認が必要です。</div>
-          </div>
         </div>
       </section>
 
@@ -1188,23 +1222,35 @@
         </div>
       </div>
 
-      <section class="factor-grid" aria-label="追加する評価軸">
-        <div class="factor">
-          <div class="factor-title">流動性</div>
-          <div class="factor-text">売買代金と出来高を見ます。買いやすさだけでなく、損切り時に逃げられるかを確認します。</div>
+      <section class="source-strip" aria-label="データ取得状況">
+        <div class="source-card">
+          <div class="source-label">東証プライム上場銘柄</div>
+          <div class="source-value" id="primeStatus">未読込</div>
         </div>
-        <div class="factor">
-          <div class="factor-title">相対強度</div>
-          <div class="factor-text">日経平均や業種指数より強いかを見ます。指数上昇に乗っているだけの銘柄を分けます。</div>
+        <div class="source-card">
+          <div class="source-label">日経225採用銘柄</div>
+          <div class="source-value" id="nikkeiStatus">未読込</div>
         </div>
-        <div class="factor">
-          <div class="factor-title">業績モメンタム</div>
-          <div class="factor-text">上方修正、決算進捗、コンセンサス変化を見ます。テーマ人気だけの銘柄を避けます。</div>
+        <div class="source-card">
+          <div class="source-label">信用取引週末残高</div>
+          <div class="source-value" id="marginStatus">未読込</div>
         </div>
-        <div class="factor">
-          <div class="factor-title">リスク</div>
-          <div class="factor-text">決算日、急騰後の過熱、ボラティリティ、支持線までの距離を見ます。候補と買い時を分けます。</div>
+        <div class="source-card">
+          <div class="source-label">EDINET財務指標</div>
+          <div class="source-value" id="edinetStatus">未読込</div>
         </div>
+        <div class="source-card">
+          <div class="source-label">候補表示</div>
+          <div class="source-value" id="candidateStatus"><span class="badge warn">実データ連携待ち</span></div>
+        </div>
+      </section>
+
+      <section class="panel quality-panel" aria-label="データ品質チェック">
+        <div class="panel-header">
+          <h2>データ品質チェック</h2>
+          <span class="updated" id="qualitySummary">候補表示前の必須確認</span>
+        </div>
+        <div class="quality-list" id="qualityList"></div>
       </section>
 
       <p class="note">
