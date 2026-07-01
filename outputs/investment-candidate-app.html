@@ -129,6 +129,62 @@
       outline: none;
     }
 
+    .search-field {
+      position: relative;
+    }
+
+    .search-suggestions {
+      position: absolute;
+      z-index: 20;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      display: grid;
+      gap: 4px;
+      max-height: 320px;
+      overflow-y: auto;
+      padding: 6px;
+      border: 1px solid rgba(255,255,255,.18);
+      border-radius: 8px;
+      background: #1a2940;
+      box-shadow: 0 12px 26px rgba(0,0,0,.28);
+    }
+
+    .search-suggestions[hidden] {
+      display: none;
+    }
+
+    .suggestion-button {
+      width: 100%;
+      border: 0;
+      border-radius: 7px;
+      padding: 9px 10px;
+      color: #f3f7fb;
+      background: transparent;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .suggestion-button.active,
+    .suggestion-button:hover {
+      background: #263852;
+    }
+
+    .suggestion-main {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .suggestion-meta {
+      margin-top: 3px;
+      color: #b9c7d6;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
     .segmented {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -526,6 +582,49 @@
       margin-bottom: 6px;
     }
 
+    .guide-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .guide-body {
+      padding: 14px 16px 16px;
+    }
+
+    .guide-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .score-formula {
+      display: grid;
+      gap: 8px;
+      margin: 0 0 12px;
+    }
+
+    .formula-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      font-size: 13px;
+    }
+
+    .formula-weight {
+      color: var(--blue);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
     .quality-message {
       color: var(--muted);
       font-size: 12px;
@@ -791,6 +890,7 @@
 
       .layout,
       .summary-grid,
+      .guide-grid,
       .source-strip,
       .quality-list,
       .factor-grid {
@@ -818,6 +918,7 @@
 
       .layout,
       .summary-grid,
+      .guide-grid,
       .source-strip,
       .quality-list,
       .factor-grid {
@@ -900,7 +1001,10 @@
       <div class="control-group">
         <div class="field">
           <label for="searchBox"><span>銘柄検索</span></label>
-          <input id="searchBox" class="search" type="search" placeholder="コード・銘柄名・テーマ・業種">
+          <div class="search-field">
+            <input id="searchBox" class="search" type="search" placeholder="コード・銘柄名・テーマ・業種" autocomplete="off" aria-autocomplete="list" aria-controls="searchSuggestions">
+            <div id="searchSuggestions" class="search-suggestions" role="listbox" hidden></div>
+          </div>
         </div>
       </div>
     </aside>
@@ -966,6 +1070,41 @@
         <div class="metric">
           <div class="metric-label">トップ分類</div>
           <div class="metric-value" id="metricTheme">AI</div>
+        </div>
+      </section>
+
+      <section class="guide-grid" aria-label="アプリ説明">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>アプリの使い方</h2>
+          </div>
+          <div class="guide-body">
+            <ol class="guide-list">
+              <li>対象銘柄で東証プライム全体、または日経225だけに切り替えます。</li>
+              <li>表示タブと並び順で、総合・テーマ・業種・ウォッチリストを見比べます。</li>
+              <li>銘柄検索はコード、銘柄名、テーマ、業種で絞り込みできます。入力途中に出る候補から直接選べます。</li>
+              <li>ランキング行を選ぶと、右側に基本情報とチャートを表示します。</li>
+              <li>CSVは表示中の候補を出力し、JSON取込は検証済みデータを手動で読み込みます。</li>
+            </ol>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>スコアの算出方法</h2>
+          </div>
+          <div class="guide-body">
+            <div class="score-formula">
+              <div class="formula-row"><span>テーマ性</span><span class="formula-weight">20%</span></div>
+              <div class="formula-row"><span>需給</span><span class="formula-weight">20%</span></div>
+              <div class="formula-row"><span>テクニカル</span><span class="formula-weight">15%</span></div>
+              <div class="formula-row"><span>相対強度</span><span class="formula-weight">13%</span></div>
+              <div class="formula-row"><span>業績</span><span class="formula-weight">13%</span></div>
+              <div class="formula-row"><span>流動性</span><span class="formula-weight">7%</span></div>
+              <div class="formula-row"><span>PER/PBR/ROEなどの割安・収益性</span><span class="formula-weight">8%</span></div>
+              <div class="formula-row"><span>リスク控除</span><span class="formula-weight">4%</span></div>
+            </div>
+            <div class="factor-text">未取得のPER/PBR/ROEは、過度に有利・不利にならないよう中立寄りで扱います。最終判断は個別確認が必要です。</div>
+          </div>
         </div>
       </section>
 
@@ -1089,6 +1228,8 @@
       universe: "prime",
       query: "",
       selectedCode: "",
+      searchOpen: false,
+      activeSuggestionIndex: 0,
       detailTab: "fundamental",
       chartRange: "6m",
     };
@@ -1112,6 +1253,7 @@
       primeUniverse: document.querySelector("#primeUniverse"),
       nikkeiUniverse: document.querySelector("#nikkeiUniverse"),
       searchBox: document.querySelector("#searchBox"),
+      searchSuggestions: document.querySelector("#searchSuggestions"),
       rows: document.querySelector("#candidateRows"),
       empty: document.querySelector("#emptyState"),
       resultCount: document.querySelector("#resultCount"),
@@ -1463,6 +1605,51 @@
       const queryMatch = haystack.includes(state.query.toLowerCase());
       const universeMatch = state.universe === "prime" || item.isNikkei225 === true;
       return dataStatus.liveConnected && universeMatch && queryMatch;
+    }
+
+    function searchText(item) {
+      return `${item.code} ${item.name} ${item.themes?.join(" ") || ""} ${item.industry || ""}`.toLowerCase();
+    }
+
+    function currentSearchSuggestions() {
+      const query = state.query.trim().toLowerCase();
+      if (!dataStatus.liveConnected || !state.searchOpen || query.length < 1) return [];
+      return searchUniverse
+        .filter(item => state.universe === "prime" || item.isNikkei225 === true)
+        .filter(item => searchText(item).includes(query))
+        .slice(0, 8);
+    }
+
+    function selectSearchSuggestion(item) {
+      state.query = `${item.code} ${item.name}`;
+      state.selectedCode = String(item.code);
+      state.searchOpen = false;
+      state.activeSuggestionIndex = 0;
+      el.searchBox.value = state.query;
+      render();
+    }
+
+    function renderSearchSuggestions() {
+      const suggestions = currentSearchSuggestions();
+      if (!suggestions.length) {
+        el.searchSuggestions.hidden = true;
+        el.searchSuggestions.innerHTML = "";
+        el.searchBox.removeAttribute("aria-activedescendant");
+        return;
+      }
+      if (state.activeSuggestionIndex >= suggestions.length) state.activeSuggestionIndex = 0;
+      el.searchSuggestions.hidden = false;
+      el.searchSuggestions.innerHTML = suggestions.map((item, index) => {
+        const activeClass = index === state.activeSuggestionIndex ? " active" : "";
+        const market = item.isNikkei225 ? "日経225" : "東証プライム";
+        return `
+          <button id="searchSuggestion${index}" class="suggestion-button${activeClass}" type="button" role="option" aria-selected="${index === state.activeSuggestionIndex}" data-code="${escapeHtml(item.code)}">
+            <span class="suggestion-main"><span>${escapeHtml(item.code)} ${escapeHtml(item.name)}</span><span>${escapeHtml(market)}</span></span>
+            <span class="suggestion-meta">${escapeHtml(item.industry || "業種未分類")} / ${escapeHtml((item.themes || []).slice(0, 2).join("・") || "テーマ未分類")}</span>
+          </button>
+        `;
+      }).join("");
+      el.searchBox.setAttribute("aria-activedescendant", `searchSuggestion${state.activeSuggestionIndex}`);
     }
 
     function statusFor(item) {
@@ -2230,6 +2417,7 @@
       renderTechnical(rows);
       renderThemes(rows);
       renderMetrics(rows);
+      renderSearchSuggestions();
     }
 
     function downloadCsv() {
@@ -2287,7 +2475,47 @@
     });
     el.searchBox.addEventListener("input", event => {
       state.query = event.target.value;
+      state.searchOpen = true;
+      state.activeSuggestionIndex = 0;
       render();
+    });
+    el.searchBox.addEventListener("focus", () => {
+      state.searchOpen = true;
+      renderSearchSuggestions();
+    });
+    el.searchBox.addEventListener("keydown", event => {
+      const suggestions = currentSearchSuggestions();
+      if (!suggestions.length) return;
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        state.activeSuggestionIndex = (state.activeSuggestionIndex + 1) % suggestions.length;
+        renderSearchSuggestions();
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        state.activeSuggestionIndex = (state.activeSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+        renderSearchSuggestions();
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        selectSearchSuggestion(suggestions[state.activeSuggestionIndex]);
+      } else if (event.key === "Escape") {
+        state.searchOpen = false;
+        renderSearchSuggestions();
+      }
+    });
+    el.searchSuggestions.addEventListener("mousedown", event => {
+      event.preventDefault();
+    });
+    el.searchSuggestions.addEventListener("click", event => {
+      const button = event.target.closest("[data-code]");
+      if (!button) return;
+      const item = searchUniverse.find(row => String(row.code) === String(button.dataset.code));
+      if (item) selectSearchSuggestion(item);
+    });
+    document.addEventListener("click", event => {
+      if (event.target === el.searchBox || el.searchSuggestions.contains(event.target)) return;
+      if (!state.searchOpen) return;
+      state.searchOpen = false;
+      renderSearchSuggestions();
     });
     el.fundamentalTab.addEventListener("click", () => {
       state.detailTab = "fundamental";
