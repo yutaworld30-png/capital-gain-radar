@@ -315,6 +315,36 @@
       border-bottom: 1px solid var(--line);
     }
 
+    .ranking-tools {
+      display: grid;
+      grid-template-columns: 140px minmax(0, 1fr);
+      gap: 10px;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .ranking-tools[hidden] {
+      display: none;
+    }
+
+    .ranking-tools label {
+      display: block;
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .ranking-tools select {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+      color: var(--ink);
+      padding: 0 10px;
+    }
+
     h2 {
       margin: 0;
       font-size: 16px;
@@ -829,14 +859,20 @@
       font-size: 12px;
     }
 
+    .compare-panel {
+      margin-bottom: 16px;
+    }
+
     .compare-body {
       padding: 14px 16px 16px;
+      overflow-x: auto;
     }
 
     .compare-grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(190px, 1fr));
       gap: 10px;
+      min-width: 980px;
     }
 
     .compare-card {
@@ -874,7 +910,7 @@
 
     .compare-metrics {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: 1fr;
       gap: 8px;
     }
 
@@ -1046,10 +1082,13 @@
       .summary-grid,
       .score-guide-grid,
       .score-detail-grid,
-      .compare-grid,
       .source-strip,
       .quality-list,
       .factor-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .ranking-tools {
         grid-template-columns: 1fr;
       }
 
@@ -1237,6 +1276,10 @@
             <h2 id="rankingTitle">総合ランキング</h2>
             <span class="updated" id="rankingNote">スコア上位を毎日更新します</span>
           </div>
+          <div class="ranking-tools" id="groupFilter" hidden>
+            <label for="groupSelect" id="groupFilterLabel">テーマ選択</label>
+            <select id="groupSelect"></select>
+          </div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -1261,17 +1304,6 @@
         </section>
 
         <div class="side-stack">
-          <section class="panel" aria-label="銘柄比較">
-            <div class="panel-header">
-              <h2>銘柄比較</h2>
-              <span class="updated" id="compareSummary">0/4銘柄</span>
-            </div>
-            <div class="compare-body">
-              <div id="compareEmpty" class="empty">ランキングの比較ボタンから追加できます。</div>
-              <div id="compareGrid" class="compare-grid"></div>
-            </div>
-          </section>
-
           <section class="panel" aria-label="銘柄詳細">
             <div class="panel-header">
               <h2>銘柄詳細</h2>
@@ -1322,6 +1354,17 @@
           </section>
         </div>
       </div>
+
+      <section class="panel compare-panel" aria-label="銘柄比較">
+        <div class="panel-header">
+          <h2>銘柄比較</h2>
+          <span class="updated" id="compareSummary">0/5銘柄</span>
+        </div>
+        <div class="compare-body">
+          <div id="compareEmpty" class="empty">ランキングの比較ボタンから追加できます。</div>
+          <div id="compareGrid" class="compare-grid"></div>
+        </div>
+      </section>
 
       <section class="source-strip" aria-label="データ取得状況">
         <div class="source-card">
@@ -1376,6 +1419,8 @@
       query: "",
       selectedCode: "",
       compareCodes: [],
+      selectedTheme: "",
+      selectedIndustry: "",
       searchOpen: false,
       activeSuggestionIndex: 0,
       detailTab: "fundamental",
@@ -1411,6 +1456,9 @@
       metricTheme: document.querySelector("#metricTheme"),
       rankingTitle: document.querySelector("#rankingTitle"),
       rankingNote: document.querySelector("#rankingNote"),
+      groupFilter: document.querySelector("#groupFilter"),
+      groupFilterLabel: document.querySelector("#groupFilterLabel"),
+      groupSelect: document.querySelector("#groupSelect"),
       themeList: document.querySelector("#themeList"),
       exportBtn: document.querySelector("#exportBtn"),
       importBtn: document.querySelector("#importBtn"),
@@ -2298,9 +2346,9 @@
       return bValue - aValue || b.score - a.score;
     }
 
-    function currentRows() {
+    function rankedUniverseRows() {
       const key = state.sortBy;
-      const rankedRows = searchUniverse
+      return searchUniverse
         .map(item => ({
           ...item,
           liquidity: item.liquidity ?? 60,
@@ -2313,41 +2361,64 @@
         }))
         .filter(matches)
         .sort((a, b) => compareRows(a, b, key));
+    }
+
+    function groupEntries(rows, groupGetter) {
+      const grouped = new Map();
+      rows.forEach(item => {
+        groupGetter(item).filter(Boolean).forEach(group => {
+          if (!grouped.has(group)) grouped.set(group, []);
+          grouped.get(group).push(item);
+        });
+      });
+      return [...grouped.entries()]
+        .map(([name, items]) => ({
+          name,
+          count: items.length,
+          bestScore: Math.max(...items.map(item => item.score)),
+          rows: [...items].sort((a, b) => b.score - a.score),
+        }))
+        .sort((a, b) => b.bestScore - a.bestScore || a.name.localeCompare(b.name, "ja"));
+    }
+
+    function ensureSelectedGroup(entries, stateKey) {
+      if (!entries.length) {
+        state[stateKey] = "";
+        return "";
+      }
+      if (!entries.some(entry => entry.name === state[stateKey])) {
+        state[stateKey] = entries[0].name;
+      }
+      return state[stateKey];
+    }
+
+    function currentRows() {
+      const rankedRows = rankedUniverseRows();
 
       if (state.view === "theme") {
-        return topRowsByGroup(rankedRows, item => item.themes, 5);
+        const entries = groupEntries(rankedRows, item => item.themes);
+        const selected = ensureSelectedGroup(entries, "selectedTheme");
+        const group = entries.find(entry => entry.name === selected);
+        return (group?.rows || []).slice(0, 5).map((item, index) => ({
+          ...item,
+          groupLabel: selected,
+          groupRank: index + 1,
+        }));
       }
       if (state.view === "industry") {
-        return topRowsByGroup(rankedRows, item => [item.industry || "業種未分類"], 5);
+        const entries = groupEntries(rankedRows, item => [item.industry || "業種未分類"]);
+        const selected = ensureSelectedGroup(entries, "selectedIndustry");
+        const group = entries.find(entry => entry.name === selected);
+        return (group?.rows || []).slice(0, 5).map((item, index) => ({
+          ...item,
+          groupLabel: selected,
+          groupRank: index + 1,
+        }));
       }
       if (state.view === "watchlist") {
         return rankedRows.filter(item => watchedCodes.has(String(item.code)));
       }
       return rankedRows.slice(0, state.limit);
-    }
-
-    function topRowsByGroup(rows, groupGetter, perGroupLimit = 1) {
-      const grouped = new Map();
-      rows.forEach(item => {
-        const groups = groupGetter(item).filter(Boolean);
-        groups.forEach(group => {
-          if (!grouped.has(group)) grouped.set(group, []);
-          grouped.get(group).push(item);
-        });
-      });
-      const rankedGroups = [...grouped.entries()]
-        .map(([group, items]) => ({
-          group,
-          bestScore: Math.max(...items.map(item => item.score)),
-          rows: [...items].sort((a, b) => b.score - a.score).slice(0, perGroupLimit).map((item, index) => ({
-            ...item,
-            groupLabel: group,
-            groupRank: index + 1,
-          })),
-        }))
-        .sort((a, b) => b.bestScore - a.bestScore)
-        .slice(0, state.limit);
-      return rankedGroups.flatMap(group => group.rows);
     }
 
     function renderRows(rows) {
@@ -2359,7 +2430,7 @@
         const [label, className] = statusFor(item);
         const selectedClass = String(item.code) === state.selectedCode ? " selected-row" : "";
         const isComparing = state.compareCodes.includes(String(item.code));
-        const compareLimitReached = state.compareCodes.length >= 4 && !isComparing;
+        const compareLimitReached = state.compareCodes.length >= 5 && !isComparing;
         const groupRankLabel = item.groupLabel ? `${item.groupLabel} ${item.groupRank || 1}位` : "";
         return `
           <tr class="${selectedClass}" data-code="${escapeHtml(item.code)}" tabindex="0">
@@ -2421,7 +2492,7 @@
         state.compareCodes = state.compareCodes.filter(item => item !== normalized);
         return;
       }
-      if (state.compareCodes.length >= 4) return;
+      if (state.compareCodes.length >= 5) return;
       state.compareCodes = [...state.compareCodes, normalized];
     }
 
@@ -2448,7 +2519,7 @@
 
     function renderCompare() {
       const rows = comparisonRows();
-      el.compareSummary.textContent = `${rows.length}/4銘柄`;
+      el.compareSummary.textContent = `${rows.length}/5銘柄`;
       el.compareEmpty.hidden = rows.length > 0;
       el.compareGrid.hidden = rows.length === 0;
       el.compareGrid.innerHTML = rows.map(item => {
@@ -2626,11 +2697,38 @@
       el.resultCount.textContent = `${rows.length}件`;
     }
 
+    function renderGroupFilter() {
+      if (state.view !== "theme" && state.view !== "industry") {
+        el.groupFilter.hidden = true;
+        el.groupSelect.innerHTML = "";
+        return;
+      }
+      const rankedRows = rankedUniverseRows();
+      const isTheme = state.view === "theme";
+      const entries = groupEntries(
+        rankedRows,
+        isTheme ? item => item.themes : item => [item.industry || "業種未分類"]
+      );
+      const stateKey = isTheme ? "selectedTheme" : "selectedIndustry";
+      const selected = ensureSelectedGroup(entries, stateKey);
+      el.groupFilter.hidden = false;
+      el.groupFilterLabel.textContent = isTheme ? "テーマ選択" : "業種選択";
+      el.groupSelect.disabled = entries.length === 0;
+      el.groupSelect.innerHTML = entries.map(entry => `
+        <option value="${escapeHtml(entry.name)}" ${entry.name === selected ? "selected" : ""}>
+          ${escapeHtml(entry.name)}（${entry.count}銘柄 / 最高${entry.bestScore}）
+        </option>
+      `).join("");
+      if (!entries.length) {
+        el.groupSelect.innerHTML = `<option value="">選択できる${isTheme ? "テーマ" : "業種"}がありません</option>`;
+      }
+    }
+
     function syncLabels() {
       const viewLabels = {
         overall: ["総合ランキング", "スコア上位を毎日更新します"],
-        theme: ["テーマ別1〜5位", "各テーマでスコアが高い銘柄を最大5件ずつ表示します"],
-        industry: ["業種別1〜5位", "各業種でスコアが高い銘柄を最大5件ずつ表示します"],
+        theme: ["テーマ別ランキング", "選択したテーマのスコア上位5銘柄を表示します"],
+        industry: ["業種別ランキング", "選択した業種のスコア上位5銘柄を表示します"],
         watchlist: ["ウォッチリスト", "気になる銘柄を端末内に保存して監視します"],
       };
       const [title, note] = viewLabels[state.view] || viewLabels.overall;
@@ -2649,6 +2747,7 @@
     function render() {
       syncLabels();
       pruneCompareCodes();
+      renderGroupFilter();
       const rows = currentRows();
       renderRows(rows);
       renderCompare();
@@ -2702,6 +2801,11 @@
     });
     el.sortBy.addEventListener("change", event => {
       state.sortBy = event.target.value;
+      render();
+    });
+    el.groupSelect.addEventListener("change", event => {
+      if (state.view === "theme") state.selectedTheme = event.target.value;
+      if (state.view === "industry") state.selectedIndustry = event.target.value;
       render();
     });
     el.primeUniverse.addEventListener("click", () => {
