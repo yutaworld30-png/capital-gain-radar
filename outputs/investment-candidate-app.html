@@ -328,7 +328,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 860px;
+      min-width: 960px;
     }
 
     th,
@@ -436,7 +436,7 @@
     }
 
     .watch-button {
-      width: 34px;
+      min-width: 34px;
       height: 34px;
       border: 1px solid var(--line);
       border-radius: 7px;
@@ -451,6 +451,24 @@
       border-color: #f0c36a;
       background: #fff8e1;
       color: var(--amber);
+    }
+
+    .compare-button {
+      min-width: 64px;
+      padding: 0 8px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .compare-button.active {
+      border-color: #8ee0c2;
+      background: #e9f8f3;
+      color: var(--green);
+    }
+
+    .compare-button:disabled {
+      cursor: not-allowed;
+      opacity: .58;
     }
 
     .view-note {
@@ -811,6 +829,76 @@
       font-size: 12px;
     }
 
+    .compare-body {
+      padding: 14px 16px 16px;
+    }
+
+    .compare-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .compare-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 12px;
+      min-width: 0;
+    }
+
+    .compare-card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .compare-name {
+      font-weight: 800;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .compare-remove {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .compare-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .compare-metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      padding: 8px;
+      min-width: 0;
+    }
+
+    .compare-label {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    .compare-value {
+      font-weight: 800;
+      font-size: 13px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
     .chart-wrap {
       width: 100%;
       height: 520px;
@@ -958,6 +1046,7 @@
       .summary-grid,
       .score-guide-grid,
       .score-detail-grid,
+      .compare-grid,
       .source-strip,
       .quality-list,
       .factor-grid {
@@ -1161,6 +1250,7 @@
                   <th>PER/PBR/ROE</th>
                   <th>追加評価</th>
                   <th>判定</th>
+                  <th>比較</th>
                   <th>監視</th>
                 </tr>
               </thead>
@@ -1171,6 +1261,17 @@
         </section>
 
         <div class="side-stack">
+          <section class="panel" aria-label="銘柄比較">
+            <div class="panel-header">
+              <h2>銘柄比較</h2>
+              <span class="updated" id="compareSummary">0/4銘柄</span>
+            </div>
+            <div class="compare-body">
+              <div id="compareEmpty" class="empty">ランキングの比較ボタンから追加できます。</div>
+              <div id="compareGrid" class="compare-grid"></div>
+            </div>
+          </section>
+
           <section class="panel" aria-label="銘柄詳細">
             <div class="panel-header">
               <h2>銘柄詳細</h2>
@@ -1274,6 +1375,7 @@
       universe: "prime",
       query: "",
       selectedCode: "",
+      compareCodes: [],
       searchOpen: false,
       activeSuggestionIndex: 0,
       detailTab: "fundamental",
@@ -1322,6 +1424,9 @@
       qualityList: document.querySelector("#qualityList"),
       qualitySummary: document.querySelector("#qualitySummary"),
       technicalAsOf: document.querySelector("#technicalAsOf"),
+      compareSummary: document.querySelector("#compareSummary"),
+      compareEmpty: document.querySelector("#compareEmpty"),
+      compareGrid: document.querySelector("#compareGrid"),
       technicalEmpty: document.querySelector("#technicalEmpty"),
       technicalBody: document.querySelector("#technicalBody"),
       selectedName: document.querySelector("#selectedName"),
@@ -2210,10 +2315,10 @@
         .sort((a, b) => compareRows(a, b, key));
 
       if (state.view === "theme") {
-        return topRowsByGroup(rankedRows, item => item.themes);
+        return topRowsByGroup(rankedRows, item => item.themes, 5);
       }
       if (state.view === "industry") {
-        return topRowsByGroup(rankedRows, item => [item.industry || "業種未分類"]);
+        return topRowsByGroup(rankedRows, item => [item.industry || "業種未分類"], 5);
       }
       if (state.view === "watchlist") {
         return rankedRows.filter(item => watchedCodes.has(String(item.code)));
@@ -2221,20 +2326,28 @@
       return rankedRows.slice(0, state.limit);
     }
 
-    function topRowsByGroup(rows, groupGetter) {
-      const bestByGroup = new Map();
+    function topRowsByGroup(rows, groupGetter, perGroupLimit = 1) {
+      const grouped = new Map();
       rows.forEach(item => {
         const groups = groupGetter(item).filter(Boolean);
         groups.forEach(group => {
-          const current = bestByGroup.get(group);
-          if (!current || item.score > current.score) {
-            bestByGroup.set(group, { ...item, groupLabel: group });
-          }
+          if (!grouped.has(group)) grouped.set(group, []);
+          grouped.get(group).push(item);
         });
       });
-      return [...bestByGroup.values()]
-        .sort((a, b) => b.score - a.score)
+      const rankedGroups = [...grouped.entries()]
+        .map(([group, items]) => ({
+          group,
+          bestScore: Math.max(...items.map(item => item.score)),
+          rows: [...items].sort((a, b) => b.score - a.score).slice(0, perGroupLimit).map((item, index) => ({
+            ...item,
+            groupLabel: group,
+            groupRank: index + 1,
+          })),
+        }))
+        .sort((a, b) => b.bestScore - a.bestScore)
         .slice(0, state.limit);
+      return rankedGroups.flatMap(group => group.rows);
     }
 
     function renderRows(rows) {
@@ -2245,10 +2358,13 @@
       el.rows.innerHTML = rows.map(item => {
         const [label, className] = statusFor(item);
         const selectedClass = String(item.code) === state.selectedCode ? " selected-row" : "";
+        const isComparing = state.compareCodes.includes(String(item.code));
+        const compareLimitReached = state.compareCodes.length >= 4 && !isComparing;
+        const groupRankLabel = item.groupLabel ? `${item.groupLabel} ${item.groupRank || 1}位` : "";
         return `
           <tr class="${selectedClass}" data-code="${escapeHtml(item.code)}" tabindex="0">
             <td>
-              ${item.groupLabel ? `<div class="code">${escapeHtml(item.groupLabel)} 1位</div>` : ""}
+              ${groupRankLabel ? `<div class="code">${escapeHtml(groupRankLabel)}</div>` : ""}
               <div class="code">${escapeHtml(item.code)}</div>
               <div class="name">${escapeHtml(item.name)}</div>
               <div class="evidence-links">
@@ -2278,6 +2394,11 @@
             </td>
             <td><span class="status ${className}">${label}</span></td>
             <td>
+              <button class="watch-button compare-button ${isComparing ? "active" : ""}" type="button" data-compare-code="${escapeHtml(item.code)}" title="比較に追加/解除" aria-label="比較に追加/解除" ${compareLimitReached ? "disabled" : ""}>
+                ${isComparing ? "比較中" : compareLimitReached ? "上限" : "比較"}
+              </button>
+            </td>
+            <td>
               <button class="watch-button ${watchedCodes.has(String(item.code)) ? "active" : ""}" type="button" data-watch-code="${escapeHtml(item.code)}" title="ウォッチリストに追加/解除" aria-label="ウォッチリストに追加/解除">
                 ${watchedCodes.has(String(item.code)) ? "★" : "☆"}
               </button>
@@ -2291,6 +2412,75 @@
           ? "ウォッチリストは空です。ランキングの☆ボタンから銘柄を追加できます。"
           : "表示できる銘柄がありません。検索条件や対象銘柄を確認してください。";
       }
+    }
+
+    function toggleCompare(code) {
+      const normalized = String(code || "");
+      if (!normalized) return;
+      if (state.compareCodes.includes(normalized)) {
+        state.compareCodes = state.compareCodes.filter(item => item !== normalized);
+        return;
+      }
+      if (state.compareCodes.length >= 4) return;
+      state.compareCodes = [...state.compareCodes, normalized];
+    }
+
+    function comparisonRows() {
+      const rowMap = new Map(searchUniverse.map(item => [String(item.code), {
+        ...item,
+        liquidity: item.liquidity ?? 60,
+        relative: item.relative ?? 60,
+        earnings: item.earnings ?? 50,
+        risk: item.risk ?? 50,
+        valuation: item.valuation ?? valuationScore(item),
+        score: totalScore(item),
+        supply: supplyScore(item),
+      }]));
+      return state.compareCodes
+        .map(code => rowMap.get(String(code)))
+        .filter(Boolean);
+    }
+
+    function pruneCompareCodes() {
+      const availableCodes = new Set(searchUniverse.map(item => String(item.code)));
+      state.compareCodes = state.compareCodes.filter(code => availableCodes.has(String(code)));
+    }
+
+    function renderCompare() {
+      const rows = comparisonRows();
+      el.compareSummary.textContent = `${rows.length}/4銘柄`;
+      el.compareEmpty.hidden = rows.length > 0;
+      el.compareGrid.hidden = rows.length === 0;
+      el.compareGrid.innerHTML = rows.map(item => {
+        const [label, className] = statusFor(item);
+        const priceMetrics = priceMetricsByCode.get(String(item.code)) || {};
+        const chartRows = chartRowsFor(item);
+        const price = latestPriceInfo(item, chartRows, priceMetrics);
+        const changeClass = price.change > 0 ? "up" : price.change < 0 ? "down" : "";
+        return `
+          <div class="compare-card">
+            <div class="compare-card-head">
+              <div>
+                <div class="compare-name">${escapeHtml(item.name)}</div>
+                <div class="code">${escapeHtml(item.code)} / ${escapeHtml(item.industry || "業種未分類")}</div>
+              </div>
+              <button class="compare-remove" type="button" data-compare-remove="${escapeHtml(item.code)}" title="比較から外す" aria-label="比較から外す">×</button>
+            </div>
+            <div class="compare-metrics">
+              <div class="compare-metric"><div class="compare-label">総合スコア</div><div class="compare-value"><span class="score">${item.score}</span></div></div>
+              <div class="compare-metric"><div class="compare-label">判定</div><div class="compare-value status ${className}">${escapeHtml(label)}</div></div>
+              <div class="compare-metric"><div class="compare-label">株価</div><div class="compare-value">${formatPrice(price.close)}</div></div>
+              <div class="compare-metric"><div class="compare-label">前日比</div><div class="compare-value price-change ${changeClass}">${escapeHtml(formatSignedPrice(price.change))} / ${escapeHtml(formatPercent(price.changeRate))}</div></div>
+              <div class="compare-metric"><div class="compare-label">PER/PBR/ROE</div><div class="compare-value">PER ${formatCompactRatio(valueFrom(item, ["per", "PER"]))}<br>PBR ${formatCompactRatio(valueFrom(item, ["pbr", "PBR"]))} / ROE ${formatCompactPercent(valueFrom(item, ["roe", "ROE"]))}</div></div>
+              <div class="compare-metric"><div class="compare-label">信用倍率</div><div class="compare-value">${Number.isFinite(item.margin) ? item.margin.toFixed(1) : "-"}倍</div></div>
+              <div class="compare-metric"><div class="compare-label">相対強度</div><div class="compare-value">${item.relative ?? "-"}</div></div>
+              <div class="compare-metric"><div class="compare-label">業績</div><div class="compare-value">${item.earnings ?? "-"}</div></div>
+              <div class="compare-metric"><div class="compare-label">流動性</div><div class="compare-value">${item.liquidity ?? "-"}</div></div>
+              <div class="compare-metric"><div class="compare-label">リスク</div><div class="compare-value">${item.risk ?? "-"}</div></div>
+            </div>
+          </div>
+        `;
+      }).join("");
     }
 
     function renderThemes(rows) {
@@ -2439,8 +2629,8 @@
     function syncLabels() {
       const viewLabels = {
         overall: ["総合ランキング", "スコア上位を毎日更新します"],
-        theme: ["テーマ別1位", "各テーマで最もスコアが高い銘柄です"],
-        industry: ["業種別1位", "各業種で最もスコアが高い銘柄です"],
+        theme: ["テーマ別1〜5位", "各テーマでスコアが高い銘柄を最大5件ずつ表示します"],
+        industry: ["業種別1〜5位", "各業種でスコアが高い銘柄を最大5件ずつ表示します"],
         watchlist: ["ウォッチリスト", "気になる銘柄を端末内に保存して監視します"],
       };
       const [title, note] = viewLabels[state.view] || viewLabels.overall;
@@ -2458,8 +2648,10 @@
 
     function render() {
       syncLabels();
+      pruneCompareCodes();
       const rows = currentRows();
       renderRows(rows);
+      renderCompare();
       renderTechnical(rows);
       renderThemes(rows);
       renderMetrics(rows);
@@ -2471,7 +2663,8 @@
       const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "信用倍率", "前回高値から", "PER", "PBR", "ROE", "割安・収益性", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
       const body = rows.map(item => {
         const [label] = statusFor(item);
-        return [item.groupLabel || "", item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.margin, item.monthsFromHigh, valueFrom(item, ["per", "PER"]) ?? "", valueFrom(item, ["pbr", "PBR"]) ?? "", valueFrom(item, ["roe", "ROE"]) ?? "", item.valuation ?? "", item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
+        const groupLabel = item.groupLabel ? `${item.groupLabel} ${item.groupRank || 1}位` : "";
+        return [groupLabel, item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.margin, item.monthsFromHigh, valueFrom(item, ["per", "PER"]) ?? "", valueFrom(item, ["pbr", "PBR"]) ?? "", valueFrom(item, ["roe", "ROE"]) ?? "", item.valuation ?? "", item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
       });
       const csv = [header, ...body].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
@@ -2579,6 +2772,13 @@
       });
     });
     el.rows.addEventListener("click", event => {
+      const compareButton = event.target.closest("[data-compare-code]");
+      if (compareButton) {
+        event.stopPropagation();
+        toggleCompare(compareButton.dataset.compareCode);
+        render();
+        return;
+      }
       const watchButton = event.target.closest("[data-watch-code]");
       if (watchButton) {
         event.stopPropagation();
@@ -2591,8 +2791,15 @@
       state.selectedCode = row.dataset.code;
       render();
     });
+    el.compareGrid.addEventListener("click", event => {
+      const removeButton = event.target.closest("[data-compare-remove]");
+      if (!removeButton) return;
+      toggleCompare(removeButton.dataset.compareRemove);
+      render();
+    });
     el.rows.addEventListener("keydown", event => {
       if (event.key !== "Enter" && event.key !== " ") return;
+      if (event.target.closest("button")) return;
       const row = event.target.closest("tr[data-code]");
       if (!row) return;
       event.preventDefault();
