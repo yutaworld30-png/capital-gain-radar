@@ -174,6 +174,49 @@ def _find_value(
     return candidates[-1][1], candidates[-1][0]
 
 
+def _find_recent_values(
+    root: ElementTree.Element,
+    contexts: dict[str, dict[str, object]],
+    tag_names: tuple[str, ...],
+    duration: bool,
+    consolidated_only: bool = True,
+    limit: int = 2,
+) -> list[tuple[str, float]]:
+    by_period: dict[str, float] = {}
+    for element in root.iter():
+        name = _local_name(element.tag)
+        if name not in tag_names:
+            continue
+        value = _number(element.text)
+        if value is None:
+            continue
+        context = contexts.get(element.attrib.get("contextRef", ""))
+        if not context:
+            continue
+        if consolidated_only and not context.get("consolidated", False):
+            continue
+        key = str(context.get("endDate" if duration else "instant") or "")
+        if duration and not context.get("startDate"):
+            continue
+        if not duration and not key:
+            continue
+        by_period[key] = value
+    return sorted(by_period.items(), key=lambda item: item[0])[-limit:]
+
+
+def _find_recent_best_values(
+    root: ElementTree.Element,
+    contexts: dict[str, dict[str, object]],
+    tag_names: tuple[str, ...],
+    duration: bool,
+    limit: int = 2,
+) -> list[tuple[str, float]]:
+    values = _find_recent_values(root, contexts, tag_names, duration, consolidated_only=True, limit=limit)
+    if values:
+        return values
+    return _find_recent_values(root, contexts, tag_names, duration, consolidated_only=False, limit=limit)
+
+
 def _find_best_value(
     root: ElementTree.Element,
     contexts: dict[str, dict[str, object]],
@@ -222,6 +265,12 @@ def _ratio(numerator: float | None, denominator: float | None) -> float | None:
     return numerator / denominator
 
 
+def _growth(current: float | None, previous: float | None) -> float | None:
+    if current is None or previous in (None, 0):
+        return None
+    return current / previous - 1
+
+
 def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
     with zipfile.ZipFile(BytesIO(zip_bytes)) as archive:
         names = [name for name in archive.namelist() if name.lower().endswith(".xbrl")]
@@ -257,6 +306,25 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         "NetIncomeLoss",
         "NetIncomeLossAttributableToOwnersOfParent",
     ), duration=True)
+    sales_values = _find_recent_best_values(root, contexts, (
+        "NetSales",
+        "NetSalesSummaryOfBusinessResults",
+        "Revenue",
+        "RevenueIFRS",
+        "OperatingRevenue",
+        "OperatingRevenueIFRS",
+        "SalesRevenue",
+    ), duration=True)
+    profit_values = _find_recent_best_values(root, contexts, (
+        "ProfitLossAttributableToOwnersOfParent",
+        "ProfitLoss",
+        "ProfitLossIFRS",
+        "NetIncomeLoss",
+        "NetIncomeLossAttributableToOwnersOfParent",
+    ), duration=True)
+    sales = sales_values[-1][1] if sales_values else None
+    previous_sales = sales_values[-2][1] if len(sales_values) >= 2 else None
+    previous_profit = profit_values[-2][1] if len(profit_values) >= 2 else None
     eps, _ = _find_best_value(root, contexts, (
         "BasicEarningsLossPerShare",
         "BasicEarningsLossPerShareSummaryOfBusinessResults",
@@ -320,7 +388,12 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
     return {
         "assets": assets,
         "equity": equity,
+        "sales": sales,
+        "previousSales": previous_sales,
         "profit": profit,
+        "previousProfit": previous_profit,
+        "salesGrowth": _growth(sales, previous_sales),
+        "profitGrowth": _growth(profit, previous_profit),
         "eps": eps,
         "bps": bps,
         "dps": dps,
