@@ -687,6 +687,72 @@
       align-items: start;
     }
 
+    .backtest-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      gap: 12px;
+    }
+
+    .backtest-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      padding: 14px;
+      min-width: 0;
+    }
+
+    .backtest-title {
+      font-weight: 800;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .backtest-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .backtest-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .backtest-kpi {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      padding: 10px;
+      min-width: 0;
+    }
+
+    .backtest-label {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .backtest-value {
+      margin-top: 4px;
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .backtest-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
     .score-detail-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1049,6 +1115,7 @@
       .layout,
       .summary-grid,
       .score-guide-grid,
+      .backtest-grid,
       .source-strip,
       .quality-list,
       .factor-grid {
@@ -1081,6 +1148,8 @@
       .layout,
       .summary-grid,
       .score-guide-grid,
+      .backtest-grid,
+      .backtest-kpis,
       .score-detail-grid,
       .source-strip,
       .quality-list,
@@ -1246,6 +1315,53 @@
                 </div>
               </div>
               <div class="factor-text">未取得のPER/PBR/ROEは、過度に有利・不利にならないよう中立寄りで扱います。各カード右上の割合は総合スコアへの重みです。</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="バックテスト検証結果">
+        <div class="panel-header">
+          <h2>バックテスト検証結果</h2>
+          <span class="updated">採用条件: 需給B / 買い75 / 売り65 / 20MA割れ</span>
+        </div>
+        <div class="guide-body">
+          <div class="backtest-grid">
+            <div class="backtest-card">
+              <div class="backtest-title">前提条件</div>
+              <ul class="backtest-list">
+                <li>対象は日経225構成銘柄。2025年データで検証。</li>
+                <li>需給Bは、信用倍率の軽さを60%、52週高値からの近さを40%で評価する需給設定です。</li>
+                <li>スコア75点以上で購入、65点以下または20日移動平均割れで売却。</li>
+                <li>最大保有は5銘柄、売買コストは往復0.2%で計算。</li>
+                <li>価格、日経225採用履歴、信用倍率を使用。ニュース件数とTDnet/業績イベントは未反映。</li>
+              </ul>
+            </div>
+            <div class="backtest-card">
+              <div class="backtest-title">結果サマリー</div>
+              <div class="backtest-kpis">
+                <div class="backtest-kpi">
+                  <div class="backtest-label">年率リターン</div>
+                  <div class="backtest-value">+85.0%</div>
+                </div>
+                <div class="backtest-kpi">
+                  <div class="backtest-label">最大下落率</div>
+                  <div class="backtest-value">-13.2%</div>
+                </div>
+                <div class="backtest-kpi">
+                  <div class="backtest-label">シャープレシオ</div>
+                  <div class="backtest-value">2.43</div>
+                </div>
+                <div class="backtest-kpi">
+                  <div class="backtest-label">累積勝率</div>
+                  <div class="backtest-value">47.1%</div>
+                </div>
+                <div class="backtest-kpi">
+                  <div class="backtest-label">取引回数</div>
+                  <div class="backtest-value">85回</div>
+                </div>
+              </div>
+              <div class="backtest-note">シャープレシオは、リターンを価格変動リスクで割った効率性の目安です。日経225単純保有との比較では、年率リターンは約+70.5pt、最大下落率は約13.1pt改善。過去検証であり、将来の成績を保証するものではありません。</div>
             </div>
           </div>
         </div>
