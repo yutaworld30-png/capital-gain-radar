@@ -186,6 +186,36 @@ def _find_best_value(
     return _find_value(root, contexts, tag_names, duration, consolidated_only=False)
 
 
+def _find_best_value_any_period(
+    root: ElementTree.Element,
+    contexts: dict[str, dict[str, object]],
+    tag_names: tuple[str, ...],
+) -> tuple[float | None, str | None]:
+    value, as_of = _find_best_value(root, contexts, tag_names, duration=True)
+    if value is not None:
+        return value, as_of
+    return _find_best_value(root, contexts, tag_names, duration=False)
+
+
+def _find_best_value_by_name_pattern(
+    root: ElementTree.Element,
+    contexts: dict[str, dict[str, object]],
+    required_tokens: tuple[str, ...],
+    excluded_tokens: tuple[str, ...] = (),
+) -> tuple[float | None, str | None]:
+    required = tuple(token.lower() for token in required_tokens)
+    excluded = tuple(token.lower() for token in excluded_tokens)
+    names = {
+        _local_name(element.tag)
+        for element in root.iter()
+        if all(token in _local_name(element.tag).lower() for token in required)
+        and not any(token in _local_name(element.tag).lower() for token in excluded)
+    }
+    if not names:
+        return None, None
+    return _find_best_value_any_period(root, contexts, tuple(sorted(names)))
+
+
 def _ratio(numerator: float | None, denominator: float | None) -> float | None:
     if numerator is None or denominator in (None, 0):
         return None
@@ -239,13 +269,27 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         "NetAssetsPerShareSummaryOfBusinessResults",
         "EquityAttributableToOwnersOfParentPerShareIFRS",
     ), duration=False)
-    dps, _ = _find_best_value(root, contexts, (
+    dps, _ = _find_best_value_any_period(root, contexts, (
         "DividendPaidPerShare",
         "AnnualDividendsPerShare",
+        "AnnualDividendsPerShareSummaryOfBusinessResults",
         "CashDividendsPerShare",
+        "CashDividendsPerShareAnnual",
         "CashDividendsPerShareSummaryOfBusinessResults",
+        "CashDividendsPerShareSummaryOfBusinessResultsAnnual",
         "DividendPerShare",
-    ), duration=True)
+        "DividendPerShareAnnual",
+        "DividendsPerShare",
+        "DividendsPerShareAnnual",
+        "TotalAnnualDividendsPerShare",
+    ))
+    if dps is None:
+        dps, _ = _find_best_value_by_name_pattern(
+            root,
+            contexts,
+            required_tokens=("Dividend", "PerShare"),
+            excluded_tokens=("Payout", "Ratio", "Forecast", "Plan", "Forecasts", "Planned"),
+        )
     issued_shares, _ = _find_best_value(root, contexts, (
         "TotalNumberOfIssuedShares",
         "TotalNumberOfIssuedSharesSummaryOfBusinessResults",
