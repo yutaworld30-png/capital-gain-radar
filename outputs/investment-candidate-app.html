@@ -191,7 +191,8 @@
       gap: 6px;
     }
 
-    .segmented.four {
+    .segmented.four,
+    .segmented.five {
       grid-template-columns: 1fr;
     }
 
@@ -1197,8 +1198,9 @@
           <strong>表示タブ</strong>
           <span id="resultCount">0件</span>
         </div>
-        <div class="segmented four" aria-label="表示タブ">
+        <div class="segmented five" aria-label="表示タブ">
           <button id="overallView" class="active" type="button">総合ランキング</button>
+          <button id="breakoutView" type="button">新高値ブレイク</button>
           <button id="themeView" type="button">テーマ別ランキング</button>
           <button id="industryView" type="button">業種別ランキング</button>
           <button id="watchlistView" type="button">ウォッチリスト</button>
@@ -1267,7 +1269,8 @@
           <div class="guide-body">
             <ol class="guide-list">
               <li>対象銘柄で東証プライム全体、または日経225だけに切り替えます。</li>
-              <li>総合、テーマ別ランキング、業種別ランキング、ウォッチリストを切り替えて候補を確認します。</li>
+              <li>総合、新高値ブレイク、テーマ別ランキング、業種別ランキング、ウォッチリストを切り替えて候補を確認します。</li>
+              <li>新高値ブレイクは、52週高値更新、売上高10%以上増、利益20%以上増、ROE10%以上の銘柄を表示します。</li>
               <li>テーマ別・業種別では、選択したテーマ/業種のスコア上位5銘柄を表示します。</li>
               <li>銘柄検索はコード、銘柄名、テーマ、業種で絞り込みでき、入力途中の候補から直接選べます。</li>
               <li>比較ボタンで最大5銘柄を横並び比較し、ランキング行を選ぶと基本情報とチャートを確認できます。</li>
@@ -1554,6 +1557,7 @@
 
     const el = {
       overallView: document.querySelector("#overallView"),
+      breakoutView: document.querySelector("#breakoutView"),
       themeView: document.querySelector("#themeView"),
       industryView: document.querySelector("#industryView"),
       watchlistView: document.querySelector("#watchlistView"),
@@ -1682,6 +1686,22 @@
       const pbrScore = !Number.isFinite(pbr) || pbr <= 0 ? 50 : rangeScore(pbr, 0.8, 5, true);
       const roeScore = rangeScore(roe, 0, 0.18, false);
       return Math.round(perScore * 0.35 + pbrScore * 0.25 + roeScore * 0.4);
+    }
+
+    function isBreakoutCandidate(item) {
+      const salesGrowth = valueFrom(item, ["salesGrowth"]);
+      const profitGrowth = valueFrom(item, ["profitGrowth"]);
+      const roe = valueFrom(item, ["roe", "ROE"]);
+      const isNewHigh = item.isNewHigh52w === true || (Number.isFinite(item.monthsFromHigh) && item.monthsFromHigh <= 0.1);
+      return (
+        isNewHigh &&
+        Number.isFinite(salesGrowth) &&
+        salesGrowth >= 0.10 &&
+        Number.isFinite(profitGrowth) &&
+        profitGrowth >= 0.20 &&
+        Number.isFinite(roe) &&
+        roe >= 0.10
+      );
     }
 
     function totalScore(item) {
@@ -2154,10 +2174,13 @@
         ["PBR", formatRatio(valueFrom(item, ["pbr", "PBR"]))],
         ["ROE", formatFundamentalPercent(valueFrom(item, ["roe", "ROE"]))],
         ["ROA", formatFundamentalPercent(valueFrom(item, ["roa", "ROA"]))],
+        ["売上高成長率", formatFundamentalPercent(valueFrom(item, ["salesGrowth"]))],
+        ["利益成長率", formatFundamentalPercent(valueFrom(item, ["profitGrowth"]))],
         ["配当利回り", formatFundamentalPercent(valueFrom(item, ["dividendYield"]))],
         ["配当性向", formatFundamentalPercent(valueFrom(item, ["dividendPayoutRatio", "payoutRatio"]))],
         ["DOE", formatFundamentalPercent(valueFrom(item, ["doe", "DOE"]))],
         ["自己資本比率", formatFundamentalPercent(valueFrom(item, ["equityRatio", "capitalAdequacyRatio"]))],
+        ["52週高値更新", item.isNewHigh52w === true ? "更新" : "未更新"],
       ];
       el.fundamentalGrid.innerHTML = fields.map(([label, value]) => `
         <div class="fundamental-item">
@@ -2532,6 +2555,9 @@
           groupRank: index + 1,
         }));
       }
+      if (state.view === "breakout") {
+        return rankedRows.filter(isBreakoutCandidate).slice(0, state.limit);
+      }
       if (state.view === "watchlist") {
         return rankedRows.filter(item => watchedCodes.has(String(item.code)));
       }
@@ -2598,7 +2624,9 @@
       if (!rows.length) {
         el.empty.textContent = state.view === "watchlist"
           ? "ウォッチリストは空です。ランキングの☆ボタンから銘柄を追加できます。"
-          : "表示できる銘柄がありません。検索条件や対象銘柄を確認してください。";
+          : state.view === "breakout"
+            ? "新高値ブレイク条件に一致する銘柄がありません。条件は52週高値更新、売上高10%以上増、利益20%以上増、ROE10%以上です。"
+            : "表示できる銘柄がありません。検索条件や対象銘柄を確認してください。";
       }
     }
 
@@ -2844,6 +2872,7 @@
     function syncLabels() {
       const viewLabels = {
         overall: ["総合ランキング", "スコア上位を毎日更新します"],
+        breakout: ["新高値ブレイク", "52週高値更新、売上高10%以上増、利益20%以上増、ROE10%以上の銘柄を表示します"],
         theme: ["テーマ別ランキング", "選択したテーマのスコア上位5銘柄を表示します"],
         industry: ["業種別ランキング", "選択した業種のスコア上位5銘柄を表示します"],
         watchlist: ["ウォッチリスト", "気になる銘柄を端末内に保存して監視します"],
@@ -2852,6 +2881,7 @@
       el.rankingTitle.textContent = title;
       el.rankingNote.textContent = note;
       el.overallView.classList.toggle("active", state.view === "overall");
+      el.breakoutView.classList.toggle("active", state.view === "breakout");
       el.themeView.classList.toggle("active", state.view === "theme");
       el.industryView.classList.toggle("active", state.view === "industry");
       el.watchlistView.classList.toggle("active", state.view === "watchlist");
@@ -2876,11 +2906,11 @@
 
     function downloadCsv() {
       const rows = currentRows();
-      const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "信用倍率", "前回高値から", "PER", "PBR", "ROE", "割安・収益性", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
+      const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "信用倍率", "前回高値から", "52週高値更新", "売上高成長率", "利益成長率", "PER", "PBR", "ROE", "割安・収益性", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
       const body = rows.map(item => {
         const [label] = statusFor(item);
         const groupLabel = item.groupLabel ? `${item.groupLabel} ${item.groupRank || 1}位` : "";
-        return [groupLabel, item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.margin, item.monthsFromHigh, valueFrom(item, ["per", "PER"]) ?? "", valueFrom(item, ["pbr", "PBR"]) ?? "", valueFrom(item, ["roe", "ROE"]) ?? "", item.valuation ?? "", item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
+        return [groupLabel, item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.margin, item.monthsFromHigh, item.isNewHigh52w ? "更新" : "", valueFrom(item, ["salesGrowth"]) ?? "", valueFrom(item, ["profitGrowth"]) ?? "", valueFrom(item, ["per", "PER"]) ?? "", valueFrom(item, ["pbr", "PBR"]) ?? "", valueFrom(item, ["roe", "ROE"]) ?? "", item.valuation ?? "", item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
       });
       const csv = [header, ...body].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
@@ -2894,6 +2924,10 @@
 
     el.overallView.addEventListener("click", () => {
       state.view = "overall";
+      render();
+    });
+    el.breakoutView.addEventListener("click", () => {
+      state.view = "breakout";
       render();
     });
     el.themeView.addEventListener("click", () => {
