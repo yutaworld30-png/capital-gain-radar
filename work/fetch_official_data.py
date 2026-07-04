@@ -990,8 +990,8 @@ def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[
         "rowCount": len(compact_rows),
         "scoreMax": max((int(row["score"]) for row in compact_rows if isinstance(row.get("score"), int)), default=None),
         "scoreMin": min((int(row["score"]) for row in compact_rows if isinstance(row.get("score"), int)), default=None),
-        "buy90Count": sum(1 for row in compact_rows if isinstance(row.get("score"), int) and int(row["score"]) >= 90),
-        "sell70Count": sum(1 for row in compact_rows if isinstance(row.get("score"), int) and int(row["score"]) <= 70),
+        "buy75Count": sum(1 for row in compact_rows if isinstance(row.get("score"), int) and int(row["score"]) >= 75),
+        "sell65Count": sum(1 for row in compact_rows if isinstance(row.get("score"), int) and int(row["score"]) <= 65),
         "rows": compact_rows,
     })
 
