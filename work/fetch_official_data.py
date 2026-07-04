@@ -1071,18 +1071,24 @@ def collect_edinet_fundamentals(
             source["reason"] = "EDINET API v2は無料登録のAPIキーが必要です。EDINET_API_KEYを設定するとPER/PBR/ROE等を算出します。"
         return
 
-    max_downloads = max(1, int(os.environ.get("EDINET_MAX_DOWNLOADS", "120")))
+    max_downloads = max(1, int(os.environ.get("EDINET_MAX_DOWNLOADS", "225")))
     lookback_days = max(30, int(os.environ.get("EDINET_LOOKBACK_DAYS", "430")))
     ranked = sorted(
         [item for item in search_universe if isinstance(item, dict) and re.fullmatch(r"\d{4}", str(item.get("code", "")))],
         key=_total_score,
         reverse=True,
     )
-    target_codes = {str(item.get("code")) for item in ranked[:max_downloads]}
+    nikkei_codes = [
+        str(item.get("code"))
+        for item in dataset.get("nikkei225Components", [])
+        if isinstance(item, dict) and re.fullmatch(r"\d{4}", str(item.get("code", "")))
+    ]
+    ranked_codes = [str(item.get("code")) for item in ranked]
+    target_codes = list(dict.fromkeys([*nikkei_codes, *ranked_codes]))[:max_downloads]
     metrics: list[dict[str, object]] = []
     errors: list[str] = []
     try:
-        reports, report_errors = fetch_recent_securities_reports(target_codes, api_key, lookback_days=lookback_days)
+        reports, report_errors = fetch_recent_securities_reports(set(target_codes), api_key, lookback_days=lookback_days)
         errors.extend(report_errors[:10])
     except EdinetError as error:
         source["status"] = "error"
@@ -1091,7 +1097,7 @@ def collect_edinet_fundamentals(
         return
 
     price_map = {str(item.get("code")): item for item in search_universe if isinstance(item, dict)}
-    for code in [str(item.get("code")) for item in ranked[:max_downloads]]:
+    for code in target_codes:
         report = reports.get(code)
         if not report:
             continue
@@ -1123,13 +1129,14 @@ def collect_edinet_fundamentals(
     source["status"] = "available" if metrics else "partial"
     source["recordCount"] = len(metrics)
     source["targetCount"] = len(target_codes)
+    source["targetPolicy"] = "nikkei225-first"
     source["perCount"] = _count_numeric(metrics, "per")
     source["pbrCount"] = _count_numeric(metrics, "pbr")
     source["roeCount"] = _count_numeric(metrics, "roe")
     source["checkedAt"] = generated_at
     source["errors"] = errors[:10]
     source["reason"] = (
-        f"EDINET有価証券報告書XBRLから{len(metrics)}/{len(target_codes)}銘柄の財務指標を算出しました。"
+        f"日経225を優先し、EDINET有価証券報告書XBRLから{len(metrics)}/{len(target_codes)}銘柄の財務指標を算出しました。"
         if metrics
         else "EDINET APIには接続できましたが、対象銘柄の財務指標を算出できませんでした。"
     )
