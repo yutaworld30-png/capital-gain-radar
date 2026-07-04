@@ -1553,6 +1553,11 @@
                 <div class="chart-note" id="chartNote">候補銘柄はローソク足・出来高つきで表示します。詳細OHLCVがない銘柄は、無料取得できる終値履歴を使ったラインチャートに切り替えます。</div>
               </div>
               <div id="scoreHistoryPanel" hidden>
+                <div class="range-tabs" aria-label="スコア推移期間">
+                  <button id="scoreRange1w" class="active" type="button">1週間</button>
+                  <button id="scoreRange1m" type="button">1ヶ月</button>
+                  <button id="scoreRange3m" type="button">3ヶ月</button>
+                </div>
                 <div class="score-history-wrap">
                   <canvas id="scoreHistoryChart" aria-label="総合スコア推移チャート"></canvas>
                 </div>
@@ -1647,6 +1652,7 @@
       activeSuggestionIndex: 0,
       detailTab: "fundamental",
       chartRange: "6m",
+      scoreHistoryRange: "1w",
     };
 
     const BREAKOUT_PROFILES = {
@@ -1757,6 +1763,11 @@
         "6m": document.querySelector("#range6m"),
         "1y": document.querySelector("#range1y"),
         "3y": document.querySelector("#range3y"),
+      },
+      scoreRangeButtons: {
+        "1w": document.querySelector("#scoreRange1w"),
+        "1m": document.querySelector("#scoreRange1m"),
+        "3m": document.querySelector("#scoreRange3m"),
       },
       priceChart: document.querySelector("#priceChart"),
       chartLegend: document.querySelector("#chartLegend"),
@@ -2454,6 +2465,34 @@
       return rows;
     }
 
+    function scoreHistoryRangeDays() {
+      return {
+        "1w": 7,
+        "1m": 31,
+        "3m": 93,
+      }[state.scoreHistoryRange] || 7;
+    }
+
+    function scoreHistoryRangeLabel() {
+      return {
+        "1w": "1週間",
+        "1m": "1ヶ月",
+        "3m": "3ヶ月",
+      }[state.scoreHistoryRange] || "1週間";
+    }
+
+    function rowsForScoreHistoryRange(rows) {
+      if (!rows.length) return [];
+      const days = scoreHistoryRangeDays();
+      const latest = rows.at(-1);
+      if (!latest?.date) return rows.slice(-Math.max(1, days));
+      const latestTime = new Date(`${latest.date}T00:00:00`).getTime();
+      if (!Number.isFinite(latestTime)) return rows.slice(-Math.max(1, days));
+      const threshold = latestTime - days * 86400000;
+      const filtered = rows.filter(row => new Date(`${row.date}T00:00:00`).getTime() >= threshold);
+      return filtered.length ? filtered : rows.slice(-1);
+    }
+
     function signedPoints(value) {
       if (!Number.isFinite(value)) return "-";
       return `${value > 0 ? "+" : ""}${Math.round(value)}pt`;
@@ -2588,8 +2627,13 @@
     }
 
     function renderScoreHistory(item) {
-      const rows = scoreRowsFor(item);
+      const allRows = scoreRowsFor(item);
+      const rows = rowsForScoreHistoryRange(allRows);
       const stats = scoreHistoryStats(rows);
+      const rangeLabel = scoreHistoryRangeLabel();
+      Object.entries(el.scoreRangeButtons).forEach(([range, button]) => {
+        button.classList.toggle("active", state.scoreHistoryRange === range);
+      });
       el.scoreHistoryLegend.innerHTML = [
         ["#246bce", "総合スコア"],
         ["#0f8f6a", `買い目安 ${SCORE_BUY_LINE}点`],
@@ -2600,7 +2644,7 @@
 
       if (!rows.length || !stats.latest) {
         el.scoreHistorySummary.innerHTML = "";
-        el.scoreHistoryComment.textContent = "スコア履歴がまだありません。毎日のデータ更新後に推移が表示されます。";
+        el.scoreHistoryComment.textContent = "この期間のスコア履歴がまだありません。毎日のデータ更新後に推移が表示されます。";
         drawScoreHistoryChart([]);
         return;
       }
@@ -2608,10 +2652,10 @@
       el.scoreHistorySummary.innerHTML = [
         ["現在スコア", `${Math.round(stats.latest.score)}点`],
         ["前回比", signedPoints(stats.change1)],
+        [`${rangeLabel}変化`, signedPoints(stats.latest && stats.first ? stats.latest.score - stats.first.score : null)],
         ["直近7日", signedPoints(stats.change7)],
-        ["直近30日", signedPoints(stats.change30)],
         ["最高 / 最低", `${Math.round(stats.max)}点 / ${Math.round(stats.min)}点`],
-        ["履歴日数", `${rows.length}日分`],
+        ["表示期間", `${rangeLabel} / ${rows.length}日分`],
       ].map(([labelText, value]) => `
         <div class="indicator">
           <div class="indicator-label">${escapeHtml(labelText)}</div>
@@ -2625,7 +2669,8 @@
         : latestScore <= SCORE_SELL_LINE
           ? `売り目安の${SCORE_SELL_LINE}点以下です。保有中なら撤退・見直し候補として確認します。`
           : `${SCORE_BUY_LINE}点と${SCORE_SELL_LINE}点の間です。買い急がず、改善方向か失速方向かを見ます。`;
-      el.scoreHistoryComment.textContent = `総合スコアは${formatDate(stats.latest.date)}時点で${Math.round(latestScore)}点、直近変化は${signedPoints(stats.change7)}です。${timingText} ${factorChangeText(rows)}`;
+      const rangeChange = stats.latest && stats.first ? stats.latest.score - stats.first.score : null;
+      el.scoreHistoryComment.textContent = `${rangeLabel}の総合スコアは${formatDate(stats.latest.date)}時点で${Math.round(latestScore)}点、期間内変化は${signedPoints(rangeChange)}です。${timingText} ${factorChangeText(rows)}`;
       requestAnimationFrame(() => drawScoreHistoryChart(rows));
     }
 
@@ -3224,6 +3269,9 @@
       Object.entries(el.rangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.chartRange === range);
       });
+      Object.entries(el.scoreRangeButtons).forEach(([range, button]) => {
+        button.classList.toggle("active", state.scoreHistoryRange === range);
+      });
       renderFundamentals(item, chartRows, priceMetrics);
       renderScoreHistory(item);
       el.chartLegend.innerHTML = [
@@ -3270,7 +3318,7 @@
         requestAnimationFrame(() => drawTechnicalChart(chartRows));
       }
       if (state.detailTab === "scoreHistory") {
-        requestAnimationFrame(() => drawScoreHistoryChart(scoreRowsFor(item)));
+        requestAnimationFrame(() => drawScoreHistoryChart(rowsForScoreHistoryRange(scoreRowsFor(item))));
       }
     }
 
@@ -3486,6 +3534,13 @@
       button.addEventListener("click", () => {
         state.chartRange = range;
         state.detailTab = "chart";
+        render();
+      });
+    });
+    Object.entries(el.scoreRangeButtons).forEach(([range, button]) => {
+      button.addEventListener("click", () => {
+        state.scoreHistoryRange = range;
+        state.detailTab = "scoreHistory";
         render();
       });
     });
