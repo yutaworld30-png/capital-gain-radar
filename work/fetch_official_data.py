@@ -755,6 +755,9 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
             "theme": theme_score,
             "margin": round(float(margin_ratio), 2),
             "monthsFromHigh": float(price.get("monthsFromHigh", 0)),
+            "isNewHigh52w": float(price.get("monthsFromHigh", 0)) <= 0.1,
+            "previousHigh": price.get("previousHigh"),
+            "previousHighDate": price.get("previousHighDate"),
             "technical": int(price.get("technical", 0)),
             "liquidity": int(price.get("liquidity", 0)),
             "relative": int(relative_map.get(code, 0)),
@@ -927,11 +930,14 @@ def _compact_score_row(row: dict[str, object]) -> dict[str, object]:
         "risk",
         "margin",
         "monthsFromHigh",
+        "isNewHigh52w",
         "latestClose",
         "priceAsOf",
         "per",
         "pbr",
         "roe",
+        "salesGrowth",
+        "profitGrowth",
     )
     return {
         key: row[key]
@@ -1042,7 +1048,16 @@ def collect_edinet_fundamentals(
                         row_metric.update(refreshed)
                         row_metric["valuationPriceAsOf"] = row.get("priceAsOf")
                     row["fundamentals"] = row_metric
-                    for field in ("per", "pbr", "roe", "marketCap", "dividendYield", "equityRatio"):
+                    for field in (
+                        "per",
+                        "pbr",
+                        "roe",
+                        "marketCap",
+                        "dividendYield",
+                        "equityRatio",
+                        "salesGrowth",
+                        "profitGrowth",
+                    ):
                         row[field] = row_metric.get(field)
                     row.setdefault("sources", {})["edinet"] = {  # type: ignore[index]
                         "url": row_metric.get("url"),
