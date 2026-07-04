@@ -883,7 +883,7 @@
     }
 
     .detail-tabs {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .range-tabs {
@@ -1053,6 +1053,39 @@
       display: block;
       width: 100%;
       height: 100%;
+    }
+
+    .score-history-wrap {
+      width: 100%;
+      height: 320px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      overflow: hidden;
+    }
+
+    #scoreHistoryChart {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .score-history-summary {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .score-history-comment {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      background: #fbfcfe;
+      font-size: 12px;
+      line-height: 1.55;
     }
 
     .chart-legend {
@@ -1496,6 +1529,7 @@
               <div class="detail-tabs" aria-label="銘柄詳細タブ">
                 <button id="fundamentalTab" class="active" type="button">基本情報</button>
                 <button id="chartTab" type="button">チャート</button>
+                <button id="scoreHistoryTab" type="button">スコア推移</button>
               </div>
               <div id="fundamentalPanel">
                 <div class="fundamental-grid" id="fundamentalGrid"></div>
@@ -1517,6 +1551,14 @@
                 <div class="indicator-grid" id="indicatorGrid"></div>
                 <div class="signal-list" id="signalList"></div>
                 <div class="chart-note" id="chartNote">候補銘柄はローソク足・出来高つきで表示します。詳細OHLCVがない銘柄は、無料取得できる終値履歴を使ったラインチャートに切り替えます。</div>
+              </div>
+              <div id="scoreHistoryPanel" hidden>
+                <div class="score-history-wrap">
+                  <canvas id="scoreHistoryChart" aria-label="総合スコア推移チャート"></canvas>
+                </div>
+                <div class="chart-legend" id="scoreHistoryLegend"></div>
+                <div class="score-history-summary" id="scoreHistorySummary"></div>
+                <div class="score-history-comment" id="scoreHistoryComment">スコア履歴を読み込み中です。</div>
               </div>
             </div>
           </section>
@@ -1583,8 +1625,12 @@
     let searchUniverse = [];
     let priceMetricsByCode = new Map();
     let officialDataset = null;
+    let scoreHistory = null;
+    let scoreHistoryByCode = new Map();
     let watchedCodes = new Set();
     const WATCHLIST_STORAGE_KEY = "capitalGainRadar.watchlist.v1";
+    const SCORE_BUY_LINE = 75;
+    const SCORE_SELL_LINE = 65;
 
     const state = {
       view: "overall",
@@ -1698,8 +1744,10 @@
       selectedJudgement: document.querySelector("#selectedJudgement"),
       fundamentalTab: document.querySelector("#fundamentalTab"),
       chartTab: document.querySelector("#chartTab"),
+      scoreHistoryTab: document.querySelector("#scoreHistoryTab"),
       fundamentalPanel: document.querySelector("#fundamentalPanel"),
       chartPanel: document.querySelector("#chartPanel"),
+      scoreHistoryPanel: document.querySelector("#scoreHistoryPanel"),
       fundamentalGrid: document.querySelector("#fundamentalGrid"),
       fundamentalNote: document.querySelector("#fundamentalNote"),
       rangeButtons: {
@@ -1715,6 +1763,10 @@
       chartNote: document.querySelector("#chartNote"),
       indicatorGrid: document.querySelector("#indicatorGrid"),
       signalList: document.querySelector("#signalList"),
+      scoreHistoryChart: document.querySelector("#scoreHistoryChart"),
+      scoreHistoryLegend: document.querySelector("#scoreHistoryLegend"),
+      scoreHistorySummary: document.querySelector("#scoreHistorySummary"),
+      scoreHistoryComment: document.querySelector("#scoreHistoryComment"),
     };
 
     function escapeHtml(value) {
@@ -2002,6 +2054,39 @@
       )).join("");
     }
 
+    function indexScoreHistory(history) {
+      const indexed = new Map();
+      const snapshots = Array.isArray(history?.snapshots) ? history.snapshots : [];
+      snapshots.forEach(snapshot => {
+        const dateText = String(snapshot?.date || "");
+        const rows = Array.isArray(snapshot?.rows) ? snapshot.rows : [];
+        rows.forEach(row => {
+          if (!row?.code || !Number.isFinite(Number(row.score))) return;
+          const code = String(row.code);
+          if (!indexed.has(code)) indexed.set(code, []);
+          indexed.get(code).push({
+            ...row,
+            date: dateText,
+            score: Number(row.score),
+          });
+        });
+      });
+      indexed.forEach(rows => rows.sort((a, b) => String(a.date).localeCompare(String(b.date))));
+      return indexed;
+    }
+
+    async function loadScoreHistory() {
+      try {
+        const response = await fetch("data/score-history.json", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        scoreHistory = await response.json();
+        scoreHistoryByCode = indexScoreHistory(scoreHistory);
+      } catch (error) {
+        scoreHistory = null;
+        scoreHistoryByCode = new Map();
+      }
+    }
+
     function applyDataset(dataset, sourceLabel) {
       officialDataset = dataset;
       const sources = dataset?.sources || {};
@@ -2024,6 +2109,10 @@
       candidates = dataStatus.liveConnected ? loadedCandidates : [];
       searchUniverse = dataStatus.liveConnected ? loadedSearchUniverse : [];
       priceMetricsByCode = new Map(rawPrices.map(item => [String(item.code), item]));
+      if (dataset?.scoreHistory && Array.isArray(dataset.scoreHistory.snapshots)) {
+        scoreHistory = dataset.scoreHistory;
+        scoreHistoryByCode = indexScoreHistory(scoreHistory);
+      }
       const stats = {
         raw: rawSearchUniverse.length,
         accepted: loadedSearchUniverse.length,
@@ -2057,7 +2146,10 @@
 
     async function loadBundledDataset() {
       try {
-        const response = await fetch("data/latest-candidates.json", { cache: "no-store" });
+        const [response] = await Promise.all([
+          fetch("data/latest-candidates.json", { cache: "no-store" }),
+          loadScoreHistory(),
+        ]);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         applyDataset(await response.json(), "公式データ読込");
       } catch (error) {
@@ -2341,6 +2433,200 @@
         </div>
       `).join("");
       el.fundamentalNote.textContent = `株価は${formatDate(priceAsOf)}時点の取得値です。PER/PBRなど株価で変わる指標は、保存済み財務データを使う場合も最新株価で再計算します。未取得項目は「未取得」と表示します。`;
+    }
+
+    function scoreRowsFor(item) {
+      const rows = scoreHistoryByCode.get(String(item?.code || "")) || [];
+      if (!rows.length && item?.code && Number.isFinite(Number(item.score))) {
+        return [{
+          date: item.priceAsOf || officialDataset?.generatedAt?.slice(0, 10) || "",
+          score: Number(item.score),
+          theme: item.theme,
+          supply: item.supply,
+          technical: item.technical,
+          relative: item.relative,
+          earnings: item.earnings,
+          liquidity: item.liquidity,
+          valuation: item.valuation,
+          risk: item.risk,
+        }];
+      }
+      return rows;
+    }
+
+    function signedPoints(value) {
+      if (!Number.isFinite(value)) return "-";
+      return `${value > 0 ? "+" : ""}${Math.round(value)}pt`;
+    }
+
+    function scoreHistoryStats(rows) {
+      const latest = rows.at(-1);
+      const previous = rows.length >= 2 ? rows.at(-2) : null;
+      const first = rows[0];
+      const scores = rows.map(row => row.score).filter(Number.isFinite);
+      const last7Start = rows.length >= 7 ? rows.at(-7) : first;
+      const last30Start = rows.length >= 30 ? rows.at(-30) : first;
+      return {
+        latest,
+        previous,
+        first,
+        max: scores.length ? Math.max(...scores) : null,
+        min: scores.length ? Math.min(...scores) : null,
+        change1: latest && previous ? latest.score - previous.score : null,
+        change7: latest && last7Start ? latest.score - last7Start.score : null,
+        change30: latest && last30Start ? latest.score - last30Start.score : null,
+      };
+    }
+
+    function factorChangeText(rows) {
+      if (rows.length < 2) return "項目別の変化は、履歴が2日分以上たまると確認できます。";
+      const latest = rows.at(-1);
+      const base = rows.length >= 7 ? rows.at(-7) : rows[0];
+      const factors = [
+        ["テーマ性", "theme"],
+        ["需給", "supply"],
+        ["テクニカル", "technical"],
+        ["相対強度", "relative"],
+        ["業績", "earnings"],
+        ["流動性", "liquidity"],
+        ["割安・収益性", "valuation"],
+      ];
+      const changes = factors
+        .map(([label, key]) => {
+          const current = Number(latest?.[key]);
+          const previous = Number(base?.[key]);
+          return Number.isFinite(current) && Number.isFinite(previous)
+            ? { label, diff: current - previous }
+            : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+      if (!changes.length) return "項目別スコアの変化はまだ確認できません。";
+      const top = changes[0];
+      return `${top.label}が${signedPoints(top.diff)}で、直近変化への影響が大きいです。`;
+    }
+
+    function drawScoreHistoryChart(rows) {
+      const canvas = el.scoreHistoryChart;
+      const context = canvas.getContext("2d");
+      const bounds = canvas.getBoundingClientRect();
+      const width = Math.max(280, Math.round(bounds.width));
+      const height = Math.max(260, Math.round(bounds.height));
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.round(width * ratio);
+      canvas.height = Math.round(height * ratio);
+      context.setTransform(ratio, 0, 0, ratio, 0, 0);
+      context.clearRect(0, 0, width, height);
+
+      const data = rows.filter(row => row.date && Number.isFinite(row.score));
+      if (!data.length) return;
+
+      const left = 38;
+      const right = 14;
+      const top = 18;
+      const bottom = 34;
+      const innerWidth = width - left - right;
+      const innerHeight = height - top - bottom;
+      const chartMin = 0;
+      const chartMax = 100;
+      const x = index => left + innerWidth * index / Math.max(1, data.length - 1);
+      const y = value => top + innerHeight - ((value - chartMin) / (chartMax - chartMin)) * innerHeight;
+
+      context.strokeStyle = "#e2e8f0";
+      context.lineWidth = 1;
+      context.fillStyle = "#627083";
+      context.font = "11px Yu Gothic UI, Meiryo, sans-serif";
+      [0, 25, 50, 75, 100].forEach(value => {
+        const lineY = y(value);
+        context.beginPath();
+        context.moveTo(left, lineY);
+        context.lineTo(width - right, lineY);
+        context.stroke();
+        context.fillText(String(value), 6, lineY + 4);
+      });
+
+      const drawThreshold = (value, color, label) => {
+        const lineY = y(value);
+        context.save();
+        context.strokeStyle = color;
+        context.setLineDash([5, 4]);
+        context.beginPath();
+        context.moveTo(left, lineY);
+        context.lineTo(width - right, lineY);
+        context.stroke();
+        context.setLineDash([]);
+        context.fillStyle = color;
+        context.font = "12px Yu Gothic UI, Meiryo, sans-serif";
+        context.fillText(label, left + 6, lineY - 6);
+        context.restore();
+      };
+      drawThreshold(SCORE_BUY_LINE, "#0f8f6a", `買い目安 ${SCORE_BUY_LINE}`);
+      drawThreshold(SCORE_SELL_LINE, "#bc3b42", `売り目安 ${SCORE_SELL_LINE}`);
+
+      context.strokeStyle = "#246bce";
+      context.lineWidth = 2;
+      context.beginPath();
+      data.forEach((row, index) => {
+        const pointX = x(index);
+        const pointY = y(row.score);
+        if (index === 0) context.moveTo(pointX, pointY);
+        else context.lineTo(pointX, pointY);
+      });
+      context.stroke();
+
+      data.forEach((row, index) => {
+        context.fillStyle = row.score >= SCORE_BUY_LINE ? "#0f8f6a" : row.score <= SCORE_SELL_LINE ? "#bc3b42" : "#246bce";
+        context.beginPath();
+        context.arc(x(index), y(row.score), 3, 0, Math.PI * 2);
+        context.fill();
+      });
+
+      context.fillStyle = "#627083";
+      context.font = "11px Yu Gothic UI, Meiryo, sans-serif";
+      context.fillText(formatDate(data[0].date).slice(5), left, height - 10);
+      context.fillText(formatDate(data.at(-1).date).slice(5), Math.max(left, width - 58), height - 10);
+    }
+
+    function renderScoreHistory(item) {
+      const rows = scoreRowsFor(item);
+      const stats = scoreHistoryStats(rows);
+      el.scoreHistoryLegend.innerHTML = [
+        ["#246bce", "総合スコア"],
+        ["#0f8f6a", `買い目安 ${SCORE_BUY_LINE}点`],
+        ["#bc3b42", `売り目安 ${SCORE_SELL_LINE}点`],
+      ].map(([color, text]) => `
+        <span class="legend-item"><span class="legend-line" style="background:${color}"></span>${escapeHtml(text)}</span>
+      `).join("");
+
+      if (!rows.length || !stats.latest) {
+        el.scoreHistorySummary.innerHTML = "";
+        el.scoreHistoryComment.textContent = "スコア履歴がまだありません。毎日のデータ更新後に推移が表示されます。";
+        drawScoreHistoryChart([]);
+        return;
+      }
+
+      el.scoreHistorySummary.innerHTML = [
+        ["現在スコア", `${Math.round(stats.latest.score)}点`],
+        ["前回比", signedPoints(stats.change1)],
+        ["直近7日", signedPoints(stats.change7)],
+        ["直近30日", signedPoints(stats.change30)],
+        ["最高 / 最低", `${Math.round(stats.max)}点 / ${Math.round(stats.min)}点`],
+        ["履歴日数", `${rows.length}日分`],
+      ].map(([labelText, value]) => `
+        <div class="indicator">
+          <div class="indicator-label">${escapeHtml(labelText)}</div>
+          <div class="indicator-value">${escapeHtml(value)}</div>
+        </div>
+      `).join("");
+
+      const latestScore = stats.latest.score;
+      const timingText = latestScore >= SCORE_BUY_LINE
+        ? `買い目安の${SCORE_BUY_LINE}点以上です。勢いはありますが、急伸後は過熱も確認します。`
+        : latestScore <= SCORE_SELL_LINE
+          ? `売り目安の${SCORE_SELL_LINE}点以下です。保有中なら撤退・見直し候補として確認します。`
+          : `${SCORE_BUY_LINE}点と${SCORE_SELL_LINE}点の間です。買い急がず、改善方向か失速方向かを見ます。`;
+      el.scoreHistoryComment.textContent = `総合スコアは${formatDate(stats.latest.date)}時点で${Math.round(latestScore)}点、直近変化は${signedPoints(stats.change7)}です。${timingText} ${factorChangeText(rows)}`;
+      requestAnimationFrame(() => drawScoreHistoryChart(rows));
     }
 
     function chartRangeDays() {
@@ -2901,17 +3187,11 @@
 
       const priceMetrics = priceMetricsByCode.get(String(item.code)) || {};
       const chartRows = chartRowsFor(item);
-      if (chartRows.length < 50) {
-        el.technicalAsOf.textContent = "履歴不足";
-        el.technicalEmpty.textContent = "この銘柄はチャート表示に必要な価格履歴が不足しています。";
-        el.technicalEmpty.hidden = false;
-        el.technicalBody.hidden = true;
-        return;
-      }
+      const hasEnoughChartRows = chartRows.length >= 50;
 
       const closes = chartRows.map(row => row.close);
       const latestBands = bollingerSeries(closes, 20, 2).at(-1) || {};
-      const hasOhlc = chartRows.every(row =>
+      const hasOhlc = hasEnoughChartRows && chartRows.every(row =>
         Number.isFinite(row.open) &&
         Number.isFinite(row.high) &&
         Number.isFinite(row.low) &&
@@ -2937,12 +3217,15 @@
       el.selectedJudgement.className = `badge ${className === "good" ? "ok" : "warn"}`;
       el.fundamentalTab.classList.toggle("active", state.detailTab === "fundamental");
       el.chartTab.classList.toggle("active", state.detailTab === "chart");
+      el.scoreHistoryTab.classList.toggle("active", state.detailTab === "scoreHistory");
       el.fundamentalPanel.hidden = state.detailTab !== "fundamental";
       el.chartPanel.hidden = state.detailTab !== "chart";
+      el.scoreHistoryPanel.hidden = state.detailTab !== "scoreHistory";
       Object.entries(el.rangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.chartRange === range);
       });
       renderFundamentals(item, chartRows, priceMetrics);
+      renderScoreHistory(item);
       el.chartLegend.innerHTML = [
         ["#246bce", hasOhlc ? "ローソク足" : "終値"],
         ["#8aa8d8", "BB ±2σ"],
@@ -2952,7 +3235,9 @@
       ].map(([color, text]) => `
         <span class="legend-item"><span class="legend-line" style="background:${color}"></span>${escapeHtml(text)}</span>
       `).join("");
-      el.chartNote.textContent = hasOhlc
+      el.chartNote.textContent = !hasEnoughChartRows
+        ? "この銘柄はチャート表示に必要な価格履歴が不足しています。スコア推移は履歴データがあれば確認できます。"
+        : hasOhlc
         ? "この銘柄は詳細OHLCVを取得済みのため、ローソク足・出来高・RSI・MACDを表示しています。"
         : "この銘柄は詳細OHLCVがないため、終値ラインで表示しています。出来高とローソク足は候補銘柄の詳細取得時に表示されます。";
       el.indicatorGrid.innerHTML = [
@@ -2983,6 +3268,9 @@
       `).join("");
       if (state.detailTab === "chart") {
         requestAnimationFrame(() => drawTechnicalChart(chartRows));
+      }
+      if (state.detailTab === "scoreHistory") {
+        requestAnimationFrame(() => drawScoreHistoryChart(scoreRowsFor(item)));
       }
     }
 
@@ -3188,6 +3476,10 @@
     });
     el.chartTab.addEventListener("click", () => {
       state.detailTab = "chart";
+      render();
+    });
+    el.scoreHistoryTab.addEventListener("click", () => {
+      state.detailTab = "scoreHistory";
       render();
     });
     Object.entries(el.rangeButtons).forEach(([range, button]) => {
