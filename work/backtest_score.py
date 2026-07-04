@@ -152,8 +152,8 @@ def available_data_summary(snapshot: dict[str, Any]) -> dict[str, Any]:
         "scoreCount": len(scores),
         "scoreMin": min(scores) if scores else None,
         "scoreMax": max(scores) if scores else None,
-        "buyCandidates": sum(1 for value in scores if value >= 90),
-        "sellCandidates": sum(1 for value in scores if value <= 70),
+        "buyCandidates": sum(1 for value in scores if value >= 75),
+        "sellCandidates": sum(1 for value in scores if value <= 65),
     }
 
 
@@ -170,7 +170,7 @@ def run_backtest(
     if len(snapshots) < 2:
         return [], {
             "status": "insufficient-score-history",
-            "reason": "日次スコア履歴が2日分未満のため、スコア90到達日と70割れ売却日を検証できません。",
+            "reason": "日次スコア履歴が2日分未満のため、スコア75到達日と65割れ売却日を検証できません。",
         }
 
     positions: dict[str, Position] = {}
@@ -267,8 +267,8 @@ def print_report(snapshots: list[dict[str, Any]], trades: list[Trade], meta: dic
     print("# Score Backtest Report")
     print()
     print("## Rule")
-    print("- Buy: score >= 90")
-    print("- Sell: score <= 70, max holding 20 days, stop loss -8%, take profit +15%")
+    print("- Buy: score >= 75")
+    print("- Sell: score <= 65, max holding 20 days, stop loss -8%, take profit +15%")
     print()
     print("## Data Availability")
     for key, value in availability.items():
@@ -299,8 +299,8 @@ def main() -> None:
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
     parser.add_argument("--score-history", type=Path, default=DEFAULT_SCORE_HISTORY)
     parser.add_argument("--history", type=Path, nargs="*", default=[])
-    parser.add_argument("--buy-score", type=int, default=90)
-    parser.add_argument("--sell-score", type=int, default=70)
+    parser.add_argument("--buy-score", type=int, default=75)
+    parser.add_argument("--sell-score", type=int, default=65)
     parser.add_argument("--max-holding-days", type=int, default=20)
     parser.add_argument("--stop-loss", type=float, default=-0.08)
     parser.add_argument("--take-profit", type=float, default=0.15)
