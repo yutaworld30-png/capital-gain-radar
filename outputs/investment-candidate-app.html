@@ -47,6 +47,11 @@
       background: #152033;
       color: #f3f7fb;
       padding: 22px 18px;
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      overflow-y: auto;
     }
 
     .brand {
@@ -344,6 +349,39 @@
       background: var(--white);
       color: var(--ink);
       padding: 0 10px;
+    }
+
+    .breakout-control {
+      min-width: 0;
+    }
+
+    .breakout-options {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .breakout-options button {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+      background: var(--white);
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .breakout-options button.active {
+      color: #102235;
+      background: var(--mint);
+      border-color: var(--mint);
+    }
+
+    .breakout-description {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
     }
 
     h2 {
@@ -1111,6 +1149,8 @@
 
       aside {
         position: static;
+        height: auto;
+        overflow: visible;
       }
 
       .layout,
@@ -1159,6 +1199,10 @@
       }
 
       .ranking-tools {
+        grid-template-columns: 1fr;
+      }
+
+      .breakout-options {
         grid-template-columns: 1fr;
       }
 
@@ -1270,7 +1314,7 @@
             <ol class="guide-list">
               <li>対象銘柄で東証プライム全体、または日経225だけに切り替えます。</li>
               <li>総合、新高値ブレイク、テーマ別ランキング、業種別ランキング、ウォッチリストを切り替えて候補を確認します。</li>
-              <li>新高値ブレイクは、52週高値更新、売上高10%以上増、利益20%以上増、ROE10%以上の銘柄を表示します。</li>
+              <li>新高値ブレイクは、厳選・標準・予備軍の3段階で条件を切り替えて確認できます。</li>
               <li>テーマ別・業種別では、選択したテーマ/業種のスコア上位5銘柄を表示します。</li>
               <li>銘柄検索はコード、銘柄名、テーマ、業種で絞り込みでき、入力途中の候補から直接選べます。</li>
               <li>比較ボタンで最大5銘柄を横並び比較し、ランキング行を選ぶと基本情報とチャートを確認できます。</li>
@@ -1399,6 +1443,17 @@
           <div class="ranking-tools" id="groupFilter" hidden>
             <label for="groupSelect" id="groupFilterLabel">テーマ選択</label>
             <select id="groupSelect"></select>
+          </div>
+          <div class="ranking-tools" id="breakoutFilter" hidden>
+            <label>条件レベル</label>
+            <div class="breakout-control">
+              <div class="breakout-options" role="group" aria-label="新高値ブレイク条件">
+                <button id="breakoutStrict" type="button" data-breakout-mode="strict">厳選</button>
+                <button id="breakoutStandard" type="button" data-breakout-mode="standard">標準</button>
+                <button id="breakoutWatch" type="button" data-breakout-mode="watch">予備軍</button>
+              </div>
+              <div class="breakout-description" id="breakoutDescription"></div>
+            </div>
           </div>
           <div class="table-wrap">
             <table>
@@ -1541,10 +1596,47 @@
       compareCodes: [],
       selectedTheme: "",
       selectedIndustry: "",
+      breakoutMode: "strict",
       searchOpen: false,
       activeSuggestionIndex: 0,
       detailTab: "fundamental",
       chartRange: "6m",
+    };
+
+    const BREAKOUT_PROFILES = {
+      strict: {
+        label: "厳選",
+        note: "52週高値更新、売上高10%以上増、利益20%以上増、ROE10%以上の銘柄を表示します。",
+        empty: "厳選条件に一致する新高値ブレイク銘柄がありません。条件は52週高値更新、売上高10%以上増、利益20%以上増、ROE10%以上です。",
+        salesGrowth: 0.10,
+        profitGrowth: 0.20,
+        roe: 0.10,
+        highDistance: 0,
+        highDays: 366,
+        requireMa25: false,
+      },
+      standard: {
+        label: "標準",
+        note: "52週高値更新または高値から3%以内、売上高5%以上増、利益10%以上増、ROE8%以上の銘柄を表示します。",
+        empty: "標準条件に一致する新高値ブレイク銘柄がありません。条件は52週高値更新または高値から3%以内、売上高5%以上増、利益10%以上増、ROE8%以上です。",
+        salesGrowth: 0.05,
+        profitGrowth: 0.10,
+        roe: 0.08,
+        highDistance: 0.03,
+        highDays: 366,
+        requireMa25: false,
+      },
+      watch: {
+        label: "予備軍",
+        note: "52週高値から5%以内、売上高3%以上増、利益成長率0%以上、ROE5%以上、株価が25日線より上の銘柄を表示します。",
+        empty: "予備軍条件に一致する銘柄がありません。条件は52週高値から5%以内、売上高3%以上増、利益成長率0%以上、ROE5%以上、株価が25日線より上です。",
+        salesGrowth: 0.03,
+        profitGrowth: 0,
+        roe: 0.05,
+        highDistance: 0.05,
+        highDays: 366,
+        requireMa25: true,
+      },
     };
 
     const dataStatus = {
@@ -1580,6 +1672,9 @@
       groupFilter: document.querySelector("#groupFilter"),
       groupFilterLabel: document.querySelector("#groupFilterLabel"),
       groupSelect: document.querySelector("#groupSelect"),
+      breakoutFilter: document.querySelector("#breakoutFilter"),
+      breakoutDescription: document.querySelector("#breakoutDescription"),
+      breakoutButtons: document.querySelectorAll("[data-breakout-mode]"),
       themeList: document.querySelector("#themeList"),
       exportBtn: document.querySelector("#exportBtn"),
       importBtn: document.querySelector("#importBtn"),
@@ -1688,19 +1783,76 @@
       return Math.round(perScore * 0.35 + pbrScore * 0.25 + roeScore * 0.4);
     }
 
-    function isBreakoutCandidate(item) {
+    function breakoutProfile(mode = state.breakoutMode) {
+      return BREAKOUT_PROFILES[mode] || BREAKOUT_PROFILES.strict;
+    }
+
+    function numericMetric(item, keys) {
+      const ownValue = valueFrom(item, keys);
+      if (Number.isFinite(ownValue)) return ownValue;
+      const priceMetrics = priceMetricsByCode.get(String(item?.code || ""));
+      for (const key of keys) {
+        const value = priceMetrics?.[key];
+        if (value === null || value === undefined || value === "") continue;
+        if (Number.isFinite(Number(value))) return Number(value);
+      }
+      return null;
+    }
+
+    function highDistanceRatio(item, days = 366) {
+      const direct = numericMetric(item, [
+        "high52wDistance",
+        "distanceFrom52wHigh",
+        "distanceFromHigh52w",
+        "drawdownFrom52wHigh",
+      ]);
+      if (Number.isFinite(direct)) {
+        const distance = Math.abs(direct);
+        return distance > 1 ? distance / 100 : distance;
+      }
+
+      const rows = chartRowsFor(item);
+      if (rows.length < 5) return null;
+      const latest = rows.at(-1);
+      const latestTime = new Date(`${latest.date}T00:00:00`).getTime();
+      const scopedRows = Number.isFinite(latestTime)
+        ? rows.filter(row => latestTime - new Date(`${row.date}T00:00:00`).getTime() <= days * 86400000)
+        : rows.slice(-260);
+      const sourceRows = scopedRows.length >= 5 ? scopedRows : rows.slice(-260);
+      const high = Math.max(...sourceRows.map(row => Number.isFinite(row.high) && row.high > 0 ? row.high : row.close));
+      if (!Number.isFinite(high) || high <= 0 || !Number.isFinite(latest.close)) return null;
+      return Math.max(0, (high - latest.close) / high);
+    }
+
+    function isNearHigh(item, profile) {
+      if (item.isNewHigh52w === true) return true;
+      const distance = highDistanceRatio(item, profile.highDays);
+      if (Number.isFinite(distance)) return distance <= profile.highDistance;
+      return profile.highDistance <= 0 && Number.isFinite(item.monthsFromHigh) && item.monthsFromHigh <= 0.1;
+    }
+
+    function isAboveMovingAverage(item, period = 25) {
+      const rows = chartRowsFor(item);
+      if (rows.length < period) return false;
+      const closes = rows.map(row => row.close);
+      const average = latestAverage(closes, period);
+      return Number.isFinite(average) && Number.isFinite(closes.at(-1)) && closes.at(-1) > average;
+    }
+
+    function isBreakoutCandidate(item, mode = state.breakoutMode) {
+      const profile = breakoutProfile(mode);
       const salesGrowth = valueFrom(item, ["salesGrowth"]);
       const profitGrowth = valueFrom(item, ["profitGrowth"]);
       const roe = valueFrom(item, ["roe", "ROE"]);
-      const isNewHigh = item.isNewHigh52w === true || (Number.isFinite(item.monthsFromHigh) && item.monthsFromHigh <= 0.1);
       return (
-        isNewHigh &&
+        isNearHigh(item, profile) &&
         Number.isFinite(salesGrowth) &&
-        salesGrowth >= 0.10 &&
+        salesGrowth >= profile.salesGrowth &&
         Number.isFinite(profitGrowth) &&
-        profitGrowth >= 0.20 &&
+        profitGrowth >= profile.profitGrowth &&
         Number.isFinite(roe) &&
-        roe >= 0.10
+        roe >= profile.roe &&
+        (!profile.requireMa25 || isAboveMovingAverage(item, 25))
       );
     }
 
@@ -2556,7 +2708,7 @@
         }));
       }
       if (state.view === "breakout") {
-        return rankedRows.filter(isBreakoutCandidate).slice(0, state.limit);
+        return rankedRows.filter(item => isBreakoutCandidate(item)).slice(0, state.limit);
       }
       if (state.view === "watchlist") {
         return rankedRows.filter(item => watchedCodes.has(String(item.code)));
@@ -2625,7 +2777,7 @@
         el.empty.textContent = state.view === "watchlist"
           ? "ウォッチリストは空です。ランキングの☆ボタンから銘柄を追加できます。"
           : state.view === "breakout"
-            ? "新高値ブレイク条件に一致する銘柄がありません。条件は52週高値更新、売上高10%以上増、利益20%以上増、ROE10%以上です。"
+            ? breakoutProfile().empty
             : "表示できる銘柄がありません。検索条件や対象銘柄を確認してください。";
       }
     }
@@ -2869,10 +3021,22 @@
       }
     }
 
+    function renderBreakoutFilter() {
+      const isBreakout = state.view === "breakout";
+      el.breakoutFilter.hidden = !isBreakout;
+      if (!isBreakout) return;
+      const profile = breakoutProfile();
+      el.breakoutDescription.textContent = profile.note;
+      el.breakoutButtons.forEach(button => {
+        button.classList.toggle("active", button.dataset.breakoutMode === state.breakoutMode);
+      });
+    }
+
     function syncLabels() {
+      const profile = breakoutProfile();
       const viewLabels = {
         overall: ["総合ランキング", "スコア上位を毎日更新します"],
-        breakout: ["新高値ブレイク", "52週高値更新、売上高10%以上増、利益20%以上増、ROE10%以上の銘柄を表示します"],
+        breakout: [`新高値ブレイク（${profile.label}）`, profile.note],
         theme: ["テーマ別ランキング", "選択したテーマのスコア上位5銘柄を表示します"],
         industry: ["業種別ランキング", "選択した業種のスコア上位5銘柄を表示します"],
         watchlist: ["ウォッチリスト", "気になる銘柄を端末内に保存して監視します"],
@@ -2895,6 +3059,7 @@
       syncLabels();
       pruneCompareCodes();
       renderGroupFilter();
+      renderBreakoutFilter();
       const rows = currentRows();
       renderRows(rows);
       renderCompare();
@@ -2958,6 +3123,12 @@
       if (state.view === "theme") state.selectedTheme = event.target.value;
       if (state.view === "industry") state.selectedIndustry = event.target.value;
       render();
+    });
+    el.breakoutButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        state.breakoutMode = button.dataset.breakoutMode || "strict";
+        render();
+      });
     });
     el.primeUniverse.addEventListener("click", () => {
       state.universe = "prime";
