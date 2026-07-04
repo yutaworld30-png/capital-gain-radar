@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +35,7 @@ jobs:
       - name: Refresh market data
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
+          EDINET_MAX_DOWNLOADS: "225"
         run: python work/fetch_official_data.py
 
       - name: Configure Pages
