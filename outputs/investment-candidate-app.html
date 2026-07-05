@@ -2568,7 +2568,15 @@
       const innerHeight = height - top - bottom;
       const chartMin = 0;
       const chartMax = 100;
-      const x = index => left + innerWidth * index / Math.max(1, data.length - 1);
+      const times = data.map(row => new Date(`${row.date}T00:00:00`).getTime());
+      const minTime = Math.min(...times);
+      const maxTime = Math.max(...times);
+      const x = index => {
+        if (!Number.isFinite(times[index]) || minTime === maxTime) {
+          return left + innerWidth * index / Math.max(1, data.length - 1);
+        }
+        return left + innerWidth * (times[index] - minTime) / (maxTime - minTime);
+      };
       const y = value => top + innerHeight - ((value - chartMin) / (chartMax - chartMin)) * innerHeight;
 
       context.strokeStyle = "#e2e8f0";
@@ -2664,13 +2672,17 @@
       `).join("");
 
       const latestScore = stats.latest.score;
+      const includesReconstructed = rows.some(row => row.historySource === "reconstructed-backtest225");
       const timingText = latestScore >= SCORE_BUY_LINE
         ? `買い目安の${SCORE_BUY_LINE}点以上です。勢いはありますが、急伸後は過熱も確認します。`
         : latestScore <= SCORE_SELL_LINE
           ? `売り目安の${SCORE_SELL_LINE}点以下です。保有中なら撤退・見直し候補として確認します。`
           : `${SCORE_BUY_LINE}点と${SCORE_SELL_LINE}点の間です。買い急がず、改善方向か失速方向かを見ます。`;
       const rangeChange = stats.latest && stats.first ? stats.latest.score - stats.first.score : null;
-      el.scoreHistoryComment.textContent = `${rangeLabel}の総合スコアは${formatDate(stats.latest.date)}時点で${Math.round(latestScore)}点、期間内変化は${signedPoints(rangeChange)}です。${timingText} ${factorChangeText(rows)}`;
+      const sourceNote = includesReconstructed
+        ? "この期間にはバックテスト入力から復元した参考データを含みます。"
+        : "この期間は日次更新で保存された実スナップショットです。";
+      el.scoreHistoryComment.textContent = `${rangeLabel}の総合スコアは${formatDate(stats.latest.date)}時点で${Math.round(latestScore)}点、期間内変化は${signedPoints(rangeChange)}です。${timingText} ${factorChangeText(rows)} ${sourceNote}`;
       requestAnimationFrame(() => drawScoreHistoryChart(rows));
     }
 
