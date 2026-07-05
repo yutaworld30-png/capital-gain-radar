@@ -591,31 +591,46 @@ def collect_free_market_metrics(
 
 def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: str) -> None:
     candidates = dataset.get("candidates")
-    prices = dataset.get("primeMarketPrices")
-    if not isinstance(candidates, list) or not isinstance(prices, list):
+    price_groups = [
+        group for group in (
+            dataset.get("primeMarketPrices"),
+            dataset.get("nikkei225Prices"),
+        )
+        if isinstance(group, list)
+    ]
+    if not isinstance(candidates, list) or not price_groups:
         return
 
-    candidate_codes = sorted({
+    candidate_codes = {
         str(item.get("code", ""))
         for item in candidates
         if isinstance(item, dict) and item.get("code")
-    })
-    if not candidate_codes:
-        return
-
-    price_map = {
-        str(item.get("code", "")): item
-        for item in prices
+    }
+    nikkei_codes = {
+        str(item.get("code", ""))
+        for item in dataset.get("nikkei225Components", [])
         if isinstance(item, dict) and item.get("code")
     }
+    detail_codes = sorted(candidate_codes | nikkei_codes)
+    if not detail_codes:
+        return
+
+    price_maps = [
+        {
+            str(item.get("code", "")): item
+            for item in prices
+            if isinstance(item, dict) and item.get("code")
+        }
+        for prices in price_groups
+    ]
     today = date.today()
     start = today - timedelta(days=760)
     detailed_count = 0
     errors: list[str] = []
 
-    for code in candidate_codes:
-        target = price_map.get(code)
-        if not target:
+    for code in detail_codes:
+        targets = [price_map[code] for price_map in price_maps if code in price_map]
+        if not targets:
             continue
         try:
             rows, url = fetch_yahoo_history(code, start, today)
@@ -644,15 +659,16 @@ def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: 
         if len(chart_history) < 50:
             errors.append(f"{code}: OHLCV履歴が50営業日未満です。")
             continue
-        target["chartHistory"] = chart_history
-        target["chartType"] = "ohlcv"
-        sources = target.setdefault("sources", {})
-        if isinstance(sources, dict):
-            sources["chartDetail"] = {
-                "url": url,
-                "updatedAt": chart_history[-1]["date"],
-                "provider": "Yahoo Finance chart",
-            }
+        for target in targets:
+            target["chartHistory"] = chart_history
+            target["chartType"] = "ohlcv"
+            sources = target.setdefault("sources", {})
+            if isinstance(sources, dict):
+                sources["chartDetail"] = {
+                    "url": url,
+                    "updatedAt": chart_history[-1]["date"],
+                    "provider": "Yahoo Finance chart",
+                }
         detailed_count += 1
         time.sleep(0.08)
 
