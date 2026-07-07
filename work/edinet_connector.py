@@ -630,7 +630,12 @@ def calculate_valuation_metrics(
     equity = fundamentals.get("equity")
     profit = fundamentals.get("profit")
     shares_outstanding = fundamentals.get("sharesOutstanding")
-    dividend_yield = _ratio(dps if isinstance(dps, (int, float)) else None, close)
+    provided_dividend_yield = fundamentals.get("dividendYield")
+    dividend_yield = (
+        provided_dividend_yield
+        if isinstance(provided_dividend_yield, (int, float))
+        else _ratio(dps if isinstance(dps, (int, float)) else None, close)
+    )
     dividend_payout_ratio = _ratio(
         dps if isinstance(dps, (int, float)) else None,
         eps if isinstance(eps, (int, float)) else None,

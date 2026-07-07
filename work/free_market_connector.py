@@ -277,21 +277,35 @@ def fetch_yahoo_dividend_forecast(code: str) -> dict[str, object]:
     page = html.unescape(_fetch(url).decode("utf-8", errors="replace"))
     text = re.sub(r"<[^>]+>", " ", page)
     text = re.sub(r"\s+", " ", text)
-    match = re.search(
+    yield_match = re.search(
+        r"配当利回り\s*（会社予想）\s*用語\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*%\s*\(\s*([0-9]{1,2}/[0-9]{1,2}|--)\s*\)",
+        text,
+    )
+    dps_match = re.search(
         r"1株配当\s*（会社予想）\s*用語\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*円\s*\(\s*([0-9]{4}/[0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}|--)\s*\)",
         text,
     )
-    if not match:
+    if not dps_match:
         raise FreeMarketDataError("Yahoo Financeの1株配当（会社予想）を確認できません。")
-    dps = float(match.group(1).replace(",", ""))
+    dps = float(dps_match.group(1).replace(",", ""))
     if dps <= 0 or dps > 2000:
         raise FreeMarketDataError("Yahoo Financeの1株配当（会社予想）が許容範囲外です。")
-    return {
+    forecast: dict[str, object] = {
         "dps": dps,
-        "dpsAsOf": match.group(2),
+        "dpsAsOf": dps_match.group(2),
         "dpsSource": "Yahoo Finance 1株配当（会社予想）",
         "dpsUrl": url,
     }
+    if yield_match:
+        dividend_yield = float(yield_match.group(1).replace(",", "")) / 100
+        if 0 < dividend_yield <= 0.25:
+            forecast.update({
+                "dividendYield": dividend_yield,
+                "dividendYieldAsOf": yield_match.group(2),
+                "dividendYieldSource": "Yahoo Finance 配当利回り（会社予想）",
+                "dividendYieldKind": "forecast",
+            })
+    return forecast
 
 
 def fetch_validated_price_metrics(code: str, start: date, end: date) -> dict[str, object]:
