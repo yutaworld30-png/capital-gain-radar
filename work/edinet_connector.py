@@ -259,10 +259,30 @@ def _find_best_value_by_name_pattern(
     return _find_best_value_any_period(root, contexts, tuple(sorted(names)))
 
 
+def _find_first_best_value_any_period(
+    root: ElementTree.Element,
+    contexts: dict[str, dict[str, object]],
+    tag_names: tuple[str, ...],
+) -> tuple[float | None, str | None]:
+    for tag_name in tag_names:
+        value, as_of = _find_best_value_any_period(root, contexts, (tag_name,))
+        if value is not None:
+            return value, as_of
+    return None, None
+
+
 def _ratio(numerator: float | None, denominator: float | None) -> float | None:
     if numerator is None or denominator in (None, 0):
         return None
     return numerator / denominator
+
+
+def _valid_ratio(value: float | None, maximum: float) -> float | None:
+    if value is None:
+        return None
+    if value < 0 or value > maximum:
+        return None
+    return value
 
 
 def _growth(current: float | None, previous: float | None) -> float | None:
@@ -337,8 +357,7 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         "NetAssetsPerShareSummaryOfBusinessResults",
         "EquityAttributableToOwnersOfParentPerShareIFRS",
     ), duration=False)
-    dps, _ = _find_best_value_any_period(root, contexts, (
-        "DividendPaidPerShare",
+    dps, _ = _find_first_best_value_any_period(root, contexts, (
         "AnnualDividendsPerShare",
         "AnnualDividendsPerShareSummaryOfBusinessResults",
         "CashDividendsPerShare",
@@ -356,7 +375,7 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
             root,
             contexts,
             required_tokens=("Dividend", "PerShare"),
-            excluded_tokens=("Payout", "Ratio", "Forecast", "Plan", "Forecasts", "Planned"),
+            excluded_tokens=("Paid", "Payout", "Ratio", "Forecast", "Plan", "Forecasts", "Planned"),
         )
     issued_shares, _ = _find_best_value(root, contexts, (
         "TotalNumberOfIssuedShares",
@@ -420,6 +439,15 @@ def calculate_valuation_metrics(
     equity = fundamentals.get("equity")
     profit = fundamentals.get("profit")
     shares_outstanding = fundamentals.get("sharesOutstanding")
+    dividend_yield = _ratio(dps if isinstance(dps, (int, float)) else None, close)
+    dividend_payout_ratio = _ratio(
+        dps if isinstance(dps, (int, float)) else None,
+        eps if isinstance(eps, (int, float)) else None,
+    )
+    doe = _ratio(profit, equity) if dps is None else _ratio(
+        dps if isinstance(dps, (int, float)) else None,
+        bps if isinstance(bps, (int, float)) else None,
+    )
     return {
         **fundamentals,
         "marketCap": (
@@ -429,13 +457,7 @@ def calculate_valuation_metrics(
         ),
         "per": _ratio(close, eps if isinstance(eps, (int, float)) else None),
         "pbr": _ratio(close, bps if isinstance(bps, (int, float)) else None),
-        "dividendYield": _ratio(dps if isinstance(dps, (int, float)) else None, close),
-        "dividendPayoutRatio": _ratio(
-            dps if isinstance(dps, (int, float)) else None,
-            eps if isinstance(eps, (int, float)) else None,
-        ),
-        "doe": _ratio(profit, equity) if dps is None else _ratio(
-            dps if isinstance(dps, (int, float)) else None,
-            bps if isinstance(bps, (int, float)) else None,
-        ),
+        "dividendYield": _valid_ratio(dividend_yield, 0.25),
+        "dividendPayoutRatio": _valid_ratio(dividend_payout_ratio, 3.0),
+        "doe": _valid_ratio(doe, 0.25),
     }
