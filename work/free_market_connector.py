@@ -272,6 +272,28 @@ def fetch_google_previous_close(code: str) -> tuple[float, str]:
     return float(match.group(1).replace(",", "")), url
 
 
+def fetch_yahoo_dividend_forecast(code: str) -> dict[str, object]:
+    url = f"{YAHOO_INFO_URL}/{code}.T"
+    page = html.unescape(_fetch(url).decode("utf-8", errors="replace"))
+    text = re.sub(r"<[^>]+>", " ", page)
+    text = re.sub(r"\s+", " ", text)
+    match = re.search(
+        r"1株配当\s*（会社予想）\s*用語\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*円\s*\(\s*([0-9]{4}/[0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}|--)\s*\)",
+        text,
+    )
+    if not match:
+        raise FreeMarketDataError("Yahoo Financeの1株配当（会社予想）を確認できません。")
+    dps = float(match.group(1).replace(",", ""))
+    if dps <= 0 or dps > 2000:
+        raise FreeMarketDataError("Yahoo Financeの1株配当（会社予想）が許容範囲外です。")
+    return {
+        "dps": dps,
+        "dpsAsOf": match.group(2),
+        "dpsSource": "Yahoo Finance 1株配当（会社予想）",
+        "dpsUrl": url,
+    }
+
+
 def fetch_validated_price_metrics(code: str, start: date, end: date) -> dict[str, object]:
     yahoo_rows, yahoo_url = fetch_yahoo_history(code, start, end)
     mirror_rows, mirror_url = fetch_yahoo_history(code, start, end, YAHOO_MIRROR_URL)
