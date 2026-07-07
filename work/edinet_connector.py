@@ -337,7 +337,7 @@ def _is_dividend_per_share_candidate(name: str, labels: list[str]) -> bool:
 def _dividend_per_share_score(name: str, labels: list[str]) -> int:
     haystack = _normalized_text(" ".join((name, *labels)))
     score = 0
-    if "annual" in haystack or "年間" in haystack or "年額" in haystack:
+    if any(token in haystack for token in ("annual", "total", "年間", "年額", "合計", "通期")):
         score += 40
     if "summaryofbusinessresults" in haystack or "経営指標" in haystack or "業績" in haystack:
         score += 20
@@ -348,12 +348,59 @@ def _dividend_per_share_score(name: str, labels: list[str]) -> int:
     return score
 
 
+MAX_PLAUSIBLE_DPS = 2000
+
+ANNUAL_DPS_TOKENS = (
+    "annual",
+    "totalannual",
+    "total",
+    "年間",
+    "年額",
+    "合計",
+    "通期",
+)
+
+PARTIAL_DPS_TOKENS = (
+    "interim",
+    "quarter",
+    "2ndquarter",
+    "secondquarter",
+    "yearend",
+    "endoffiscalyear",
+    "中間",
+    "四半期",
+    "第1四半期",
+    "第１四半期",
+    "第2四半期",
+    "第２四半期",
+    "第3四半期",
+    "第３四半期",
+    "期末",
+)
+
+
+def _dividend_per_share_text(name: str, labels: list[str]) -> str:
+    return _normalized_text(" ".join((name, *labels)))
+
+
+def _is_annual_dividend_per_share(name: str, labels: list[str]) -> bool:
+    haystack = _dividend_per_share_text(name, labels)
+    if not any(token in haystack for token in ANNUAL_DPS_TOKENS):
+        return False
+    return not any(token in haystack for token in PARTIAL_DPS_TOKENS)
+
+
+def _is_partial_dividend_per_share(name: str, labels: list[str]) -> bool:
+    haystack = _dividend_per_share_text(name, labels)
+    return any(token in haystack for token in PARTIAL_DPS_TOKENS)
+
+
 def _find_dividend_per_share_by_label(
     root: ElementTree.Element,
     contexts: dict[str, dict[str, object]],
     concept_labels: dict[str, list[str]],
 ) -> tuple[float | None, str | None]:
-    candidates: list[tuple[int, str, float]] = []
+    candidates: list[dict[str, object]] = []
     for element in root.iter():
         name = _local_name(element.tag)
         labels = concept_labels.get(name, [])
@@ -368,17 +415,60 @@ def _find_dividend_per_share_by_label(
         key = str(context.get("endDate") or context.get("instant") or "")
         if not key:
             continue
-        if value > 10000:
+        if value > MAX_PLAUSIBLE_DPS:
             continue
         score = _dividend_per_share_score(name, labels)
         if context.get("consolidated", False):
             score += 5
-        candidates.append((score, key, value))
+        candidates.append({
+            "name": name,
+            "labels": labels,
+            "score": score,
+            "as_of": key,
+            "value": value,
+        })
     if not candidates:
         return None, None
-    candidates.sort(key=lambda item: (item[1], item[0], -abs(item[2])), reverse=True)
-    score, as_of, value = candidates[0]
-    return value, as_of
+    annual_candidates = [
+        item for item in candidates
+        if _is_annual_dividend_per_share(str(item["name"]), list(item["labels"]))
+    ]
+    if annual_candidates:
+        annual_candidates.sort(
+            key=lambda item: (str(item["as_of"]), int(item["score"]), float(item["value"])),
+            reverse=True,
+        )
+        best = annual_candidates[0]
+        return float(best["value"]), str(best["as_of"])
+
+    by_period: dict[str, dict[str, float]] = {}
+    for item in candidates:
+        name = str(item["name"])
+        labels = list(item["labels"])
+        if not _is_partial_dividend_per_share(name, labels):
+            continue
+        as_of = str(item["as_of"])
+        label_key = _dividend_per_share_text(name, labels)
+        by_period.setdefault(as_of, {})
+        by_period[as_of][label_key] = max(by_period[as_of].get(label_key, 0), float(item["value"]))
+    for as_of in sorted(by_period, reverse=True):
+        parts = list(by_period[as_of].values())
+        if 2 <= len(parts) <= 4:
+            total = sum(parts)
+            if 0 < total <= MAX_PLAUSIBLE_DPS:
+                return total, as_of
+    return None, None
+
+
+ANNUAL_DPS_CONCEPTS = (
+    "AnnualDividendsPerShare",
+    "AnnualDividendsPerShareSummaryOfBusinessResults",
+    "CashDividendsPerShareAnnual",
+    "CashDividendsPerShareSummaryOfBusinessResultsAnnual",
+    "DividendPerShareAnnual",
+    "DividendsPerShareAnnual",
+    "TotalAnnualDividendsPerShare",
+)
 
 
 def _ratio(numerator: float | None, denominator: float | None) -> float | None:
@@ -470,25 +560,13 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
     ), duration=False)
     dps, _ = _find_dividend_per_share_by_label(root, contexts, concept_labels)
     if dps is None:
-        dps, _ = _find_first_best_value_any_period(root, contexts, (
-        "AnnualDividendsPerShare",
-        "AnnualDividendsPerShareSummaryOfBusinessResults",
-        "CashDividendsPerShare",
-        "CashDividendsPerShareAnnual",
-        "CashDividendsPerShareSummaryOfBusinessResults",
-        "CashDividendsPerShareSummaryOfBusinessResultsAnnual",
-        "DividendPerShare",
-        "DividendPerShareAnnual",
-        "DividendsPerShare",
-        "DividendsPerShareAnnual",
-        "TotalAnnualDividendsPerShare",
-        ))
+        dps, _ = _find_first_best_value_any_period(root, contexts, ANNUAL_DPS_CONCEPTS)
     if dps is None:
         dps, _ = _find_best_value_by_name_pattern(
             root,
             contexts,
-            required_tokens=("Dividend", "PerShare"),
-            excluded_tokens=("Paid", "Payout", "Ratio", "Forecast", "Plan", "Forecasts", "Planned"),
+            required_tokens=("Dividend", "PerShare", "Annual"),
+            excluded_tokens=("Paid", "Payout", "Ratio", "Forecast", "Plan", "Forecasts", "Planned", "Interim", "Quarter", "YearEnd"),
         )
     issued_shares, _ = _find_best_value(root, contexts, (
         "TotalNumberOfIssuedShares",
