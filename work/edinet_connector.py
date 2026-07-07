@@ -105,6 +105,11 @@ def _local_name(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
 
 
+def _concept_name(value: str) -> str:
+    fragment = value.rsplit("#", 1)[-1]
+    return fragment.rsplit(":", 1)[-1]
+
+
 def _is_consolidated(element: ElementTree.Element) -> bool:
     text = "".join(element.itertext())
     return "NonConsolidatedMember" not in text and "個別" not in text
@@ -128,6 +133,44 @@ def _contexts(root: ElementTree.Element) -> dict[str, dict[str, object]]:
                 data[name] = (child.text or "").strip()
         contexts[context_id] = data
     return contexts
+
+
+def _concept_labels_from_linkbases(archive: zipfile.ZipFile) -> dict[str, list[str]]:
+    labels: dict[str, list[str]] = {}
+    for name in archive.namelist():
+        lowered = name.lower().replace("\\", "/")
+        if not lowered.endswith(".xml") or "label" not in lowered:
+            continue
+        try:
+            root = ElementTree.fromstring(archive.read(name))
+        except ElementTree.ParseError:
+            continue
+
+        locators: dict[str, str] = {}
+        resources: dict[str, str] = {}
+        for element in root.iter():
+            local_name = _local_name(element.tag)
+            label = element.attrib.get("{http://www.w3.org/1999/xlink}label")
+            if local_name == "loc" and label:
+                href = element.attrib.get("{http://www.w3.org/1999/xlink}href", "")
+                locators[label] = _concept_name(href)
+            elif local_name == "label" and label:
+                text = " ".join("".join(element.itertext()).split())
+                if text:
+                    resources[label] = text
+
+        for element in root.iter():
+            if _local_name(element.tag) != "labelArc":
+                continue
+            from_label = element.attrib.get("{http://www.w3.org/1999/xlink}from")
+            to_label = element.attrib.get("{http://www.w3.org/1999/xlink}to")
+            concept = locators.get(from_label or "")
+            text = resources.get(to_label or "")
+            if concept and text:
+                labels.setdefault(concept, [])
+                if text not in labels[concept]:
+                    labels[concept].append(text)
+    return labels
 
 
 def _number(text: str | None) -> float | None:
@@ -271,6 +314,73 @@ def _find_first_best_value_any_period(
     return None, None
 
 
+def _normalized_text(value: str) -> str:
+    return value.lower().replace(" ", "").replace("　", "")
+
+
+def _is_dividend_per_share_candidate(name: str, labels: list[str]) -> bool:
+    haystack = _normalized_text(" ".join((name, *labels)))
+    if not ("dividend" in haystack or "配当" in haystack):
+        return False
+    if any(token in haystack for token in ("paid", "支払", "payout", "性向", "ratio", "forecast", "予想", "plan", "予定")):
+        return False
+    return (
+        "pershare" in haystack
+        or "percommonshare" in haystack
+        or "1株" in haystack
+        or "１株" in haystack
+        or "一株" in haystack
+        or "１単位" in haystack
+    )
+
+
+def _dividend_per_share_score(name: str, labels: list[str]) -> int:
+    haystack = _normalized_text(" ".join((name, *labels)))
+    score = 0
+    if "annual" in haystack or "年間" in haystack or "年額" in haystack:
+        score += 40
+    if "summaryofbusinessresults" in haystack or "経営指標" in haystack or "業績" in haystack:
+        score += 20
+    if "cashdividends" in haystack or "cashdividend" in haystack or "剰余金" in haystack:
+        score += 10
+    if "totalannual" in haystack:
+        score += 10
+    return score
+
+
+def _find_dividend_per_share_by_label(
+    root: ElementTree.Element,
+    contexts: dict[str, dict[str, object]],
+    concept_labels: dict[str, list[str]],
+) -> tuple[float | None, str | None]:
+    candidates: list[tuple[int, str, float]] = []
+    for element in root.iter():
+        name = _local_name(element.tag)
+        labels = concept_labels.get(name, [])
+        if not _is_dividend_per_share_candidate(name, labels):
+            continue
+        value = _number(element.text)
+        if value is None or value <= 0:
+            continue
+        context = contexts.get(element.attrib.get("contextRef", ""))
+        if not context:
+            continue
+        key = str(context.get("endDate") or context.get("instant") or "")
+        if not key:
+            continue
+        if value > 10000:
+            continue
+        score = _dividend_per_share_score(name, labels)
+        if context.get("consolidated", False):
+            score += 5
+        candidates.append((score, key, value))
+    if not candidates:
+        return None, None
+    candidates.sort(key=lambda item: (item[1], item[0], -abs(item[2])), reverse=True)
+    score, as_of, value = candidates[0]
+    return value, as_of
+
+
 def _ratio(numerator: float | None, denominator: float | None) -> float | None:
     if numerator is None or denominator in (None, 0):
         return None
@@ -307,6 +417,7 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
 
         xbrl_name = sorted(names, key=priority)[0]
         root = ElementTree.fromstring(archive.read(xbrl_name))
+        concept_labels = _concept_labels_from_linkbases(archive)
 
     contexts = _contexts(root)
     assets, instant_as_of = _find_best_value(root, contexts, (
@@ -357,7 +468,9 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         "NetAssetsPerShareSummaryOfBusinessResults",
         "EquityAttributableToOwnersOfParentPerShareIFRS",
     ), duration=False)
-    dps, _ = _find_first_best_value_any_period(root, contexts, (
+    dps, _ = _find_dividend_per_share_by_label(root, contexts, concept_labels)
+    if dps is None:
+        dps, _ = _find_first_best_value_any_period(root, contexts, (
         "AnnualDividendsPerShare",
         "AnnualDividendsPerShareSummaryOfBusinessResults",
         "CashDividendsPerShare",
@@ -369,7 +482,7 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         "DividendsPerShare",
         "DividendsPerShareAnnual",
         "TotalAnnualDividendsPerShare",
-    ))
+        ))
     if dps is None:
         dps, _ = _find_best_value_by_name_pattern(
             root,
