@@ -1136,11 +1136,10 @@ def collect_edinet_fundamentals(
         try:
             zip_bytes, download_url = download_xbrl_zip(str(report["docID"]), api_key)
             parsed = parse_financial_metrics_from_xbrl(zip_bytes)
-            if parsed.get("dps") is None:
-                try:
-                    parsed.update(fetch_yahoo_dividend_forecast(code))
-                except FreeMarketDataError as error:
-                    errors.append(f"{code}: 配当予想を取得できません（{error}）")
+            try:
+                parsed.update(fetch_yahoo_dividend_forecast(code))
+            except FreeMarketDataError as error:
+                errors.append(f"{code}: 配当予想を取得できません（{error}）")
             latest_close = price_map.get(code, {}).get("latestClose")
             valuation = calculate_valuation_metrics(
                 parsed,
