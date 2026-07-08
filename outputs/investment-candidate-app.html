@@ -1368,7 +1368,7 @@
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">需給</div><span class="formula-weight">20%</span></div>
-                  <div class="factor-text">信用倍率と高値からの調整度合いを見ます。買い残の重さや反発余地を確認します。</div>
+                  <div class="factor-text">信用倍率の軽さと52週高値への近さを見ます。買い残の重さと上昇モメンタムを合わせて確認します。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">テクニカル</div><span class="formula-weight">15%</span></div>
@@ -1395,7 +1395,7 @@
                   <div class="factor-text">決算日、急騰後の過熱、ボラティリティなどを見ます。候補と買い時を分けます。</div>
                 </div>
               </div>
-              <div class="factor-text">未取得のPER/PBR/ROEは、過度に有利・不利にならないよう中立寄りで扱います。各カード右上の割合は総合スコアへの重みです。</div>
+              <div class="factor-text">未取得のPER/PBR/ROEは中立寄りで計算しつつ、データ信頼度が低い銘柄は総合スコアを控えめに減点します。各カード右上の割合は総合スコアへの重みです。</div>
             </div>
           </div>
         </div>
@@ -1404,45 +1404,25 @@
       <section class="panel" aria-label="バックテスト検証結果">
         <div class="panel-header">
           <h2>バックテスト検証結果</h2>
-          <span class="updated">採用条件: 需給B / 買い75 / 売り65 / 20MA割れ</span>
+          <span class="updated" id="backtestStatus">JSON読込待ち</span>
         </div>
         <div class="guide-body">
           <div class="backtest-grid">
             <div class="backtest-card">
               <div class="backtest-title">前提条件</div>
-              <ul class="backtest-list">
-                <li>対象は日経225構成銘柄。2025年データで検証。</li>
-                <li>需給Bは、信用倍率の軽さを60%、52週高値からの近さを40%で評価する需給設定です。</li>
-                <li>スコア75点以上で購入、65点以下または20日移動平均割れで売却。</li>
-                <li>最大保有は5銘柄、売買コストは往復0.2%で計算。</li>
-                <li>価格、日経225採用履歴、信用倍率を使用。ニュース件数とTDnet/業績イベントは未反映。</li>
+              <ul class="backtest-list" id="backtestAssumptions">
+                <li>バックテスト結果JSONを読み込んでいます。</li>
               </ul>
             </div>
             <div class="backtest-card">
               <div class="backtest-title">結果サマリー</div>
-              <div class="backtest-kpis">
+              <div class="backtest-kpis" id="backtestKpis">
                 <div class="backtest-kpi">
-                  <div class="backtest-label">年率リターン</div>
-                  <div class="backtest-value">+85.0%</div>
-                </div>
-                <div class="backtest-kpi">
-                  <div class="backtest-label">最大下落率</div>
-                  <div class="backtest-value">-13.2%</div>
-                </div>
-                <div class="backtest-kpi">
-                  <div class="backtest-label">シャープレシオ</div>
-                  <div class="backtest-value">2.43</div>
-                </div>
-                <div class="backtest-kpi">
-                  <div class="backtest-label">累積勝率</div>
-                  <div class="backtest-value">47.1%</div>
-                </div>
-                <div class="backtest-kpi">
-                  <div class="backtest-label">取引回数</div>
-                  <div class="backtest-value">85回</div>
+                  <div class="backtest-label">状態</div>
+                  <div class="backtest-value">読込中</div>
                 </div>
               </div>
-              <div class="backtest-note">シャープレシオは、リターンを価格変動リスクで割った効率性の目安です。日経225単純保有との比較では、年率リターンは約+70.5pt、最大下落率は約13.1pt改善。過去検証であり、将来の成績を保証するものではありません。</div>
+              <div class="backtest-note" id="backtestNote">シャープレシオは、リターンを価格変動リスクで割った効率性の目安です。</div>
             </div>
           </div>
         </div>
@@ -1631,6 +1611,7 @@
     let priceMetricsByCode = new Map();
     let officialDataset = null;
     let scoreHistory = null;
+    let backtestSummary = null;
     let scoreHistoryByCode = new Map();
     let watchedCodes = new Set();
     const WATCHLIST_STORAGE_KEY = "capitalGainRadar.watchlist.v1";
@@ -1739,6 +1720,10 @@
       candidateStatus: document.querySelector("#candidateStatus"),
       qualityList: document.querySelector("#qualityList"),
       qualitySummary: document.querySelector("#qualitySummary"),
+      backtestStatus: document.querySelector("#backtestStatus"),
+      backtestAssumptions: document.querySelector("#backtestAssumptions"),
+      backtestKpis: document.querySelector("#backtestKpis"),
+      backtestNote: document.querySelector("#backtestNote"),
       technicalAsOf: document.querySelector("#technicalAsOf"),
       compareSummary: document.querySelector("#compareSummary"),
       compareEmpty: document.querySelector("#compareEmpty"),
@@ -1820,7 +1805,18 @@
 
     function supplyScore(item) {
       const ratioScore = Math.max(0, 100 - (item.margin - 0.5) * 16);
-      const highScore = Math.min(100, item.monthsFromHigh / 12 * 100);
+      let highScore = 15;
+      const highDistance = Number(item.high52wDistance);
+      if (Number.isFinite(highDistance)) {
+        highScore = Math.max(0, 100 - Math.min(Math.max(0, highDistance), 0.25) / 0.25 * 100);
+      } else if (Number.isFinite(Number(item.monthsFromHigh))) {
+        const months = Number(item.monthsFromHigh);
+        if (months <= 0.1) highScore = 100;
+        else if (months <= 1) highScore = 90;
+        else if (months <= 3) highScore = 75;
+        else if (months <= 6) highScore = 55;
+        else if (months <= 12) highScore = 35;
+      }
       return Math.round(ratioScore * 0.6 + highScore * 0.4);
     }
 
@@ -1844,6 +1840,27 @@
       const pbrScore = !Number.isFinite(pbr) || pbr <= 0 ? 50 : rangeScore(pbr, 0.8, 5, true);
       const roeScore = rangeScore(roe, 0, 0.18, false);
       return Math.round(perScore * 0.35 + pbrScore * 0.25 + roeScore * 0.4);
+    }
+
+    function dataQualityScore(item) {
+      if (Number.isFinite(Number(item.dataQuality))) return Number(item.dataQuality);
+      const coreFields = ["margin", "monthsFromHigh", "technical", "liquidity", "relative", "earnings", "latestClose"];
+      const coreCount = coreFields.filter(key => Number.isFinite(Number(item[key]))).length;
+      const valuationFields = ["per", "pbr", "roe"];
+      const valuationCount = valuationFields.filter(key => Number.isFinite(valueFrom(item, [key, key.toUpperCase()]))).length;
+      const dividendBonus = Number.isFinite(valueFrom(item, ["dividendYield"])) ? 5 : 0;
+      return Math.max(0, Math.min(100, Math.round(coreCount / coreFields.length * 70 + valuationCount / valuationFields.length * 25 + dividendBonus)));
+    }
+
+    function dataWarnings(item) {
+      if (Array.isArray(item.dataWarnings) && item.dataWarnings.length) return item.dataWarnings;
+      const warnings = [];
+      const missing = ["per", "pbr", "roe"].filter(key => !Number.isFinite(valueFrom(item, [key, key.toUpperCase()]))).map(key => key.toUpperCase());
+      if (missing.length) warnings.push("未取得: " + missing.join("/"));
+      if (item.dividendPayoutRatioStatus === "not-calculated-mixed-basis" || item.fundamentals?.dividendPayoutRatioStatus === "not-calculated-mixed-basis") {
+        warnings.push("配当性向は予想DPSと実績EPSが混在するため非算出");
+      }
+      return warnings;
     }
 
     function breakoutProfile(mode = state.breakoutMode) {
@@ -1925,7 +1942,7 @@
       const earnings = item.earnings ?? 50;
       const riskPenalty = item.risk ?? 50;
       const valuation = item.valuation ?? valuationScore(item);
-      return Math.round(
+      const baseScore = Math.round(
         item.theme * 0.20 +
         supplyScore(item) * 0.20 +
         item.technical * 0.15 +
@@ -1935,6 +1952,8 @@
         valuation * 0.08 +
         (100 - riskPenalty) * 0.04
       );
+      const qualityPenalty = Math.max(0, 80 - dataQualityScore(item)) * 0.20;
+      return Math.max(0, Math.min(100, Math.round(baseScore - qualityPenalty)));
     }
 
     function hasRequiredCandidateFields(item) {
@@ -2098,6 +2117,65 @@
       }
     }
 
+    function formatBacktestValue(kpi) {
+      const value = Number(kpi?.value);
+      if (!Number.isFinite(value)) return "未確認";
+      if (kpi.format === "signedPercent") return `${value > 0 ? "+" : ""}${(value * 100).toFixed(1)}%`;
+      if (kpi.format === "percent") return `${(value * 100).toFixed(1)}%`;
+      if (kpi.format === "count") return `${Math.round(value).toLocaleString("ja-JP")}回`;
+      return value.toFixed(2);
+    }
+
+    function renderBacktestSummary(payload) {
+      const strategy = payload?.strategy || {};
+      const result = payload?.result || {};
+      const kpis = Array.isArray(payload?.kpis) && payload.kpis.length
+        ? payload.kpis
+        : [
+            { label: "年率リターン", value: result.annualReturn, format: "signedPercent" },
+            { label: "最大下落率", value: result.maxDrawdown, format: "signedPercent" },
+            { label: "シャープレシオ", value: result.sharpeRatio, format: "number" },
+            { label: "累積勝率", value: result.cumulativeWinRate, format: "percent" },
+            { label: "取引回数", value: result.trades, format: "count" },
+          ];
+      el.backtestStatus.textContent = payload
+        ? `採用条件: ${strategy.name || "バックテスト条件"} / JSON ${formatDate(payload.generatedAt)}`
+        : "バックテストJSON未読込";
+      const assumptions = payload ? [
+        `対象は${strategy.universe || "未確認"}。${strategy.period || "検証期間未確認"}で検証。`,
+        strategy.supplyRule || "需給Bの定義はJSONに未設定です。",
+        `スコア${strategy.buyScore ?? 75}点以上で購入、${strategy.sellScore ?? 65}点以下または20日移動平均割れで売却。`,
+        `最大保有は${strategy.maxPositions ?? "-"}銘柄、売買コストは往復${Number.isFinite(Number(strategy.tradeCostRoundTrip)) ? (Number(strategy.tradeCostRoundTrip) * 100).toFixed(1) + "%" : "未確認"}で計算。`,
+        `使用データ: ${Object.values(payload.data || {}).filter(Boolean).join(" / ") || "未確認"}`,
+      ] : [
+        "data/backtest-summary.json を読み込めませんでした。固定値ではなく、検証結果JSONがある場合だけ表示します。",
+      ];
+      el.backtestAssumptions.innerHTML = assumptions.map(item => `<li>${escapeHtml(item)}</li>`).join("");
+      el.backtestKpis.innerHTML = kpis.map(kpi => `
+        <div class="backtest-kpi">
+          <div class="backtest-label">${escapeHtml(kpi.label)}</div>
+          <div class="backtest-value">${escapeHtml(formatBacktestValue(kpi))}</div>
+        </div>
+      `).join("");
+      const notes = [
+        "シャープレシオは、リターンを価格変動リスクで割った効率性の目安です。",
+        ...(Array.isArray(payload?.notes) ? payload.notes : []),
+      ];
+      el.backtestNote.textContent = notes.join(" ");
+    }
+
+    async function loadBacktestSummary() {
+      try {
+        const response = await fetch("data/backtest-summary.json", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        backtestSummary = await response.json();
+        renderBacktestSummary(backtestSummary);
+      } catch (error) {
+        backtestSummary = null;
+        renderBacktestSummary(null);
+      }
+    }
+
     function applyDataset(dataset, sourceLabel) {
       officialDataset = dataset;
       const sources = dataset?.sources || {};
@@ -2160,6 +2238,7 @@
         const [response] = await Promise.all([
           fetch("data/latest-candidates.json", { cache: "no-store" }),
           loadScoreHistory(),
+          loadBacktestSummary(),
         ]);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         applyDataset(await response.json(), "公式データ読込");
@@ -2244,7 +2323,9 @@
     }
 
     function statusFor(item) {
-      if (item.margin <= 2 && item.monthsFromHigh >= 6 && totalScore(item) >= 80) return ["候補", "good"];
+      const highDistance = Number(item.high52wDistance);
+      const nearHigh = item.isNewHigh52w === true || (Number.isFinite(highDistance) && highDistance <= 0.05);
+      if (item.margin <= 2 && nearHigh && totalScore(item) >= 80) return ["候補", "good"];
       if (totalScore(item) >= 65) return ["監視", "watch"];
       return ["確認", "watch"];
     }
@@ -2369,6 +2450,23 @@
       return Number.isFinite(value) ? formatPercent(value) : "未取得";
     }
 
+    function formatDps(value) {
+      return Number.isFinite(value) ? `${value.toFixed(1)}円` : "未取得";
+    }
+
+    function dividendPayoutDisplay(item) {
+      const status = item.dividendPayoutRatioStatus || item.fundamentals?.dividendPayoutRatioStatus;
+      if (status === "not-calculated-mixed-basis") return "非算出（予想DPSと実績EPSが混在）";
+      return formatFundamentalPercent(valueFrom(item, ["dividendPayoutRatio", "payoutRatio"]));
+    }
+
+    function dividendYieldDisplay(item) {
+      const value = valueFrom(item, ["dividendYield"]);
+      const kind = item.dividendYieldKind || item.fundamentals?.dividendYieldKind;
+      const suffix = kind === "forecast" ? "（会社予想）" : "";
+      return `${formatFundamentalPercent(value)}${suffix}`;
+    }
+
     function formatSignedPrice(value) {
       if (!Number.isFinite(value)) return "未取得";
       const sign = value > 0 ? "+" : "";
@@ -2431,10 +2529,12 @@
         ["ROA", formatFundamentalPercent(valueFrom(item, ["roa", "ROA"]))],
         ["売上高成長率", formatFundamentalPercent(valueFrom(item, ["salesGrowth"]))],
         ["利益成長率", formatFundamentalPercent(valueFrom(item, ["profitGrowth"]))],
-        ["予想配当利回り", formatFundamentalPercent(valueFrom(item, ["dividendYield"]))],
-        ["配当性向", formatFundamentalPercent(valueFrom(item, ["dividendPayoutRatio", "payoutRatio"]))],
+        ["1株配当", formatDps(valueFrom(item, ["dps"]))],
+        ["予想配当利回り", dividendYieldDisplay(item)],
+        ["配当性向", dividendPayoutDisplay(item)],
         ["DOE", formatFundamentalPercent(valueFrom(item, ["doe", "DOE"]))],
         ["自己資本比率", formatFundamentalPercent(valueFrom(item, ["equityRatio", "capitalAdequacyRatio"]))],
+        ["データ信頼度", `${dataQualityScore(item)}点${dataWarnings(item).length ? " / " + escapeHtml(dataWarnings(item).join("、")) : ""}`],
         ["52週高値更新", item.isNewHigh52w === true ? "更新" : "未更新"],
       ];
       el.fundamentalGrid.innerHTML = fields.map(([label, value]) => `
@@ -2443,7 +2543,7 @@
           <div class="fundamental-value">${String(value)}</div>
         </div>
       `).join("");
-      el.fundamentalNote.textContent = `株価は${formatDate(priceAsOf)}時点の取得値です。PER/PBRなど株価で変わる指標は、保存済み財務データを使う場合も最新株価で再計算します。未取得項目は「未取得」と表示します。`;
+      el.fundamentalNote.textContent = `株価は${formatDate(priceAsOf)}時点の取得値です。予想配当利回りはYahoo Financeの会社予想を優先します。予想DPSと実績EPSが混在する場合、配当性向は非算出にします。未取得項目は「未取得」と表示します。`;
     }
 
     function scoreRowsFor(item) {
@@ -3070,6 +3170,8 @@
         const isComparing = state.compareCodes.includes(String(item.code));
         const compareLimitReached = state.compareCodes.length >= 5 && !isComparing;
         const groupRankLabel = item.groupLabel ? `${item.groupLabel} ${item.groupRank || 1}位` : "";
+        const warnings = dataWarnings(item);
+        const quality = dataQualityScore(item);
         return `
           <tr class="${selectedClass}" data-code="${escapeHtml(item.code)}" tabindex="0">
             <td>
@@ -3087,12 +3189,18 @@
             </td>
             <td><div class="pill-row">${item.themes.map(t => `<span class="pill">${escapeHtml(t)}</span>`).join("")}</div></td>
             <td>${escapeHtml(item.industry || "業種未分類")}</td>
-            <td><span class="score">${item.score}</span></td>
+            <td>
+              <span class="score">${item.score}</span>
+              <div class="theme-meta">信頼度 ${quality}点${warnings.length ? " / " + escapeHtml(warnings[0]) : ""}</div>
+            </td>
             <td>
               <strong>${item.margin.toFixed(1)}倍</strong>
               <div class="theme-meta">${escapeHtml(item.supplyMemo || "検証済み")}</div>
             </td>
-            <td>${item.monthsFromHigh}か月</td>
+            <td>
+              <div>${item.monthsFromHigh}か月</div>
+              <div class="theme-meta">${Number.isFinite(Number(item.high52wDistance)) ? "高値まで " + escapeHtml(formatPercent(Number(item.high52wDistance))) : "高値距離未取得"}</div>
+            </td>
             <td>
               <div>PER ${formatCompactRatio(valueFrom(item, ["per", "PER"]))}</div>
               <div class="theme-meta">PBR ${formatCompactRatio(valueFrom(item, ["pbr", "PBR"]))} / ROE ${formatCompactPercent(valueFrom(item, ["roe", "ROE"]))} / 評価 ${item.valuation ?? "-"}</div>
@@ -3188,6 +3296,7 @@
               <div class="compare-metric"><div class="compare-label">業績</div><div class="compare-value">${item.earnings ?? "-"}</div></div>
               <div class="compare-metric"><div class="compare-label">流動性</div><div class="compare-value">${item.liquidity ?? "-"}</div></div>
               <div class="compare-metric"><div class="compare-label">リスク</div><div class="compare-value">${item.risk ?? "-"}</div></div>
+              <div class="compare-metric"><div class="compare-label">データ信頼度</div><div class="compare-value">${dataQualityScore(item)}点</div></div>
             </div>
           </div>
         `;

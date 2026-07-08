@@ -631,12 +631,20 @@ def calculate_valuation_metrics(
     profit = fundamentals.get("profit")
     shares_outstanding = fundamentals.get("sharesOutstanding")
     provided_dividend_yield = fundamentals.get("dividendYield")
+    dividend_yield_kind = fundamentals.get("dividendYieldKind")
+    dps_source = str(fundamentals.get("dpsSource") or "")
+    dps_is_forecast = (
+        dividend_yield_kind == "forecast"
+        or "会社予想" in dps_source
+        or "forecast" in dps_source.lower()
+    )
     dividend_yield = (
         provided_dividend_yield
         if isinstance(provided_dividend_yield, (int, float))
         else _ratio(dps if isinstance(dps, (int, float)) else None, close)
     )
-    dividend_payout_ratio = _ratio(
+    dividend_yield_basis = "forecast-yield" if isinstance(provided_dividend_yield, (int, float)) else "actual-dps"
+    dividend_payout_ratio = None if dps_is_forecast else _ratio(
         dps if isinstance(dps, (int, float)) else None,
         eps if isinstance(eps, (int, float)) else None,
     )
@@ -654,6 +662,13 @@ def calculate_valuation_metrics(
         "per": _ratio(close, eps if isinstance(eps, (int, float)) else None),
         "pbr": _ratio(close, bps if isinstance(bps, (int, float)) else None),
         "dividendYield": _valid_ratio(dividend_yield, 0.25),
+        "dividendYieldBasis": dividend_yield_basis,
         "dividendPayoutRatio": _valid_ratio(dividend_payout_ratio, 3.0),
+        "dividendPayoutRatioStatus": "not-calculated-mixed-basis" if dps_is_forecast else "calculated",
+        "dividendPayoutRatioNote": (
+            "予想DPSと実績EPSが混在するため、配当性向は算出対象外です。"
+            if dps_is_forecast
+            else None
+        ),
         "doe": _valid_ratio(doe, 0.25),
     }

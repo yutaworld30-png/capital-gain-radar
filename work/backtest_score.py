@@ -12,6 +12,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = ROOT / "outputs" / "data" / "latest-candidates.json"
 DEFAULT_SCORE_HISTORY = ROOT / "outputs" / "data" / "score-history.json"
+DEFAULT_BACKTEST_OUTPUT = ROOT / "outputs" / "data" / "backtest-summary.json"
 
 
 @dataclass
@@ -294,6 +295,41 @@ def print_report(snapshots: list[dict[str, Any]], trades: list[Trade], meta: dic
             )
 
 
+def backtest_summary_payload(
+    snapshots: list[dict[str, Any]],
+    trades: list[Trade],
+    meta: dict[str, Any],
+    *,
+    buy_score: int,
+    sell_score: int,
+    max_holding_days: int,
+    stop_loss: float,
+    take_profit: float,
+) -> dict[str, Any]:
+    latest = snapshots[-1]
+    return {
+        "schemaVersion": 1,
+        "generatedAt": latest.get("generatedAt"),
+        "status": meta.get("status", "unknown"),
+        "strategy": {
+            "name": "需給B / 買い75 / 売り65",
+            "universe": "日経225",
+            "buyScore": buy_score,
+            "sellScore": sell_score,
+            "maxHoldingDays": max_holding_days,
+            "stopLoss": stop_loss,
+            "takeProfit": take_profit,
+            "supplyRule": "信用倍率の軽さを60%、52週高値への近さを40%で評価する需給設定です。",
+        },
+        "data": available_data_summary(latest),
+        "result": trade_summary(trades),
+        "notes": [
+            "スコア履歴と価格履歴から再計算した参考検証です。",
+            "過去検証であり、将来の成績を保証するものではありません。",
+        ],
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Backtest Capital Gain Radar score rules.")
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
@@ -304,6 +340,7 @@ def main() -> None:
     parser.add_argument("--max-holding-days", type=int, default=20)
     parser.add_argument("--stop-loss", type=float, default=-0.08)
     parser.add_argument("--take-profit", type=float, default=0.15)
+    parser.add_argument("--output-json", type=Path, default=None)
     args = parser.parse_args()
 
     latest_dataset = load_dataset(args.dataset) if args.dataset.exists() else {}
@@ -325,6 +362,20 @@ def main() -> None:
         take_profit=args.take_profit,
     )
     print_report(snapshots, trades, meta)
+    if args.output_json:
+        payload = backtest_summary_payload(
+            snapshots,
+            trades,
+            meta,
+            buy_score=args.buy_score,
+            sell_score=args.sell_score,
+            max_holding_days=args.max_holding_days,
+            stop_loss=args.stop_loss,
+            take_profit=args.take_profit,
+        )
+        args.output_json.parent.mkdir(parents=True, exist_ok=True)
+        args.output_json.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"Wrote {args.output_json}")
 
 
 if __name__ == "__main__":

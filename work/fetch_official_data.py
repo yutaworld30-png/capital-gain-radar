@@ -762,6 +762,16 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
         price_sources = price.get("sources", {})
         candidate_name = str(margin.get("name") or price.get("name") or code)
         component = component_map.get(code, {})
+        latest_close = price.get("latestClose")
+        previous_high = price.get("previousHigh")
+        high_distance = None
+        if (
+            isinstance(latest_close, (int, float))
+            and isinstance(previous_high, (int, float))
+            and latest_close > 0
+            and previous_high > 0
+        ):
+            high_distance = max(0.0, (float(previous_high) - float(latest_close)) / float(previous_high))
         search_universe.append({
             "code": code,
             "name": candidate_name,
@@ -772,7 +782,8 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
             "theme": theme_score,
             "margin": round(float(margin_ratio), 2),
             "monthsFromHigh": float(price.get("monthsFromHigh", 0)),
-            "isNewHigh52w": float(price.get("monthsFromHigh", 0)) <= 0.1,
+            "high52wDistance": high_distance,
+            "isNewHigh52w": high_distance is not None and high_distance <= 0.001,
             "previousHigh": price.get("previousHigh"),
             "previousHighDate": price.get("previousHighDate"),
             "technical": int(price.get("technical", 0)),
@@ -818,10 +829,13 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
     ]
     dataset["themes"] = themes
     dataset["searchUniverse"] = search_universe
-    dataset["candidates"] = [
-        item for item in search_universe
-        if str(item["code"]) in theme_map
-    ]
+    dataset["candidates"] = search_universe
+    dataset["candidatePolicy"] = {
+        "scope": "all-ranked-prime-universe",
+        "description": "テーマ未分類銘柄も総合ランキング対象に含め、テーマ分類は表示・絞り込み用として扱います。",
+        "themeAssignedCount": sum(1 for item in search_universe if str(item["code"]) in theme_map),
+        "unclassifiedCount": sum(1 for item in search_universe if str(item["code"]) not in theme_map),
+    }
     augment_candidate_chart_histories(dataset, generated_at)
 
     theme_source["url"] = TDNET_MAIN_URL
@@ -852,9 +866,25 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
 
 def _supply_score(item: dict[str, object]) -> int:
     margin = float(item.get("margin") or 99)
-    months = float(item.get("monthsFromHigh") or 0)
     ratio_score = max(0, 100 - (margin - 0.5) * 16)
-    high_score = min(100, months / 12 * 100)
+    high_distance = item.get("high52wDistance")
+    if isinstance(high_distance, (int, float)):
+        distance = max(0.0, float(high_distance))
+        high_score = max(0, 100 - min(distance, 0.25) / 0.25 * 100)
+    else:
+        months = float(item.get("monthsFromHigh") or 99)
+        if months <= 0.1:
+            high_score = 100
+        elif months <= 1:
+            high_score = 90
+        elif months <= 3:
+            high_score = 75
+        elif months <= 6:
+            high_score = 55
+        elif months <= 12:
+            high_score = 35
+        else:
+            high_score = 15
     return round(ratio_score * 0.6 + high_score * 0.4)
 
 
@@ -896,13 +926,49 @@ def _valuation_score(item: dict[str, object]) -> int:
     return round(per_score * 0.35 + pbr_score * 0.25 + roe_score * 0.4)
 
 
+def _has_numeric_metric(item: dict[str, object], key: str) -> bool:
+    return _numeric_value(item, key) is not None
+
+
+def _data_quality(item: dict[str, object]) -> tuple[int, list[str]]:
+    warnings: list[str] = []
+    core_fields = (
+        "margin",
+        "monthsFromHigh",
+        "technical",
+        "liquidity",
+        "relative",
+        "earnings",
+        "latestClose",
+    )
+    core_count = sum(1 for key in core_fields if isinstance(item.get(key), (int, float)))
+    core_score = core_count / len(core_fields) * 70
+
+    valuation_fields = ("per", "pbr", "roe")
+    valuation_count = sum(1 for key in valuation_fields if _has_numeric_metric(item, key))
+    valuation_score = valuation_count / len(valuation_fields) * 25
+    if valuation_count < len(valuation_fields):
+        missing = [key.upper() for key in valuation_fields if not _has_numeric_metric(item, key)]
+        warnings.append("未取得: " + "/".join(missing))
+
+    dividend_bonus = 5 if _has_numeric_metric(item, "dividendYield") else 0
+    fundamentals = item.get("fundamentals")
+    if isinstance(fundamentals, dict) and fundamentals.get("dividendPayoutRatioStatus") == "not-calculated-mixed-basis":
+        warnings.append("配当性向は予想DPSと実績EPSが混在するため非算出")
+    elif not _has_numeric_metric(item, "dividendPayoutRatio"):
+        warnings.append("配当性向未取得")
+
+    score = round(core_score + valuation_score + dividend_bonus)
+    return max(0, min(100, score)), warnings[:3]
+
+
 def _total_score(item: dict[str, object]) -> int:
     liquidity = int(item.get("liquidity") or 60)
     relative = int(item.get("relative") or 60)
     earnings = int(item.get("earnings") or 50)
     risk = int(item.get("risk") or 50)
     valuation = int(item.get("valuation") or _valuation_score(item))
-    return round(
+    base_score = round(
         int(item.get("theme") or 0) * 0.20
         + _supply_score(item) * 0.20
         + int(item.get("technical") or 0) * 0.15
@@ -912,6 +978,9 @@ def _total_score(item: dict[str, object]) -> int:
         + valuation * 0.08
         + (100 - risk) * 0.04
     )
+    quality_score, _warnings = _data_quality(item)
+    quality_penalty = max(0, 80 - quality_score) * 0.20
+    return max(0, min(100, round(base_score - quality_penalty)))
 
 
 def _count_numeric(metrics: list[dict[str, object]], key: str) -> int:
@@ -927,6 +996,7 @@ def _attach_scores(dataset: dict[str, object]) -> None:
             if isinstance(row, dict):
                 row["supply"] = _supply_score(row)
                 row["valuation"] = _valuation_score(row)
+                row["dataQuality"], row["dataWarnings"] = _data_quality(row)
                 row["score"] = _total_score(row)
 
 
@@ -947,7 +1017,10 @@ def _compact_score_row(row: dict[str, object]) -> dict[str, object]:
         "risk",
         "margin",
         "monthsFromHigh",
+        "high52wDistance",
         "isNewHigh52w",
+        "dataQuality",
+        "dataWarnings",
         "latestClose",
         "priceAsOf",
         "per",
@@ -1070,7 +1143,18 @@ def collect_edinet_fundamentals(
                         "pbr",
                         "roe",
                         "marketCap",
+                        "dps",
+                        "dpsAsOf",
+                        "dpsSource",
                         "dividendYield",
+                        "dividendYieldAsOf",
+                        "dividendYieldSource",
+                        "dividendYieldKind",
+                        "dividendYieldBasis",
+                        "dividendPayoutRatio",
+                        "dividendPayoutRatioStatus",
+                        "dividendPayoutRatioNote",
+                        "doe",
                         "equityRatio",
                         "salesGrowth",
                         "profitGrowth",
@@ -1392,6 +1476,12 @@ def main() -> None:
     theme_source = sources["themeNews"]  # type: ignore[index]
     financial_source = sources["fundamentals"]  # type: ignore[index]
     edinet_source = sources["edinetFundamentals"]  # type: ignore[index]
+    ranked_rows = dataset.get("searchUniverse")
+    quality_rows = [item for item in ranked_rows if isinstance(item, dict)] if isinstance(ranked_rows, list) else []
+    low_quality_rows = [
+        item for item in quality_rows
+        if isinstance(item.get("dataQuality"), (int, float)) and float(item["dataQuality"]) < 70
+    ]
     dataset["qualityChecks"] = [
         {
             "label": "東証プライム上場銘柄",
@@ -1439,6 +1529,16 @@ def main() -> None:
             "required": False,
             "message": edinet_source.get("reason", "未確認"),
             "url": edinet_source.get("url"),
+        },
+        {
+            "label": "候補データ信頼度",
+            "status": "available" if quality_rows and not low_quality_rows else ("partial" if quality_rows else "not-connected"),
+            "required": True,
+            "message": (
+                f"信頼度70点未満は{len(low_quality_rows)}件です。欠損指標はスコアに控えめな減点として反映します。"
+                if quality_rows
+                else "候補データが生成されていません。"
+            ),
         },
     ]
     score_history = update_score_history(dataset, generated_at)
