@@ -1105,6 +1105,7 @@ def collect_edinet_fundamentals(
 
     max_downloads = max(1, int(os.environ.get("EDINET_MAX_DOWNLOADS", "225")))
     lookback_days = max(30, int(os.environ.get("EDINET_LOOKBACK_DAYS", "430")))
+    yahoo_dividend_delay = max(0.0, float(os.environ.get("YAHOO_DIVIDEND_REQUEST_DELAY_SECONDS", "0.45")))
     ranked = sorted(
         [item for item in search_universe if isinstance(item, dict) and re.fullmatch(r"\d{4}", str(item.get("code", "")))],
         key=_total_score,
@@ -1140,6 +1141,8 @@ def collect_edinet_fundamentals(
                 parsed.update(fetch_yahoo_dividend_forecast(code))
             except FreeMarketDataError as error:
                 errors.append(f"{code}: 配当予想を取得できません（{error}）")
+            if yahoo_dividend_delay:
+                time.sleep(yahoo_dividend_delay)
             latest_close = price_map.get(code, {}).get("latestClose")
             valuation = calculate_valuation_metrics(
                 parsed,
