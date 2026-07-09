@@ -299,6 +299,85 @@
       font-weight: 800;
     }
 
+    .market-panel {
+      margin-bottom: 16px;
+    }
+
+    .market-overview {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 16px;
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .market-score {
+      display: grid;
+      gap: 8px;
+      align-content: center;
+      min-height: 136px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #fbfcfe;
+    }
+
+    .market-score-value {
+      font-size: 42px;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .market-label {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: #e6f7ef;
+      color: var(--green);
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .market-summary {
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 16px;
+    }
+
+    .market-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: var(--white);
+      min-width: 0;
+    }
+
+    .market-card-title {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .market-card-value {
+      margin-top: 6px;
+      font-size: 19px;
+      font-weight: 800;
+    }
+
+    .market-card-meta {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
@@ -1189,6 +1268,8 @@
       .layout,
       .summary-grid,
       .score-guide-grid,
+      .market-overview,
+      .market-grid,
       .backtest-grid,
       .source-strip,
       .quality-list,
@@ -1222,6 +1303,8 @@
       .layout,
       .summary-grid,
       .score-guide-grid,
+      .market-overview,
+      .market-grid,
       .backtest-grid,
       .backtest-kpis,
       .score-detail-grid,
@@ -1397,6 +1480,31 @@
               </div>
               <div class="factor-text">未取得のPER/PBR/ROEは中立寄りで計算しつつ、データ信頼度が低い銘柄は総合スコアを控えめに減点します。各カード右上の割合は総合スコアへの重みです。</div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel market-panel" aria-label="今日の相場環境">
+        <div class="panel-header">
+          <h2>今日の相場環境</h2>
+          <span class="updated" id="marketStatus">JSON読込待ち</span>
+        </div>
+        <div class="market-overview">
+          <div class="market-score">
+            <div class="market-card-title">相場環境スコア</div>
+            <div class="market-score-value" id="marketScore">--</div>
+            <div class="market-label" id="marketLabel">確認中</div>
+          </div>
+          <div>
+            <div class="market-summary" id="marketSummary">market-environment.json を読み込んでいます。相場環境は表示専用で、銘柄ランキングの総合スコアには反映しません。</div>
+            <div class="market-card-meta" id="marketUsage">表示専用</div>
+          </div>
+        </div>
+        <div class="market-grid" id="marketGrid">
+          <div class="market-card">
+            <div class="market-card-title">状態</div>
+            <div class="market-card-value">読込中</div>
+            <div class="market-card-meta">主要指標を確認しています。</div>
           </div>
         </div>
       </section>
@@ -1612,6 +1720,7 @@
     let officialDataset = null;
     let scoreHistory = null;
     let backtestSummary = null;
+    let marketEnvironment = null;
     let scoreHistoryByCode = new Map();
     let watchedCodes = new Set();
     const WATCHLIST_STORAGE_KEY = "capitalGainRadar.watchlist.v1";
@@ -1724,6 +1833,12 @@
       backtestAssumptions: document.querySelector("#backtestAssumptions"),
       backtestKpis: document.querySelector("#backtestKpis"),
       backtestNote: document.querySelector("#backtestNote"),
+      marketStatus: document.querySelector("#marketStatus"),
+      marketScore: document.querySelector("#marketScore"),
+      marketLabel: document.querySelector("#marketLabel"),
+      marketSummary: document.querySelector("#marketSummary"),
+      marketUsage: document.querySelector("#marketUsage"),
+      marketGrid: document.querySelector("#marketGrid"),
       technicalAsOf: document.querySelector("#technicalAsOf"),
       compareSummary: document.querySelector("#compareSummary"),
       compareEmpty: document.querySelector("#compareEmpty"),
@@ -2176,6 +2291,87 @@
       }
     }
 
+    function formatMarketValue(point) {
+      const value = Number(point?.value);
+      if (!Number.isFinite(value)) return "未取得";
+      const unit = point?.unit || "";
+      if (unit === "%") return `${value.toFixed(2)}%`;
+      if (unit === "円") return value >= 1000 ? `${Math.round(value).toLocaleString("ja-JP")}円` : `${value.toFixed(2)}円`;
+      if (unit === "ドル") return `${value.toFixed(2)}ドル`;
+      return value >= 1000 ? Math.round(value).toLocaleString("ja-JP") : value.toFixed(2);
+    }
+
+    function formatMarketChange(point) {
+      const changeRate = Number(point?.changeRate);
+      const change = Number(point?.change);
+      if (!Number.isFinite(changeRate)) return "前日比 未取得";
+      const sign = changeRate > 0 ? "+" : "";
+      const rate = `${sign}${(changeRate * 100).toFixed(2)}%`;
+      if (Number.isFinite(change)) {
+        const changeSign = change > 0 ? "+" : "";
+        return `${rate} / ${changeSign}${change.toFixed(2)}`;
+      }
+      return rate;
+    }
+
+    function marketCardKeys(payload) {
+      const groups = payload?.groups || {};
+      return [
+        ...(groups.japanTrend || []),
+        ...(groups.futures || []),
+        ...(groups.usMarket || []),
+        ...(groups.risk || []),
+        ...(groups.commodity || []),
+        ...(groups.supply || []),
+      ];
+    }
+
+    function renderMarketEnvironment(payload) {
+      const environment = payload?.marketEnvironment || {};
+      const indicators = payload?.indicators || {};
+      const score = Number(environment.score);
+      el.marketStatus.textContent = payload ? `相場データ: ${formatDate(payload.generatedAt)}` : "相場環境JSON未読込";
+      el.marketScore.textContent = Number.isFinite(score) ? Math.round(score) : "--";
+      el.marketLabel.textContent = environment.label || "確認中";
+      el.marketSummary.textContent = environment.summary || "相場環境データを読み込めませんでした。";
+      el.marketUsage.textContent = environment.usage || "表示専用です。銘柄ランキングの総合スコアには反映しません。";
+      const keys = payload ? marketCardKeys(payload) : [];
+      if (!keys.length) {
+        el.marketGrid.innerHTML = `
+          <div class="market-card">
+            <div class="market-card-title">状態</div>
+            <div class="market-card-value">未取得</div>
+            <div class="market-card-meta">data/market-environment.json を確認してください。</div>
+          </div>
+        `;
+        return;
+      }
+      el.marketGrid.innerHTML = [...new Set(keys)].map(key => {
+        const point = indicators[key] || {};
+        const statusText = point.status === "available" ? formatMarketChange(point) : (point.note || "未取得");
+        return `
+          <div class="market-card">
+            <div class="market-card-title">${escapeHtml(point.label || key)}</div>
+            <div class="market-card-value">${escapeHtml(formatMarketValue(point))}</div>
+            <div class="market-card-meta">${escapeHtml(statusText)}</div>
+            <div class="market-card-meta">${escapeHtml(point.asOf ? "更新 " + formatDate(point.asOf) : point.source || "")}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function loadMarketEnvironment() {
+      try {
+        const response = await fetch("data/market-environment.json", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        marketEnvironment = await response.json();
+        renderMarketEnvironment(marketEnvironment);
+      } catch (error) {
+        marketEnvironment = null;
+        renderMarketEnvironment(null);
+      }
+    }
+
     function applyDataset(dataset, sourceLabel) {
       officialDataset = dataset;
       const sources = dataset?.sources || {};
@@ -2239,6 +2435,7 @@
           fetch("data/latest-candidates.json", { cache: "no-store" }),
           loadScoreHistory(),
           loadBacktestSummary(),
+          loadMarketEnvironment(),
         ]);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         applyDataset(await response.json(), "公式データ読込");

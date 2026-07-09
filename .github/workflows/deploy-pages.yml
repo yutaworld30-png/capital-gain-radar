@@ -38,6 +38,9 @@ jobs:
           EDINET_MAX_DOWNLOADS: "225"
         run: python work/fetch_official_data.py
 
+      - name: Refresh market environment
+        run: python work/market_environment.py
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
