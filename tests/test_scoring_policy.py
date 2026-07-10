@@ -15,7 +15,14 @@ sys.modules.setdefault(
 )
 
 from edinet_connector import calculate_valuation_metrics  # noqa: E402
-from fetch_official_data import _data_quality, _supply_score, _total_score  # noqa: E402
+from fetch_official_data import (  # noqa: E402
+    _data_quality,
+    _data_quality_details,
+    _detect_anomalies,
+    _metric_basis,
+    _supply_score,
+    _total_score,
+)
 
 
 class ScoringPolicyTest(unittest.TestCase):
@@ -72,6 +79,44 @@ class ScoringPolicyTest(unittest.TestCase):
         self.assertEqual(metrics["dividendYield"], 0.025)
         self.assertIsNone(metrics["dividendPayoutRatio"])
         self.assertEqual(metrics["dividendPayoutRatioStatus"], "not-calculated-mixed-basis")
+
+    def test_anomaly_detection_flags_unrealistic_metrics(self) -> None:
+        item = {
+            **self.base_item(),
+            "per": -1.0,
+            "pbr": 0.0,
+            "roe": 1.2,
+            "dividendYield": 0.18,
+            "dividendPayoutRatio": 3.5,
+        }
+
+        anomalies = _detect_anomalies(item)
+
+        self.assertGreaterEqual(len(anomalies), 5)
+
+    def test_quality_details_separate_missing_sources_from_anomalies(self) -> None:
+        item = self.base_item()
+        item.pop("dividendYield")
+        item["sources"] = {}
+
+        details, issues = _data_quality_details(item)
+
+        self.assertEqual(len(details), 4)
+        self.assertTrue(any("配当" in issue for issue in issues))
+        self.assertFalse(any("15%" in issue for issue in issues))
+
+    def test_metric_basis_labels_forecast_dividend(self) -> None:
+        item = {
+            **self.base_item(),
+            "dividendYieldKind": "forecast",
+            "dpsSource": "Yahoo Finance 1株配当（会社予想）",
+            "dividendPayoutRatioStatus": "not-calculated-mixed-basis",
+        }
+
+        basis = _metric_basis(item)
+
+        self.assertEqual(basis["dividendYield"], "Yahoo Finance会社予想")
+        self.assertEqual(basis["dividendPayoutRatio"], "非算出: 予想DPSと実績EPSが混在")
 
 
 if __name__ == "__main__":

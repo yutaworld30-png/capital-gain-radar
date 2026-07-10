@@ -1216,6 +1216,48 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .detail-quality {
+      margin-top: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .detail-quality-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .detail-quality-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fbfcfe;
+      min-width: 0;
+    }
+
+    .detail-quality-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .detail-quality-message {
+      margin-top: 6px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .detail-quality-meta {
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
     .signal-list {
       display: grid;
       gap: 8px;
@@ -1273,6 +1315,7 @@
       .backtest-grid,
       .source-strip,
       .quality-list,
+      .detail-quality-grid,
       .factor-grid {
         grid-template-columns: 1fr 1fr;
       }
@@ -1310,6 +1353,7 @@
       .score-detail-grid,
       .source-strip,
       .quality-list,
+      .detail-quality-grid,
       .factor-grid {
         grid-template-columns: 1fr;
       }
@@ -1621,6 +1665,7 @@
               </div>
               <div id="fundamentalPanel">
                 <div class="fundamental-grid" id="fundamentalGrid"></div>
+                <div class="detail-quality" id="detailQualityPanel"></div>
                 <div class="chart-note" id="fundamentalNote">無料データで取得できた項目を表示します。未取得の指標は、取得元を追加できるまで未取得として表示します。</div>
               </div>
               <div id="chartPanel" hidden>
@@ -1855,6 +1900,7 @@
       chartPanel: document.querySelector("#chartPanel"),
       scoreHistoryPanel: document.querySelector("#scoreHistoryPanel"),
       fundamentalGrid: document.querySelector("#fundamentalGrid"),
+      detailQualityPanel: document.querySelector("#detailQualityPanel"),
       fundamentalNote: document.querySelector("#fundamentalNote"),
       rangeButtons: {
         "1w": document.querySelector("#range1w"),
@@ -2665,6 +2711,52 @@
       return `${formatFundamentalPercent(value)}${suffix}`;
     }
 
+    function qualityBadgeClass(status) {
+      return status === "available" ? "ok" : "warn";
+    }
+
+    function qualityStatusLabel(status) {
+      return status === "available" ? "取得済み" : "要確認";
+    }
+
+    function renderDetailQuality(item) {
+      const details = Array.isArray(item.dataQualityDetails) ? item.dataQualityDetails : [];
+      const fallbackDetails = details.length ? details : [
+        { label: "株価", status: Number.isFinite(Number(item.latestClose)) ? "available" : "missing", message: Number.isFinite(Number(item.latestClose)) ? "株価を取得済み" : "株価未取得", asOf: item.priceAsOf, source: "価格データ" },
+        { label: "財務", status: item.fundamentals ? "available" : "missing", message: item.fundamentals ? "財務指標を取得済み" : "財務指標未取得", asOf: item.fundamentals?.asOf, source: "EDINET" },
+        { label: "配当", status: Number.isFinite(valueFrom(item, ["dividendYield"])) ? "available" : "missing", message: Number.isFinite(valueFrom(item, ["dividendYield"])) ? "配当利回りを取得済み" : "配当利回り未取得", asOf: item.dividendYieldAsOf, source: "Yahoo Finance / EDINET" },
+        { label: "信用", status: Number.isFinite(Number(item.margin)) ? "available" : "missing", message: Number.isFinite(Number(item.margin)) ? "信用倍率を取得済み" : "信用倍率未取得", asOf: item.sources?.marginRatio?.updatedAt, source: "JPX" },
+      ];
+      const anomalies = Array.isArray(item.dataAnomalies) ? item.dataAnomalies : [];
+      const issues = Array.isArray(item.acquisitionIssues) ? item.acquisitionIssues : [];
+      const basis = item.metricBasis || {};
+      el.detailQualityPanel.innerHTML = `
+        <div class="detail-quality-grid">
+          ${fallbackDetails.map(detail => `
+            <div class="detail-quality-card">
+              <div class="detail-quality-title">
+                <span>${escapeHtml(detail.label || "データ")}</span>
+                <span class="badge ${qualityBadgeClass(detail.status)}">${escapeHtml(qualityStatusLabel(detail.status))}</span>
+              </div>
+              <div class="detail-quality-message">${escapeHtml(detail.message || "確認待ち")}</div>
+              <div class="detail-quality-meta">${escapeHtml(detail.source || "")}${detail.asOf ? " / " + escapeHtml(formatDate(detail.asOf)) : ""}</div>
+            </div>
+          `).join("")}
+        </div>
+        <div class="detail-quality-card">
+          <div class="detail-quality-title"><span>取得失敗・異常値</span><span class="badge ${issues.length || anomalies.length ? "warn" : "ok"}">${issues.length || anomalies.length ? "要確認" : "問題なし"}</span></div>
+          <div class="detail-quality-message">${escapeHtml([...issues, ...anomalies].slice(0, 4).join(" / ") || "主要項目に大きな取得課題はありません。")}</div>
+        </div>
+        <div class="detail-quality-card">
+          <div class="detail-quality-title"><span>指標の基準</span><span class="badge warn">確認用</span></div>
+          <div class="detail-quality-meta">
+            PER: ${escapeHtml(basis.per || "実績EPSベース")} / PBR: ${escapeHtml(basis.pbr || "実績BPSベース")} / ROE: ${escapeHtml(basis.roe || "EDINETベース")}<br>
+            配当利回り: ${escapeHtml(basis.dividendYield || "未確認")} / 配当性向: ${escapeHtml(basis.dividendPayoutRatio || "未確認")}
+          </div>
+        </div>
+      `;
+    }
+
     function formatSignedPrice(value) {
       if (!Number.isFinite(value)) return "未取得";
       const sign = value > 0 ? "+" : "";
@@ -2741,6 +2833,7 @@
           <div class="fundamental-value">${String(value)}</div>
         </div>
       `).join("");
+      renderDetailQuality(item);
       el.fundamentalNote.textContent = `株価は${formatDate(priceAsOf)}時点の取得値です。予想配当利回りはYahoo Financeの会社予想を優先します。予想DPSと実績EPSが混在する場合、配当性向は非算出にします。未取得項目は「未取得」と表示します。`;
     }
 

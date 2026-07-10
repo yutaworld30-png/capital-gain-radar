@@ -930,6 +930,108 @@ def _has_numeric_metric(item: dict[str, object], key: str) -> bool:
     return _numeric_value(item, key) is not None
 
 
+def _source_status(source: object) -> str:
+    if isinstance(source, dict) and source.get("url") and (source.get("updatedAt") or source.get("asOf") or source.get("checkedAt")):
+        return "available"
+    return "missing"
+
+
+def _detail_status(label: str, status: str, message: str, *, as_of: object = None, source: str = "") -> dict[str, object]:
+    return {
+        "label": label,
+        "status": status,
+        "message": message,
+        "asOf": as_of,
+        "source": source,
+    }
+
+
+def _metric_basis(item: dict[str, object]) -> dict[str, object]:
+    fundamentals = item.get("fundamentals") if isinstance(item.get("fundamentals"), dict) else {}
+    return {
+        "per": "実績EPSベース",
+        "pbr": "実績BPSベース",
+        "roe": "EDINET有価証券報告書ベース",
+        "dividendYield": (
+            "Yahoo Finance会社予想"
+            if item.get("dividendYieldKind") == "forecast" or fundamentals.get("dividendYieldKind") == "forecast"  # type: ignore[union-attr]
+            else "EDINET実績DPS/株価"
+        ),
+        "dps": (
+            "Yahoo Finance会社予想"
+            if item.get("dpsSource") or fundamentals.get("dpsSource")  # type: ignore[union-attr]
+            else "EDINET実績DPS"
+        ),
+        "dividendPayoutRatio": (
+            "非算出: 予想DPSと実績EPSが混在"
+            if item.get("dividendPayoutRatioStatus") == "not-calculated-mixed-basis"
+            or fundamentals.get("dividendPayoutRatioStatus") == "not-calculated-mixed-basis"  # type: ignore[union-attr]
+            else "実績DPS/実績EPS"
+        ),
+    }
+
+
+def _detect_anomalies(item: dict[str, object]) -> list[str]:
+    anomalies: list[str] = []
+    per = _numeric_value(item, "per")
+    pbr = _numeric_value(item, "pbr")
+    roe = _numeric_value(item, "roe")
+    dividend_yield = _numeric_value(item, "dividendYield")
+    payout = _numeric_value(item, "dividendPayoutRatio")
+    if per is not None and per <= 0:
+        anomalies.append("PERが0以下のため要確認")
+    if pbr is not None and pbr <= 0:
+        anomalies.append("PBRが0以下のため要確認")
+    if roe is not None and abs(roe) >= 1:
+        anomalies.append("ROEが±100%以上のため要確認")
+    if dividend_yield is not None and dividend_yield >= 0.15:
+        anomalies.append("配当利回りが15%以上のため要確認")
+    if payout is not None and payout >= 3:
+        anomalies.append("配当性向が300%以上のため要確認")
+    return anomalies
+
+
+def _data_quality_details(item: dict[str, object]) -> tuple[list[dict[str, object]], list[str]]:
+    sources = item.get("sources") if isinstance(item.get("sources"), dict) else {}
+    fundamentals = item.get("fundamentals") if isinstance(item.get("fundamentals"), dict) else None
+    details = [
+        _detail_status(
+            "株価",
+            "available" if isinstance(item.get("latestClose"), (int, float)) and _source_status(sources.get("priceHistory")) == "available" else "missing",
+            "価格履歴を取得済み" if isinstance(item.get("latestClose"), (int, float)) else "株価未取得",
+            as_of=item.get("priceAsOf"),
+            source="Yahoo Finance / J-Quants fallback",
+        ),
+        _detail_status(
+            "財務",
+            "available" if fundamentals else "missing",
+            "EDINET財務指標を取得済み" if fundamentals else "EDINET財務指標未取得",
+            as_of=(fundamentals or {}).get("asOf") or (fundamentals or {}).get("submitDateTime") if fundamentals else None,
+            source="EDINET API v2",
+        ),
+        _detail_status(
+            "配当",
+            "available" if _has_numeric_metric(item, "dividendYield") else "missing",
+            (
+                "Yahoo会社予想の配当利回りを取得済み"
+                if item.get("dividendYieldKind") == "forecast" or (fundamentals or {}).get("dividendYieldKind") == "forecast"
+                else "配当利回り未取得"
+            ),
+            as_of=item.get("dividendYieldAsOf") or (fundamentals or {}).get("dividendYieldAsOf") if fundamentals else item.get("dividendYieldAsOf"),
+            source="Yahoo Finance / EDINET",
+        ),
+        _detail_status(
+            "信用",
+            "available" if isinstance(item.get("margin"), (int, float)) and _source_status(sources.get("marginRatio")) == "available" else "missing",
+            "JPX信用取引週末残高を取得済み" if isinstance(item.get("margin"), (int, float)) else "信用倍率未取得",
+            as_of=(sources.get("marginRatio") or {}).get("updatedAt") if isinstance(sources.get("marginRatio"), dict) else None,
+            source="JPX",
+        ),
+    ]
+    issues = [f"{detail['label']}: {detail['message']}" for detail in details if detail["status"] != "available"]
+    return details, issues
+
+
 def _data_quality(item: dict[str, object]) -> tuple[int, list[str]]:
     warnings: list[str] = []
     core_fields = (
@@ -957,6 +1059,11 @@ def _data_quality(item: dict[str, object]) -> tuple[int, list[str]]:
         warnings.append("配当性向は予想DPSと実績EPSが混在するため非算出")
     elif not _has_numeric_metric(item, "dividendPayoutRatio"):
         warnings.append("配当性向未取得")
+
+    anomalies = _detect_anomalies(item)
+    warnings.extend(anomalies)
+    if anomalies:
+        valuation_score = max(0, valuation_score - 10)
 
     score = round(core_score + valuation_score + dividend_bonus)
     return max(0, min(100, score)), warnings[:3]
@@ -997,6 +1104,9 @@ def _attach_scores(dataset: dict[str, object]) -> None:
                 row["supply"] = _supply_score(row)
                 row["valuation"] = _valuation_score(row)
                 row["dataQuality"], row["dataWarnings"] = _data_quality(row)
+                row["dataQualityDetails"], row["acquisitionIssues"] = _data_quality_details(row)
+                row["dataAnomalies"] = _detect_anomalies(row)
+                row["metricBasis"] = _metric_basis(row)
                 row["score"] = _total_score(row)
 
 
@@ -1021,6 +1131,7 @@ def _compact_score_row(row: dict[str, object]) -> dict[str, object]:
         "isNewHigh52w",
         "dataQuality",
         "dataWarnings",
+        "dataAnomalies",
         "latestClose",
         "priceAsOf",
         "per",
@@ -1482,6 +1593,34 @@ def main() -> None:
         item for item in quality_rows
         if isinstance(item.get("dataQuality"), (int, float)) and float(item["dataQuality"]) < 70
     ]
+    issue_rows = [
+        item for item in quality_rows
+        if isinstance(item.get("acquisitionIssues"), list) and item["acquisitionIssues"]
+    ]
+    anomaly_rows = [
+        item for item in quality_rows
+        if isinstance(item.get("dataAnomalies"), list) and item["dataAnomalies"]
+    ]
+    dataset["dataProviderPolicy"] = {
+        "price": ["J-Quants", "Yahoo Finance chart", "Yahoo Finance mirror"],
+        "fundamentals": ["EDINET API v2", "previous EDINET snapshot reuse", "TDnet disclosure signals"],
+        "dividend": ["Yahoo Finance company forecast", "EDINET actual DPS"],
+        "listing": ["JPX listed company file"],
+        "margin": ["JPX weekly margin balance PDF"],
+        "note": "無料・公式優先で複数取得元を使い、未取得や異常値は銘柄別の品質情報として表示します。",
+    }
+    dataset["acquisitionIssueSummary"] = {
+        "issueCount": len(issue_rows),
+        "anomalyCount": len(anomaly_rows),
+        "examples": [
+            {
+                "code": item.get("code"),
+                "name": item.get("name"),
+                "issues": item.get("acquisitionIssues"),
+            }
+            for item in issue_rows[:20]
+        ],
+    }
     dataset["qualityChecks"] = [
         {
             "label": "東証プライム上場銘柄",
@@ -1539,6 +1678,12 @@ def main() -> None:
                 if quality_rows
                 else "候補データが生成されていません。"
             ),
+        },
+        {
+            "label": "銘柄別取得失敗・異常値",
+            "status": "available" if not issue_rows and not anomaly_rows else "partial",
+            "required": False,
+            "message": f"取得課題は{len(issue_rows)}件、異常値注意は{len(anomaly_rows)}件です。銘柄詳細のデータ品質で確認できます。",
         },
     ]
     score_history = update_score_history(dataset, generated_at)
