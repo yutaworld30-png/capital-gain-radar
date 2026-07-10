@@ -9,7 +9,13 @@ ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
 sys.path.insert(0, str(WORK))
 
-from market_environment import MarketPoint, label_for_score, score_crude, weighted_score  # noqa: E402
+from market_environment import (  # noqa: E402
+    MarketPoint,
+    apply_meta_quote,
+    label_for_score,
+    score_crude,
+    weighted_score,
+)
 
 
 class MarketEnvironmentPolicyTest(unittest.TestCase):
@@ -29,6 +35,24 @@ class MarketEnvironmentPolicyTest(unittest.TestCase):
         spike = MarketPoint("wti", "WTI", 85.0, 80.0, "2026-07-09", "FRED", "")
 
         self.assertGreater(score_crude(calm), score_crude(spike))
+
+    def test_newer_yahoo_meta_quote_overrides_stale_history(self) -> None:
+        value, previous, as_of, used_meta = apply_meta_quote(
+            66819.05,
+            68256.96,
+            "2026-07-08",
+            {
+                "regularMarketPrice": 67743.85,
+                "regularMarketPreviousClose": 65416.63,
+                "regularMarketTime": 1783579503,
+                "exchangeTimezoneName": "Asia/Tokyo",
+            },
+        )
+
+        self.assertTrue(used_meta)
+        self.assertEqual(as_of, "2026-07-09")
+        self.assertEqual(value, 67743.85)
+        self.assertEqual(previous, 65416.63)
 
 
 if __name__ == "__main__":

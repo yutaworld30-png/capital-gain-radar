@@ -2348,7 +2348,8 @@
       }
       el.marketGrid.innerHTML = [...new Set(keys)].map(key => {
         const point = indicators[key] || {};
-        const statusText = point.status === "available" ? formatMarketChange(point) : (point.note || "未取得");
+        const hasValue = Number.isFinite(Number(point.value));
+        const statusText = point.status === "available" && hasValue ? formatMarketChange(point) : (point.note || "数値未取得");
         return `
           <div class="market-card">
             <div class="market-card-title">${escapeHtml(point.label || key)}</div>

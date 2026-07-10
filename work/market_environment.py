@@ -12,6 +12,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -104,6 +105,45 @@ def latest_pair(rows: list[dict[str, Any]]) -> tuple[float | None, float | None,
     ), str(latest.get("date") or "")
 
 
+def timestamp_date(timestamp: object, timezone_name: object) -> str | None:
+    if not isinstance(timestamp, (int, float)):
+        return None
+    zone_name = str(timezone_name or "UTC")
+    try:
+        zone = ZoneInfo(zone_name)
+    except ZoneInfoNotFoundError:
+        zone = timezone.utc
+    return datetime.fromtimestamp(float(timestamp), tz=timezone.utc).astimezone(zone).date().isoformat()
+
+
+def apply_meta_quote(
+    value: float | None,
+    previous: float | None,
+    as_of: str | None,
+    meta: dict[str, Any],
+    *,
+    scale: float = 1.0,
+) -> tuple[float | None, float | None, str | None, bool]:
+    raw_price = meta.get("regularMarketPrice")
+    raw_time = meta.get("regularMarketTime")
+    if not isinstance(raw_price, (int, float)) or not math.isfinite(float(raw_price)) or float(raw_price) <= 0:
+        return value, previous, as_of, False
+    meta_as_of = timestamp_date(raw_time, meta.get("exchangeTimezoneName") or meta.get("timezone"))
+    if not meta_as_of:
+        return value, previous, as_of, False
+    if as_of and meta_as_of < as_of:
+        return value, previous, as_of, False
+    meta_previous = meta.get("regularMarketPreviousClose")
+    if not isinstance(meta_previous, (int, float)) or not math.isfinite(float(meta_previous)) or float(meta_previous) <= 0:
+        meta_previous = value if as_of and meta_as_of > as_of else previous
+    return (
+        float(raw_price) * scale,
+        float(meta_previous) * scale if isinstance(meta_previous, (int, float)) and float(meta_previous) > 0 else previous,
+        meta_as_of,
+        True,
+    )
+
+
 def fetch_yahoo_point(key: str, label: str, symbols: list[str], *, unit: str = "", scale: float = 1.0) -> MarketPoint:
     end = date.today()
     start = end - timedelta(days=180)
@@ -119,6 +159,7 @@ def fetch_yahoo_point(key: str, label: str, symbols: list[str], *, unit: str = "
         try:
             payload = json.loads(fetch_bytes(url).decode("utf-8"))
             result = payload["chart"]["result"][0]
+            meta = result.get("meta", {})
             timestamps = result["timestamp"]
             quote = result["indicators"]["quote"][0]
             rows: list[dict[str, Any]] = []
@@ -127,15 +168,21 @@ def fetch_yahoo_point(key: str, label: str, symbols: list[str], *, unit: str = "
                 if close in (None, 0):
                     continue
                 rows.append({
-                    "date": datetime.fromtimestamp(timestamp, tz=timezone.utc).date().isoformat(),
+                    "date": timestamp_date(
+                        timestamp,
+                        meta.get("exchangeTimezoneName") or meta.get("timezone"),
+                    ),
                     "value": float(close) * scale,
                 })
             value, previous, as_of = latest_pair(rows)
+            value, previous, as_of, used_meta = apply_meta_quote(value, previous, as_of, meta, scale=scale)
             if value is None:
                 raise MarketEnvironmentError("有効な終値がありません。")
             note = f"symbol={symbol}"
             if scale != 1.0:
                 note += f", scale={scale}"
+            if used_meta:
+                note += ", latest=meta"
             return MarketPoint(key, label, value, previous, as_of, "Yahoo Finance chart", url, unit=unit, note=note)
         except (MarketEnvironmentError, KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
             last_error = str(error)
@@ -300,9 +347,9 @@ def main() -> None:
     generated_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     points = [
         fetch_yahoo_point("nikkei225", "日経225", ["^N225"], unit="円"),
-        fetch_yahoo_point("topix", "TOPIX", ["^TOPX", "1306.T"]),
-        fetch_yahoo_point("growth250", "グロース250", ["2516.T", "1563.T"]),
-        fetch_yahoo_point("nikkei225Futures", "日経平均先物", ["NIY=F", "NKD=F"], unit="円"),
+        fetch_yahoo_point("topix", "TOPIX連動ETF", ["1306.T"]),
+        fetch_yahoo_point("growth250", "グロース250連動ETF", ["2516.T", "1563.T"]),
+        fetch_yahoo_point("nikkei225Futures", "CME日経平均先物", ["NIY=F", "NKD=F"], unit="円"),
         fetch_yahoo_point("sp500", "S&P500", ["^GSPC"]),
         fetch_yahoo_point("nasdaq", "NASDAQ", ["^IXIC"]),
         fetch_yahoo_point("sox", "SOX", ["^SOX"]),
