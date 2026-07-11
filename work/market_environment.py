@@ -3,8 +3,9 @@ from __future__ import annotations
 import csv
 import json
 import math
+import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from io import StringIO
 from pathlib import Path
@@ -17,6 +18,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "outputs" / "data" / "market-environment.json"
+HISTORY_OUTPUT = ROOT / "outputs" / "data" / "market-environment-history.json"
+HISTORY_URL = "https://yutaworld30-png.github.io/capital-gain-radar/data/market-environment-history.json"
+HISTORY_MAX_DAYS = max(93, int(os.getenv("MARKET_HISTORY_MAX_DAYS", "400")))
 
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
 FRED_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
@@ -40,6 +44,7 @@ class MarketPoint:
     status: str = "available"
     unit: str = ""
     note: str = ""
+    history: list[dict[str, Any]] = field(default_factory=list, repr=False)
 
     @property
     def change(self) -> float | None:
@@ -178,12 +183,27 @@ def fetch_yahoo_point(key: str, label: str, symbols: list[str], *, unit: str = "
             value, previous, as_of, used_meta = apply_meta_quote(value, previous, as_of, meta, scale=scale)
             if value is None:
                 raise MarketEnvironmentError("有効な終値がありません。")
+            if used_meta and as_of:
+                rows = [row for row in rows if row.get("date") != as_of]
+                rows.append({"date": as_of, "value": value})
+                rows.sort(key=lambda row: str(row.get("date") or ""))
             note = f"symbol={symbol}"
             if scale != 1.0:
                 note += f", scale={scale}"
             if used_meta:
                 note += ", latest=meta"
-            return MarketPoint(key, label, value, previous, as_of, "Yahoo Finance chart", url, unit=unit, note=note)
+            return MarketPoint(
+                key,
+                label,
+                value,
+                previous,
+                as_of,
+                "Yahoo Finance chart",
+                url,
+                unit=unit,
+                note=note,
+                history=rows,
+            )
         except (MarketEnvironmentError, KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
             last_error = str(error)
             continue
@@ -208,7 +228,7 @@ def fetch_fred_point(key: str, label: str, series: str, *, unit: str = "") -> Ma
         value, previous, as_of = latest_pair(rows)
         if value is None:
             raise MarketEnvironmentError("FREDに有効な値がありません。")
-        return MarketPoint(key, label, value, previous, as_of, "FRED", url, unit=unit)
+        return MarketPoint(key, label, value, previous, as_of, "FRED", url, unit=unit, history=rows)
     except MarketEnvironmentError as error:
         return MarketPoint(key, label, None, None, None, "FRED", url, "unavailable", unit, str(error))
 
@@ -316,6 +336,137 @@ def weighted_score(parts: list[tuple[int | None, float]]) -> int:
     return round(sum(float(score) * weight for score, weight in valid) / total_weight)
 
 
+def market_environment_score(indicators: dict[str, MarketPoint]) -> int:
+    return weighted_score([
+        (weighted_score([
+            (score_trend(indicators["nikkei225"]), 0.4),
+            (score_trend(indicators["topix"]), 0.4),
+            (score_trend(indicators["growth250"]), 0.2),
+        ]), 0.25),
+        (score_trend(indicators["nikkei225Futures"]), 0.15),
+        (weighted_score([
+            (score_trend(indicators["sp500"]), 0.35),
+            (score_trend(indicators["nasdaq"]), 0.35),
+            (score_trend(indicators["sox"]), 0.30),
+        ]), 0.20),
+        (weighted_score([
+            (score_vix(indicators["vix"]), 0.35),
+            (score_us10y(indicators["us10y"]), 0.35),
+            (score_usd_jpy(indicators["usdJpy"]), 0.30),
+        ]), 0.15),
+        (score_crude(indicators["wtiCrudeOil"]), 0.05),
+        (50, 0.20),
+    ])
+
+
+def point_at_date(point: MarketPoint, target_date: str) -> MarketPoint:
+    rows = [
+        row for row in point.history
+        if str(row.get("date") or "") <= target_date and isinstance(row.get("value"), (int, float))
+    ]
+    if not rows:
+        return MarketPoint(
+            point.key,
+            point.label,
+            None,
+            None,
+            None,
+            point.source,
+            point.url,
+            "unavailable",
+            point.unit,
+            "履歴値なし",
+        )
+    latest = rows[-1]
+    previous = rows[-2] if len(rows) >= 2 else {}
+    return MarketPoint(
+        point.key,
+        point.label,
+        float(latest["value"]),
+        float(previous["value"]) if isinstance(previous.get("value"), (int, float)) else None,
+        str(latest.get("date") or ""),
+        point.source,
+        point.url,
+        unit=point.unit,
+    )
+
+
+def build_historical_snapshots(points: list[MarketPoint], generated_at: str) -> list[dict[str, Any]]:
+    point_map = {point.key: point for point in points}
+    primary = point_map.get("nikkei225")
+    if not primary:
+        return []
+    cutoff = (date.today() - timedelta(days=HISTORY_MAX_DAYS)).isoformat()
+    target_dates = sorted({
+        str(row.get("date") or "")
+        for row in primary.history
+        if str(row.get("date") or "") >= cutoff
+    })
+    snapshots: list[dict[str, Any]] = []
+    for target_date in target_dates:
+        historical = {key: point_at_date(point, target_date) for key, point in point_map.items()}
+        score = market_environment_score(historical)
+        snapshots.append({
+            "date": target_date,
+            "generatedAt": generated_at,
+            "score": score,
+            "label": label_for_score(score),
+            "source": "historical-provider",
+            "indicators": {
+                key: {
+                    "label": point.label,
+                    "value": point.value,
+                    "previous": point.previous,
+                    "change": point.change,
+                    "changeRate": point.change_rate,
+                    "asOf": point.as_of,
+                    "status": point.status,
+                    "unit": point.unit,
+                }
+                for key, point in historical.items()
+                if point.value is not None
+            },
+        })
+    return snapshots
+
+
+def merge_history_snapshots(
+    existing: list[dict[str, Any]],
+    incoming: list[dict[str, Any]],
+    *,
+    max_days: int = HISTORY_MAX_DAYS,
+) -> list[dict[str, Any]]:
+    by_date = {
+        str(snapshot.get("date") or ""): snapshot
+        for snapshot in [*existing, *incoming]
+        if str(snapshot.get("date") or "")
+    }
+    if not by_date:
+        return []
+    latest_date = max(by_date)
+    try:
+        cutoff = (date.fromisoformat(latest_date) - timedelta(days=max_days)).isoformat()
+    except ValueError:
+        cutoff = ""
+    return [by_date[key] for key in sorted(by_date) if key >= cutoff]
+
+
+def read_history_payload() -> dict[str, Any]:
+    snapshots: list[dict[str, Any]] = []
+    if HISTORY_OUTPUT.exists():
+        try:
+            local = json.loads(HISTORY_OUTPUT.read_text(encoding="utf-8"))
+            snapshots.extend(local.get("snapshots") or [])
+        except (OSError, json.JSONDecodeError, AttributeError):
+            pass
+    try:
+        public = json.loads(fetch_bytes(HISTORY_URL).decode("utf-8"))
+        snapshots.extend(public.get("snapshots") or [])
+    except (MarketEnvironmentError, json.JSONDecodeError, AttributeError):
+        pass
+    return {"schemaVersion": 1, "snapshots": merge_history_snapshots([], snapshots)}
+
+
 def label_for_score(score: int) -> str:
     if score >= 75:
         return "追い風"
@@ -361,26 +512,7 @@ def main() -> None:
         fetch_jpx_page_status("foreignInvestorFlow", "海外投資家売買", JPX_INVESTOR_TYPE_URL),
     ]
     indicators = {point.key: point for point in points}
-    score = weighted_score([
-        (weighted_score([
-            (score_trend(indicators["nikkei225"]), 0.4),
-            (score_trend(indicators["topix"]), 0.4),
-            (score_trend(indicators["growth250"]), 0.2),
-        ]), 0.25),
-        (score_trend(indicators["nikkei225Futures"]), 0.15),
-        (weighted_score([
-            (score_trend(indicators["sp500"]), 0.35),
-            (score_trend(indicators["nasdaq"]), 0.35),
-            (score_trend(indicators["sox"]), 0.30),
-        ]), 0.20),
-        (weighted_score([
-            (score_vix(indicators["vix"]), 0.35),
-            (score_us10y(indicators["us10y"]), 0.35),
-            (score_usd_jpy(indicators["usdJpy"]), 0.30),
-        ]), 0.15),
-        (score_crude(indicators["wtiCrudeOil"]), 0.05),
-        (50, 0.20),
-    ])
+    score = market_environment_score(indicators)
     available = [point for point in points if point.status == "available" and point.value is not None]
     quality_checks = [
         {
@@ -399,6 +531,17 @@ def main() -> None:
             "message": indicators["wtiCrudeOil"].note or "FREDからWTI原油価格を確認しました。",
         },
     ]
+    existing_history = read_history_payload()
+    snapshots = merge_history_snapshots(
+        existing_history.get("snapshots") or [],
+        build_historical_snapshots(points, generated_at),
+    )
+    history_payload = {
+        "schemaVersion": 1,
+        "generatedAt": generated_at,
+        "retentionDays": HISTORY_MAX_DAYS,
+        "snapshots": snapshots,
+    }
     payload = {
         "schemaVersion": 1,
         "generatedAt": generated_at,
@@ -418,9 +561,18 @@ def main() -> None:
             "supply": ["shortSelling", "foreignInvestorFlow"],
         },
         "qualityChecks": quality_checks,
+        "marketHistory": {
+            "status": "available" if len(snapshots) >= 2 else "partial",
+            "snapshotCount": len(snapshots),
+            "oldestDate": snapshots[0]["date"] if snapshots else None,
+            "latestDate": snapshots[-1]["date"] if snapshots else None,
+            "url": "data/market-environment-history.json",
+        },
     }
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    HISTORY_OUTPUT.write_text(json.dumps(history_payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    print(f"Wrote {HISTORY_OUTPUT} ({len(snapshots)} snapshots)")
     print(f"Wrote {OUTPUT}")
     print(f"Market environment score: {score} {label_for_score(score)}")
 

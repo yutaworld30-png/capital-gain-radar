@@ -13,6 +13,8 @@ from market_environment import (  # noqa: E402
     MarketPoint,
     apply_meta_quote,
     label_for_score,
+    merge_history_snapshots,
+    point_at_date,
     score_crude,
     weighted_score,
 )
@@ -53,6 +55,43 @@ class MarketEnvironmentPolicyTest(unittest.TestCase):
         self.assertEqual(as_of, "2026-07-09")
         self.assertEqual(value, 67743.85)
         self.assertEqual(previous, 65416.63)
+
+    def test_point_at_date_uses_latest_available_and_previous_values(self) -> None:
+        point = MarketPoint(
+            "nikkei225",
+            "日経225",
+            102.0,
+            101.0,
+            "2026-07-03",
+            "test",
+            "",
+            history=[
+                {"date": "2026-07-01", "value": 100.0},
+                {"date": "2026-07-02", "value": 101.0},
+                {"date": "2026-07-03", "value": 102.0},
+            ],
+        )
+
+        historical = point_at_date(point, "2026-07-02")
+
+        self.assertEqual(historical.value, 101.0)
+        self.assertEqual(historical.previous, 100.0)
+        self.assertEqual(historical.as_of, "2026-07-02")
+
+    def test_history_merge_replaces_same_date_and_retains_recent_window(self) -> None:
+        existing = [
+            {"date": "2026-01-01", "score": 40},
+            {"date": "2026-07-01", "score": 50},
+        ]
+        incoming = [
+            {"date": "2026-07-01", "score": 60},
+            {"date": "2026-07-10", "score": 70},
+        ]
+
+        merged = merge_history_snapshots(existing, incoming, max_days=30)
+
+        self.assertEqual([row["date"] for row in merged], ["2026-07-01", "2026-07-10"])
+        self.assertEqual(merged[0]["score"], 60)
 
 
 if __name__ == "__main__":
