@@ -1,7 +1,21 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedAt": "2026-07-08",
-  "status": "reference-result",
+  "status": "unverified",
+  "verification": {
+    "verified": false,
+    "missing": [
+      "生成プログラム",
+      "生成プログラム版",
+      "入力データハッシュ",
+      "検証開始日",
+      "検証終了日",
+      "売買パラメータ",
+      "取引明細パス",
+      "取引明細ハッシュ",
+      "取引明細件数"
+    ]
+  },
   "strategy": {
     "name": "需給B / 買い75 / 売り65 / 20MA割れ",
     "universe": "日経225",
@@ -10,7 +24,8 @@
     "sellScore": 65,
     "maxPositions": 5,
     "tradeCostRoundTrip": 0.002,
-    "supplyRule": "信用倍率の軽さを60%、52週高値への近さを40%で評価する需給設定です。",
+    "supplyRule": "この未検証バックテストの需給Bは信用倍率60%・52週高値への近さ40%の旧定義です。現行スコア2.1とは互換性がありません。",
+    "scoreCompatibility": "legacy-supplyB-not-compatible-with-score-2.1",
     "exitRules": [
       "スコア65点以下",
       "20日移動平均割れ"
@@ -22,44 +37,11 @@
     "margin": "信用倍率",
     "excluded": "ニュース件数とTDnet/業績イベントは未反映"
   },
-  "result": {
-    "annualReturn": 0.85,
-    "maxDrawdown": -0.132,
-    "sharpeRatio": 2.43,
-    "cumulativeWinRate": 0.471,
-    "trades": 85,
-    "benchmarkAnnualReturnDelta": 0.705,
-    "benchmarkDrawdownImprovement": 0.131
-  },
-  "kpis": [
-    {
-      "label": "年率リターン",
-      "value": 0.85,
-      "format": "signedPercent"
-    },
-    {
-      "label": "最大下落率",
-      "value": -0.132,
-      "format": "signedPercent"
-    },
-    {
-      "label": "シャープレシオ",
-      "value": 2.43,
-      "format": "number"
-    },
-    {
-      "label": "累積勝率",
-      "value": 0.471,
-      "format": "percent"
-    },
-    {
-      "label": "取引回数",
-      "value": 85,
-      "format": "count"
-    }
-  ],
+  "result": {},
+  "kpis": [],
   "notes": [
-    "日経225単純保有との比較では、年率リターンは約+70.5pt、最大下落率は約13.1pt改善。",
-    "過去検証であり、将来の成績を保証するものではありません。"
+    "再現に必要な取引明細・生成元・データハッシュが不足しているため未検証です。",
+    "旧需給Bと現行スコア2.1は定義が異なるため、現行ランキングの成績として扱えません。",
+    "検証済み成果物が生成されるまで成績数値は表示しません。"
   ]
 }

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": null,
+  "scoreVersion": "2.1.0",
+  "factorVersion": "nikkei225-capital-gain-v2.1",
+  "priceBasis": "adjusted-ohlc",
+  "highLookbackDays": 252,
+  "retentionDays": 400,
+  "snapshots": []
+}

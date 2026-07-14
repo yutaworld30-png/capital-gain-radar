@@ -89,6 +89,7 @@ def calculate_price_metrics(rows: list[dict[str, object]]) -> dict[str, object]:
         except ValueError:
             continue
         high = _number(row.get("AdjH"))
+        low = _number(row.get("AdjL"))
         close = _number(row.get("AdjC"))
         turnover = _number(row.get("Va"))
         if high is None or close is None:
@@ -96,21 +97,25 @@ def calculate_price_metrics(rows: list[dict[str, object]]) -> dict[str, object]:
         normalized.append({
             "date": row_date,
             "high": high,
+            "low": low,
             "close": close,
             "turnover": turnover or 0,
         })
 
     normalized.sort(key=lambda item: item["date"])
-    if len(normalized) < 120:
-        raise JQuantsError("価格履歴が120営業日未満です。")
+    high_lookback_days = 252
+    if len(normalized) < high_lookback_days:
+        raise JQuantsError(f"価格履歴が{high_lookback_days}営業日未満です。")
 
     latest = normalized[-1]
     latest_date = latest["date"]
-    lookback_start = date(latest_date.year - 2, latest_date.month, min(latest_date.day, 28))
-    lookback = [item for item in normalized if item["date"] >= lookback_start]
+    lookback = normalized[-high_lookback_days:]
     high_record = max(lookback, key=lambda item: item["high"])
+    prior_high_record = max(lookback[:-1], key=lambda item: item["high"])
     closes = [float(item["close"]) for item in normalized]
     latest_close = closes[-1]
+    latest_high = float(latest["high"])
+    high_52w = float(high_record["high"])
     ma20 = sum(closes[-20:]) / 20
     ma50 = sum(closes[-50:]) / 50
     ma200 = sum(closes[-200:]) / min(200, len(closes))
@@ -124,6 +129,38 @@ def calculate_price_metrics(rows: list[dict[str, object]]) -> dict[str, object]:
     technical = max(0, min(100, technical))
 
     average_turnover = sum(float(item["turnover"]) for item in normalized[-20:]) / 20
+    true_ranges = []
+    for index in range(max(1, len(normalized) - 14), len(normalized)):
+        high = normalized[index].get("high")
+        low = normalized[index].get("low")
+        previous_close = normalized[index - 1].get("close")
+        if not all(isinstance(value, (int, float)) for value in (high, low, previous_close)):
+            continue
+        true_ranges.append(max(
+            float(high) - float(low),
+            abs(float(high) - float(previous_close)),
+            abs(float(low) - float(previous_close)),
+        ))
+    atr14 = sum(true_ranges) / 14 if len(true_ranges) == 14 else None
+    recent_lows = [
+        float(item["low"])
+        for item in normalized[-20:]
+        if isinstance(item.get("low"), (int, float))
+    ]
+    recent_low20 = min(recent_lows) if len(recent_lows) == 20 else None
+    suggested_stop = None
+    suggested_stop_width = None
+    if atr14 is not None and recent_low20 is not None and latest_close > 0:
+        suggested_stop = min(latest_close, max(recent_low20, latest_close - atr14 * 2))
+        suggested_stop_width = max(0.0, (latest_close - suggested_stop) / latest_close)
+    if average_turnover >= 5_000_000_000:
+        execution_ease = "高い"
+    elif average_turnover >= 1_000_000_000:
+        execution_ease = "標準"
+    elif average_turnover >= 200_000_000:
+        execution_ease = "やや低い"
+    else:
+        execution_ease = "低い"
     returns = [
         math.log(closes[index] / closes[index - 1])
         for index in range(max(1, len(closes) - 60), len(closes))
@@ -135,10 +172,24 @@ def calculate_price_metrics(rows: list[dict[str, object]]) -> dict[str, object]:
     return {
         "asOf": latest_date.isoformat(),
         "latestClose": latest_close,
+        "latestHigh": latest_high,
+        "high52w": high_52w,
+        "isNewHigh52w": latest_high >= float(prior_high_record["high"]),
+        "priorHigh52w": float(prior_high_record["high"]),
+        "priorHigh52wDate": prior_high_record["date"].isoformat(),
         "previousHighDate": high_record["date"].isoformat(),
-        "previousHigh": high_record["high"],
+        "previousHigh": high_52w,
         "monthsFromHigh": _months_between(high_record["date"], latest_date),
+        "priceBasis": "adjusted-ohlc",
+        "highLookbackDays": high_lookback_days,
         "averageTurnover20": round(average_turnover),
+        "atr14": round(atr14, 4) if atr14 is not None else None,
+        "recentLow20": round(recent_low20, 4) if recent_low20 is not None else None,
+        "suggestedStopPrice": round(suggested_stop, 4) if suggested_stop is not None else None,
+        "suggestedStopWidth": round(suggested_stop_width, 4) if suggested_stop_width is not None else None,
+        "suggestedStopBasis": "20営業日安値と終値-2ATRの高い方（参考値）" if suggested_stop is not None else None,
+        "executionEase": execution_ease,
+        "onePercentTurnoverYen": round(average_turnover * 0.01),
         "liquidity": _liquidity_score(average_turnover),
         "technical": technical,
         "risk": risk_score,

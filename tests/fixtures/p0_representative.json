@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "description": "P0 accuracy regression fixtures. Codes are synthetic and are not real investment candidates.",
+  "stocks": [
+    {
+      "code": "TEST-A",
+      "name": "52週境界",
+      "priceRecipe": {
+        "days": 253,
+        "baseHigh": 110.0,
+        "baseClose": 108.0,
+        "excludedHigh": 180.0,
+        "latestHigh": 120.0,
+        "latestClose": 118.0
+      },
+      "factors": {
+        "theme": 60,
+        "margin": 1.0,
+        "technical": 70,
+        "liquidity": 70,
+        "relative": 70,
+        "earnings": 60,
+        "risk": 40,
+        "valuation": 65,
+        "per": 15.0,
+        "pbr": 1.2,
+        "roe": 0.12,
+        "dividendYield": 0.03
+      }
+    },
+    {
+      "code": "TEST-B",
+      "name": "安定推移",
+      "priceRecipe": {
+        "days": 253,
+        "baseHigh": 126.0,
+        "baseClose": 119.0,
+        "excludedHigh": 126.0,
+        "latestHigh": 124.0,
+        "latestClose": 120.0
+      },
+      "factors": {
+        "theme": 62,
+        "margin": 1.2,
+        "technical": 68,
+        "liquidity": 68,
+        "relative": 68,
+        "earnings": 64,
+        "risk": 42,
+        "valuation": 62,
+        "per": 16.0,
+        "pbr": 1.3,
+        "roe": 0.11,
+        "dividendYield": 0.025
+      }
+    },
+    {
+      "code": "TEST-C",
+      "name": "ゼロ値保持",
+      "priceRecipe": {
+        "days": 253,
+        "baseHigh": 105.0,
+        "baseClose": 100.0,
+        "excludedHigh": 105.0,
+        "latestHigh": 105.0,
+        "latestClose": 104.0
+      },
+      "factors": {
+        "theme": 0,
+        "margin": 1.0,
+        "technical": 0,
+        "liquidity": 0,
+        "relative": 0,
+        "earnings": 0,
+        "risk": 0,
+        "valuation": 0,
+        "per": 15.0,
+        "pbr": 1.2,
+        "roe": 0.12,
+        "dividendYield": 0.03
+      }
+    }
+  ]
+}

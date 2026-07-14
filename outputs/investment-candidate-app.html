@@ -196,6 +196,7 @@
       gap: 6px;
     }
 
+    .segmented.one,
     .segmented.four,
     .segmented.five {
       grid-template-columns: 1fr;
@@ -462,6 +463,68 @@
       background: var(--white);
       color: var(--ink);
       padding: 0 10px;
+    }
+
+    .filter-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .filter-reset {
+      width: 100%;
+      min-height: 34px;
+    }
+
+    .watch-alerts {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fffaf0;
+    }
+
+    .watch-alerts[hidden] {
+      display: none;
+    }
+
+    .watch-alert-list,
+    .reason-list,
+    .event-list {
+      display: grid;
+      gap: 7px;
+      margin: 8px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .watch-alert-item,
+    .reason-item,
+    .event-item {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .change-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 6px;
+    }
+
+    .change-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: #eef5ff;
+      color: #285eab;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .change-badge.alert {
+      background: #fff3d6;
+      color: #8a5a00;
     }
 
     .breakout-control {
@@ -1256,6 +1319,35 @@
       gap: 10px;
     }
 
+    .decision-support {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .decision-section {
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+      min-width: 0;
+    }
+
+    .decision-section h3 {
+      margin: 0;
+      font-size: 13px;
+    }
+
+    .decision-section:last-child {
+      grid-column: 1 / -1;
+    }
+
+    .decision-meta {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
     .detail-quality-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1350,6 +1442,7 @@
       .source-strip,
       .quality-list,
       .detail-quality-grid,
+      .decision-support,
       .factor-grid {
         grid-template-columns: 1fr 1fr;
       }
@@ -1402,6 +1495,7 @@
       .source-strip,
       .quality-list,
       .detail-quality-grid,
+      .decision-support,
       .factor-grid {
         grid-template-columns: 1fr;
       }
@@ -1431,7 +1525,7 @@
         <div class="mark">CG</div>
         <div>
           <h1>Capital Gain Radar</h1>
-          <p class="subhead">東証プライム候補スクリーナー</p>
+          <p class="subhead">日経225候補スクリーナー</p>
         </div>
       </div>
 
@@ -1439,9 +1533,8 @@
         <div class="control-title">
           <strong>対象銘柄</strong>
         </div>
-        <div class="segmented" aria-label="対象銘柄">
-          <button id="primeUniverse" class="active" type="button">東証プライム</button>
-          <button id="nikkeiUniverse" type="button">日経225</button>
+        <div class="segmented one" aria-label="対象銘柄">
+          <button id="nikkeiUniverse" class="active" type="button">日経225</button>
         </div>
       </div>
 
@@ -1489,6 +1582,41 @@
       </div>
 
       <div class="control-group">
+        <div class="control-title">
+          <strong>保存フィルター</strong>
+        </div>
+        <div class="filter-stack">
+          <div class="field">
+            <label for="industryFilter"><span>業種</span></label>
+            <select id="industryFilter"><option value="all">すべて</option></select>
+          </div>
+          <div class="field">
+            <label for="marketCapFilter"><span>時価総額</span></label>
+            <select id="marketCapFilter">
+              <option value="all">すべて</option>
+              <option value="mega">10兆円以上</option>
+              <option value="large">1兆円以上</option>
+              <option value="mid">1,000億円以上</option>
+              <option value="small">1,000億円未満</option>
+              <option value="missing">未取得</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="liquidityFilter"><span>平均売買代金</span></label>
+            <select id="liquidityFilter">
+              <option value="all">すべて</option>
+              <option value="high">50億円以上</option>
+              <option value="standard">10億円以上</option>
+              <option value="minimum">2億円以上</option>
+              <option value="low">2億円未満</option>
+              <option value="missing">未取得</option>
+            </select>
+          </div>
+          <button class="secondary filter-reset" id="filterReset" type="button">条件を解除</button>
+        </div>
+      </div>
+
+      <div class="control-group">
         <div class="field">
           <label for="searchBox"><span>銘柄検索</span></label>
           <div class="search-field">
@@ -1520,13 +1648,15 @@
           </div>
           <div class="guide-body">
             <ol class="guide-list">
-              <li>対象銘柄で東証プライム全体、または日経225だけに切り替えます。</li>
+              <li>対象は日経225採用銘柄です。225銘柄の中からランキング候補を確認します。</li>
               <li>総合、新高値ブレイク、テーマ別ランキング、業種別ランキング、ウォッチリストを切り替えて候補を確認します。</li>
               <li>新高値ブレイクは、厳選・標準・予備軍の3段階で条件を切り替えて確認できます。</li>
               <li>テーマ別・業種別では、選択したテーマ/業種のスコア上位5銘柄を表示します。</li>
               <li>銘柄検索はコード、銘柄名、テーマ、業種で絞り込みでき、入力途中の候補から直接選べます。</li>
               <li>比較ボタンで最大5銘柄を横並び比較し、ランキング行を選ぶと基本情報とチャートを確認できます。</li>
               <li>基本情報は無料データとEDINET財務指標を使い、未取得項目は「未取得」と表示します。</li>
+              <li>銘柄詳細では、加点・減点・データ品質、イベント接近日数、ATRと参考損切り幅を確認できます。</li>
+              <li>業種・時価総額・平均売買代金フィルターは端末内に保存され、ウォッチリストでは前日からの急変を確認できます。</li>
             </ol>
           </div>
         </div>
@@ -1543,34 +1673,34 @@
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">需給</div><span class="formula-weight">20%</span></div>
-                  <div class="factor-text">信用倍率の軽さと52週高値への近さを見ます。買い残の重さと上昇モメンタムを合わせて確認します。</div>
+                  <div class="factor-text">JPXの信用倍率だけで、買い残の重さを見ます。52週高値への近さはテクニカル側で評価します。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">テクニカル</div><span class="formula-weight">15%</span></div>
-                  <div class="factor-text">価格推移、移動平均線、過熱感などを見ます。上昇トレンドか崩れかけかを分けます。</div>
+                  <div class="factor-text">50日・200日移動平均、52週高値への近さ、20営業日騰落率から上昇トレンドを見ます。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">相対強度</div><span class="formula-weight">13%</span></div>
-                  <div class="factor-text">日経平均や業種指数より強いかを見ます。指数上昇に乗っているだけの銘柄を分けます。</div>
+                  <div class="factor-text">20営業日騰落率を、日経225全体40%・同業種60%の順位に直して比較します。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">業績</div><span class="formula-weight">13%</span></div>
-                  <div class="factor-text">上方修正、決算進捗、増配・減配などを見ます。テーマ人気だけの銘柄を避けます。</div>
+                  <div class="factor-text">直近31日のTDnet開示タイトルから、上方修正・下方修正・増配・減配などを評価します。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">流動性</div><span class="formula-weight">7%</span></div>
-                  <div class="factor-text">売買代金と出来高を見ます。買いやすさだけでなく、損切り時に逃げられるかを確認します。</div>
+                  <div class="factor-text">20営業日平均売買代金を、日経225全体40%・同業種60%の順位に直して比較します。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">割安・収益性</div><span class="formula-weight">8%</span></div>
-                  <div class="factor-text">PER、PBR、ROEを見ます。安さだけでなく、資本効率も合わせて確認します。</div>
+                  <div class="factor-text">PER、PBR、ROEを全体40%・同業種60%の順位に直し、欠損項目は0点寄与として扱います。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">リスク控除</div><span class="formula-weight">4%</span></div>
-                  <div class="factor-text">決算日、急騰後の過熱、ボラティリティなどを見ます。候補と買い時を分けます。</div>
+                  <div class="factor-text">直近60営業日の年率換算ボラティリティを控除し、値動きの荒さを反映します。</div>
                 </div>
               </div>
-              <div class="factor-text">未取得のPER/PBR/ROEは中立寄りで計算しつつ、データ信頼度が低い銘柄は総合スコアを控えめに減点します。各カード右上の割合は総合スコアへの重みです。</div>
+              <div class="factor-text">未取得のPER/PBR/ROEは0点寄与とし、古い取得元や欠損はデータ信頼度と総合スコアにも反映します。各カード右上の割合は総合スコアへの重みです。</div>
             </div>
           </div>
         </div>
@@ -1679,6 +1809,7 @@
               <div class="breakout-description" id="breakoutDescription"></div>
             </div>
           </div>
+          <div class="watch-alerts" id="watchAlerts" hidden></div>
           <div class="table-wrap">
             <table>
               <thead>
@@ -1724,6 +1855,28 @@
               </div>
               <div id="fundamentalPanel">
                 <div class="fundamental-grid" id="fundamentalGrid"></div>
+                <div class="decision-support">
+                  <section class="decision-section">
+                    <h3>上位加点理由</h3>
+                    <ul class="reason-list" id="positiveReasons"></ul>
+                  </section>
+                  <section class="decision-section">
+                    <h3>主な減点理由</h3>
+                    <ul class="reason-list" id="negativeReasons"></ul>
+                  </section>
+                  <section class="decision-section">
+                    <h3>データ品質</h3>
+                    <ul class="reason-list" id="qualityReasons"></ul>
+                  </section>
+                  <section class="decision-section">
+                    <h3>イベント接近</h3>
+                    <ul class="event-list" id="eventList"></ul>
+                  </section>
+                  <section class="decision-section">
+                    <h3>売買リスク目安</h3>
+                    <div class="decision-meta" id="tradeRiskSummary"></div>
+                  </section>
+                </div>
                 <div class="detail-quality" id="detailQualityPanel"></div>
                 <div class="chart-note" id="fundamentalNote">無料データで取得できた項目を表示します。未取得の指標は、取得元を追加できるまで未取得として表示します。</div>
               </div>
@@ -1782,7 +1935,7 @@
 
       <section class="source-strip" aria-label="データ取得状況">
         <div class="source-card">
-          <div class="source-label">東証プライム上場銘柄</div>
+          <div class="source-label">日経225市場・業種情報</div>
           <div class="source-value" id="primeStatus">未読込</div>
         </div>
         <div class="source-card">
@@ -1812,7 +1965,7 @@
       </section>
 
       <p class="note">
-        この画面では、検証済みデータだけを表示します。東証プライム上場判定、日経225採用判定、価格、ニュース、信用取引残高、決算情報を取得し、取得元リンクと更新日時を候補ごとに保存します。最終的な売買判断はご自身の確認が必要です。
+        この画面では、検証済みの日経225採用銘柄だけを表示します。採用判定、価格、ニュース、信用取引残高、決算情報を取得し、取得元リンクと更新日時を候補ごとに保存します。最終的な売買判断はご自身の確認が必要です。
       </p>
     </main>
   </div>
@@ -1823,12 +1976,15 @@
     let priceMetricsByCode = new Map();
     let officialDataset = null;
     let scoreHistory = null;
+    let scoreHistoryLoadPromise = null;
+    let scoreHistoryStatus = "not-loaded";
     let backtestSummary = null;
     let marketEnvironment = null;
     let marketHistory = null;
     let scoreHistoryByCode = new Map();
     let watchedCodes = new Set();
     const WATCHLIST_STORAGE_KEY = "capitalGainRadar.watchlist.v1";
+    const FILTER_STORAGE_KEY = "capitalGainRadar.filters.v1";
     const SCORE_BUY_LINE = 75;
     const SCORE_SELL_LINE = 65;
 
@@ -1836,7 +1992,7 @@
       view: "overall",
       limit: 10,
       sortBy: "score",
-      universe: "prime",
+      universe: "nikkei225",
       query: "",
       selectedCode: "",
       compareCodes: [],
@@ -1849,6 +2005,9 @@
       chartRange: "6m",
       scoreHistoryRange: "1w",
       marketHistoryRange: "1m",
+      industryFilter: "all",
+      marketCapFilter: "all",
+      liquidityFilter: "all",
     };
 
     const BREAKOUT_PROFILES = {
@@ -1860,7 +2019,7 @@
         profitGrowth: 0.20,
         roe: 0.10,
         highDistance: 0,
-        highDays: 366,
+        highDays: 252,
         requireMa25: false,
       },
       standard: {
@@ -1871,7 +2030,7 @@
         profitGrowth: 0.10,
         roe: 0.08,
         highDistance: 0.03,
-        highDays: 366,
+        highDays: 252,
         requireMa25: false,
       },
       watch: {
@@ -1882,7 +2041,7 @@
         profitGrowth: 0,
         roe: 0.05,
         highDistance: 0.05,
-        highDays: 366,
+        highDays: 252,
         requireMa25: true,
       },
     };
@@ -1892,6 +2051,10 @@
       primeLoaded: false,
       nikkeiLoaded: false,
       marginLoaded: false,
+      priceLoaded: false,
+      themeLoaded: false,
+      fundamentalsLoaded: false,
+      scoreContractLoaded: false,
       message: "実データ連携待ち",
     };
 
@@ -1904,7 +2067,10 @@
       limit10: document.querySelector("#limit10"),
       limit20: document.querySelector("#limit20"),
       sortBy: document.querySelector("#sortBy"),
-      primeUniverse: document.querySelector("#primeUniverse"),
+      industryFilter: document.querySelector("#industryFilter"),
+      marketCapFilter: document.querySelector("#marketCapFilter"),
+      liquidityFilter: document.querySelector("#liquidityFilter"),
+      filterReset: document.querySelector("#filterReset"),
       nikkeiUniverse: document.querySelector("#nikkeiUniverse"),
       searchBox: document.querySelector("#searchBox"),
       searchSuggestions: document.querySelector("#searchSuggestions"),
@@ -1922,6 +2088,7 @@
       groupSelect: document.querySelector("#groupSelect"),
       breakoutFilter: document.querySelector("#breakoutFilter"),
       breakoutDescription: document.querySelector("#breakoutDescription"),
+      watchAlerts: document.querySelector("#watchAlerts"),
       breakoutButtons: document.querySelectorAll("[data-breakout-mode]"),
       themeList: document.querySelector("#themeList"),
       exportBtn: document.querySelector("#exportBtn"),
@@ -1968,6 +2135,11 @@
       chartPanel: document.querySelector("#chartPanel"),
       scoreHistoryPanel: document.querySelector("#scoreHistoryPanel"),
       fundamentalGrid: document.querySelector("#fundamentalGrid"),
+      positiveReasons: document.querySelector("#positiveReasons"),
+      negativeReasons: document.querySelector("#negativeReasons"),
+      qualityReasons: document.querySelector("#qualityReasons"),
+      eventList: document.querySelector("#eventList"),
+      tradeRiskSummary: document.querySelector("#tradeRiskSummary"),
       detailQualityPanel: document.querySelector("#detailQualityPanel"),
       fundamentalNote: document.querySelector("#fundamentalNote"),
       rangeButtons: {
@@ -2017,6 +2189,46 @@
       localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify([...watchedCodes]));
     }
 
+    function loadSavedFilters() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(FILTER_STORAGE_KEY) || "{}");
+        state.industryFilter = typeof saved.industry === "string" ? saved.industry : "all";
+        state.marketCapFilter = typeof saved.marketCap === "string" ? saved.marketCap : "all";
+        state.liquidityFilter = typeof saved.liquidity === "string" ? saved.liquidity : "all";
+      } catch (error) {
+        state.industryFilter = "all";
+        state.marketCapFilter = "all";
+        state.liquidityFilter = "all";
+      }
+    }
+
+    function saveFilters() {
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({
+        industry: state.industryFilter,
+        marketCap: state.marketCapFilter,
+        liquidity: state.liquidityFilter,
+      }));
+    }
+
+    function syncFilterControls() {
+      el.industryFilter.value = state.industryFilter;
+      el.marketCapFilter.value = state.marketCapFilter;
+      el.liquidityFilter.value = state.liquidityFilter;
+    }
+
+    function populateIndustryFilter() {
+      const industries = [...new Set(searchUniverse.map(item => item.industry || "業種未分類"))]
+        .sort((a, b) => a.localeCompare(b, "ja"));
+      if (state.industryFilter !== "all" && !industries.includes(state.industryFilter)) {
+        state.industryFilter = "all";
+        saveFilters();
+      }
+      el.industryFilter.innerHTML = ["all", ...industries].map(industry => `
+        <option value="${escapeHtml(industry)}">${industry === "all" ? "すべて" : escapeHtml(industry)}</option>
+      `).join("");
+      syncFilterControls();
+    }
+
     function toggleWatch(code) {
       const key = String(code);
       if (watchedCodes.has(key)) watchedCodes.delete(key);
@@ -2032,43 +2244,19 @@
       return `${date.replaceAll("-", "/")} ${time.slice(0, 5)}`;
     }
 
-    function supplyScore(item) {
-      const ratioScore = Math.max(0, 100 - (item.margin - 0.5) * 16);
-      let highScore = 15;
-      const highDistance = Number(item.high52wDistance);
-      if (Number.isFinite(highDistance)) {
-        highScore = Math.max(0, 100 - Math.min(Math.max(0, highDistance), 0.25) / 0.25 * 100);
-      } else if (Number.isFinite(Number(item.monthsFromHigh))) {
-        const months = Number(item.monthsFromHigh);
-        if (months <= 0.1) highScore = 100;
-        else if (months <= 1) highScore = 90;
-        else if (months <= 3) highScore = 75;
-        else if (months <= 6) highScore = 55;
-        else if (months <= 12) highScore = 35;
-      }
-      return Math.round(ratioScore * 0.6 + highScore * 0.4);
+    function persistedScore(item, key) {
+      const raw = item?.[key];
+      if (raw === null || raw === undefined || raw === "") return null;
+      const value = Number(raw);
+      return Number.isFinite(value) ? value : null;
     }
 
-    function rangeScore(value, low, high, lowerIsBetter) {
-      if (!Number.isFinite(value)) return 50;
-      if (lowerIsBetter) {
-        if (value <= low) return 100;
-        if (value >= high) return 0;
-        return Math.round(100 - (value - low) / (high - low) * 100);
-      }
-      if (value >= high) return 100;
-      if (value <= low) return 0;
-      return Math.round((value - low) / (high - low) * 100);
+    function supplyScore(item) {
+      return persistedScore(item, "supply");
     }
 
     function valuationScore(item) {
-      const per = valueFrom(item, ["per", "PER"]);
-      const pbr = valueFrom(item, ["pbr", "PBR"]);
-      const roe = valueFrom(item, ["roe", "ROE"]);
-      const perScore = !Number.isFinite(per) || per <= 0 ? 50 : rangeScore(per, 8, 35, true);
-      const pbrScore = !Number.isFinite(pbr) || pbr <= 0 ? 50 : rangeScore(pbr, 0.8, 5, true);
-      const roeScore = rangeScore(roe, 0, 0.18, false);
-      return Math.round(perScore * 0.35 + pbrScore * 0.25 + roeScore * 0.4);
+      return persistedScore(item, "valuation");
     }
 
     function dataQualityScore(item) {
@@ -2108,7 +2296,7 @@
       return null;
     }
 
-    function highDistanceRatio(item, days = 366) {
+    function highDistanceRatio(item, tradingDays = 252) {
       const direct = numericMetric(item, [
         "high52wDistance",
         "distanceFrom52wHigh",
@@ -2123,11 +2311,7 @@
       const rows = chartRowsFor(item);
       if (rows.length < 5) return null;
       const latest = rows.at(-1);
-      const latestTime = new Date(`${latest.date}T00:00:00`).getTime();
-      const scopedRows = Number.isFinite(latestTime)
-        ? rows.filter(row => latestTime - new Date(`${row.date}T00:00:00`).getTime() <= days * 86400000)
-        : rows.slice(-260);
-      const sourceRows = scopedRows.length >= 5 ? scopedRows : rows.slice(-260);
+      const sourceRows = rows.slice(-tradingDays);
       const high = Math.max(...sourceRows.map(row => Number.isFinite(row.high) && row.high > 0 ? row.high : row.close));
       if (!Number.isFinite(high) || high <= 0 || !Number.isFinite(latest.close)) return null;
       return Math.max(0, (high - latest.close) / high);
@@ -2166,23 +2350,7 @@
     }
 
     function totalScore(item) {
-      const liquidity = item.liquidity ?? 60;
-      const relative = item.relative ?? 60;
-      const earnings = item.earnings ?? 50;
-      const riskPenalty = item.risk ?? 50;
-      const valuation = item.valuation ?? valuationScore(item);
-      const baseScore = Math.round(
-        item.theme * 0.20 +
-        supplyScore(item) * 0.20 +
-        item.technical * 0.15 +
-        relative * 0.13 +
-        earnings * 0.13 +
-        liquidity * 0.07 +
-        valuation * 0.08 +
-        (100 - riskPenalty) * 0.04
-      );
-      const qualityPenalty = Math.max(0, 80 - dataQualityScore(item)) * 0.20;
-      return Math.max(0, Math.min(100, Math.round(baseScore - qualityPenalty)));
+      return persistedScore(item, "score");
     }
 
     function hasRequiredCandidateFields(item) {
@@ -2198,7 +2366,14 @@
         Number.isFinite(item.liquidity) &&
         Number.isFinite(item.relative) &&
         Number.isFinite(item.earnings) &&
-        Number.isFinite(item.risk)
+        Number.isFinite(item.risk) &&
+        Number.isFinite(item.score) &&
+        Number.isFinite(item.supply) &&
+        Number.isFinite(item.valuation) &&
+        item.scoreVersion &&
+        item.factorVersion &&
+        item.priceBasis === "adjusted-ohlc" &&
+        item.highLookbackDays === 252
       );
     }
 
@@ -2231,6 +2406,9 @@
         "not-connected": "未接続",
         "api-key-required": "APIキー待ち",
         "stale-data": "鮮度不足",
+        "stale-fallback": "前回値（更新失敗）",
+        stale: "鮮度不足",
+        reused: "前回値",
         "source-selection-required": "方式選定待ち",
         blocked: "前提待ち",
         error: "取得失敗",
@@ -2247,7 +2425,7 @@
       const existing = Array.isArray(dataset?.qualityChecks) ? dataset.qualityChecks : [];
       const checks = existing.length ? [...existing] : [
         {
-          label: "東証プライム上場銘柄",
+          label: "日経225市場・業種情報",
           status: dataStatus.primeLoaded ? "available" : "not-connected",
           required: true,
           message: dataStatus.primeLoaded ? "JPX公式一覧を確認済み" : "公式データの確認が必要です。",
@@ -2265,7 +2443,7 @@
           message: "銘柄別の信用倍率が必要です。",
         },
         {
-          label: "価格履歴・前回高値",
+          label: "価格履歴・52週日中高値",
           status: dataset?.sources?.priceHistory?.status || "not-connected",
           required: true,
           message: dataset?.sources?.priceHistory?.reason || "信頼できる価格データソースの接続が必要です。",
@@ -2315,7 +2493,10 @@
 
     function indexScoreHistory(history) {
       const indexed = new Map();
-      const snapshots = Array.isArray(history?.snapshots) ? history.snapshots : [];
+      const snapshots = (Array.isArray(history?.snapshots) ? history.snapshots : []).filter(snapshot => (
+        snapshot?.scoreVersion === officialDataset?.scoreVersion &&
+        snapshot?.factorVersion === officialDataset?.factorVersion
+      ));
       snapshots.forEach(snapshot => {
         const dateText = String(snapshot?.date || "");
         const rows = Array.isArray(snapshot?.rows) ? snapshot.rows : [];
@@ -2335,15 +2516,34 @@
     }
 
     async function loadScoreHistory() {
+      scoreHistoryStatus = "loading";
       try {
-        const response = await fetch("data/score-history.json", { cache: "no-store" });
+        const response = await fetch("data/score-history-v2.json", { cache: "no-store" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        scoreHistory = await response.json();
+        const loaded = await response.json();
+        if (
+          loaded?.scoreVersion !== officialDataset?.scoreVersion ||
+          loaded?.factorVersion !== officialDataset?.factorVersion
+        ) throw new Error("スコア履歴の計算版が現在データと一致しません。");
+        scoreHistory = loaded;
         scoreHistoryByCode = indexScoreHistory(scoreHistory);
+        scoreHistoryStatus = "available";
       } catch (error) {
         scoreHistory = null;
         scoreHistoryByCode = new Map();
+        scoreHistoryStatus = "error";
       }
+    }
+
+    async function ensureScoreHistoryLoaded() {
+      if (scoreHistoryStatus === "available") return;
+      if (!scoreHistoryLoadPromise) {
+        scoreHistoryLoadPromise = loadScoreHistory().finally(() => {
+          scoreHistoryLoadPromise = null;
+        });
+      }
+      await scoreHistoryLoadPromise;
+      render();
     }
 
     function formatBacktestValue(kpi) {
@@ -2355,8 +2555,50 @@
       return value.toFixed(2);
     }
 
+    function backtestVerificationIssues(payload) {
+      const provenance = payload?.provenance || {};
+      const data = payload?.data || {};
+      const strategy = payload?.strategy || {};
+      const trades = payload?.artifacts?.trades || {};
+      const checks = [
+        [payload?.status === "verified", "検証状態"],
+        [provenance.generator, "生成プログラム"],
+        [provenance.version, "生成プログラム版"],
+        [provenance.dataHash, "入力データハッシュ"],
+        [data.periodStart, "検証開始日"],
+        [data.periodEnd, "検証終了日"],
+        [strategy.parameters && Object.keys(strategy.parameters).length, "売買パラメータ"],
+        [trades.path, "取引明細パス"],
+        [trades.sha256, "取引明細ハッシュ"],
+        [Number.isInteger(trades.count), "取引明細件数"],
+      ];
+      return checks.filter(([value]) => !value).map(([, label]) => label);
+    }
+
     function renderBacktestSummary(payload) {
       const strategy = payload?.strategy || {};
+      const verificationIssues = backtestVerificationIssues(payload);
+      if (!payload || verificationIssues.length) {
+        el.backtestStatus.textContent = payload
+          ? `未検証 / JSON ${formatDate(payload.generatedAt)}`
+          : "バックテストJSON未読込";
+        const assumptions = payload ? [
+          `参考条件: ${strategy.name || "バックテスト条件未確認"}`,
+          `検証に必要な情報が不足しています: ${verificationIssues.join(" / ")}`,
+          "取引明細、検証期間、売買パラメータ、生成元、データハッシュがそろうまで成績数値は表示しません。",
+        ] : [
+          "data/backtest-summary.json を読み込めませんでした。検証済みJSONがある場合だけ結果を表示します。",
+        ];
+        el.backtestAssumptions.innerHTML = assumptions.map(item => `<li>${escapeHtml(item)}</li>`).join("");
+        el.backtestKpis.innerHTML = `
+          <div class="backtest-kpi">
+            <div class="backtest-label">検証結果</div>
+            <div class="backtest-value">未検証</div>
+          </div>
+        `;
+        el.backtestNote.textContent = "再現に必要な証跡が不足しているため、投資判断に使える成績としては表示していません。";
+        return;
+      }
       const result = payload?.result || {};
       const kpis = Array.isArray(payload?.kpis) && payload.kpis.length
         ? payload.kpis
@@ -2647,25 +2889,55 @@
       const prime = sources.primeMarket || {};
       const nikkei = sources.nikkei225 || {};
       const margin = sources.marginWeekly || {};
+      const price = sources.priceHistory || {};
+      const theme = sources.themeNews || {};
+      const fundamentals = sources.fundamentals || {};
       const edinet = sources.edinetFundamentals || {};
       const rawCandidates = Array.isArray(dataset?.candidates) ? dataset.candidates : [];
       const rawSearchUniverse = Array.isArray(dataset?.searchUniverse) ? dataset.searchUniverse : rawCandidates;
-      const rawPrices = Array.isArray(dataset?.primeMarketPrices) ? dataset.primeMarketPrices : [];
+      const rawPrices = Array.isArray(dataset?.nikkei225Prices) ? dataset.nikkei225Prices : [];
       const fieldCheckedCandidates = rawCandidates.filter(hasRequiredCandidateFields);
       const loadedCandidates = fieldCheckedCandidates.filter(hasCandidateEvidence).map(normalizeStock);
       const loadedSearchUniverse = rawSearchUniverse.filter(hasRequiredCandidateFields).map(normalizeStock);
 
-      dataStatus.primeLoaded = prime.status === "available" && Array.isArray(dataset?.primeMarketComponents) && dataset.primeMarketComponents.length >= 1000;
-      dataStatus.nikkeiLoaded = nikkei.status === "available" && Array.isArray(dataset?.nikkei225Components) && dataset.nikkei225Components.length === 225;
-      dataStatus.marginLoaded = margin.status === "available" && (margin.scope === "per-issue" || margin.hasPerIssueData === true);
-      dataStatus.liveConnected = loadedSearchUniverse.length > 0 && dataStatus.primeLoaded && dataStatus.nikkeiLoaded && dataStatus.marginLoaded;
-      dataStatus.message = dataStatus.liveConnected ? "検証済みデータ表示中" : "候補算出に必要なデータ待ち";
+      const sourceIsCurrent = source => source?.status === "available" && source?.refreshStatus !== "error";
+      dataStatus.primeLoaded = sourceIsCurrent(prime) && Array.isArray(dataset?.primeMarketComponents) && dataset.primeMarketComponents.length === 225;
+      dataStatus.nikkeiLoaded = sourceIsCurrent(nikkei) && Array.isArray(dataset?.nikkei225Components) && dataset.nikkei225Components.length === 225;
+      dataStatus.marginLoaded = sourceIsCurrent(margin) && (margin.scope === "per-issue" || margin.hasPerIssueData === true);
+      dataStatus.priceLoaded = sourceIsCurrent(price);
+      dataStatus.themeLoaded = sourceIsCurrent(theme);
+      dataStatus.fundamentalsLoaded = sourceIsCurrent(fundamentals);
+      dataStatus.scoreContractLoaded = Boolean(
+        Number(dataset?.schemaVersion) >= 2 &&
+        dataset?.universe?.id === "nikkei225" &&
+        dataset?.scoreVersion &&
+        dataset?.factorVersion &&
+        dataset?.priceBasis === "adjusted-ohlc" &&
+        dataset?.highLookbackDays === 252
+      );
+      dataStatus.liveConnected = loadedSearchUniverse.length > 0
+        && dataStatus.primeLoaded
+        && dataStatus.nikkeiLoaded
+        && dataStatus.marginLoaded
+        && dataStatus.priceLoaded
+        && dataStatus.themeLoaded
+        && dataStatus.fundamentalsLoaded
+        && dataStatus.scoreContractLoaded;
+      dataStatus.message = dataStatus.liveConnected
+        ? "日経225の検証済みデータ表示中"
+        : (dataStatus.scoreContractLoaded ? "候補算出に必要なデータ待ち" : "スコア定義を確認できないため非表示");
       candidates = dataStatus.liveConnected ? loadedCandidates : [];
       searchUniverse = dataStatus.liveConnected ? loadedSearchUniverse : [];
+      populateIndustryFilter();
       priceMetricsByCode = new Map(rawPrices.map(item => [String(item.code), item]));
-      if (dataset?.scoreHistory && Array.isArray(dataset.scoreHistory.snapshots)) {
+      if (
+        dataset?.scoreHistory?.scoreVersion === dataset?.scoreVersion &&
+        dataset?.scoreHistory?.factorVersion === dataset?.factorVersion &&
+        Array.isArray(dataset.scoreHistory.snapshots)
+      ) {
         scoreHistory = dataset.scoreHistory;
         scoreHistoryByCode = indexScoreHistory(scoreHistory);
+        scoreHistoryStatus = "available";
       }
       const stats = {
         raw: rawSearchUniverse.length,
@@ -2702,7 +2974,6 @@
       try {
         const [response] = await Promise.all([
           fetch("data/latest-candidates.json", { cache: "no-store" }),
-          loadScoreHistory(),
           loadBacktestSummary(),
           loadMarketHistory(),
           loadMarketEnvironment(),
@@ -2737,11 +3008,28 @@
       }
     }
 
+    function savedFilterMatches(item) {
+      if (state.industryFilter !== "all" && (item.industry || "業種未分類") !== state.industryFilter) return false;
+      const marketCap = valueFrom(item, ["marketCap", "marketCapitalization"]);
+      if (state.marketCapFilter === "mega" && !(marketCap >= 10_000_000_000_000)) return false;
+      if (state.marketCapFilter === "large" && !(marketCap >= 1_000_000_000_000)) return false;
+      if (state.marketCapFilter === "mid" && !(marketCap >= 100_000_000_000)) return false;
+      if (state.marketCapFilter === "small" && !(Number.isFinite(marketCap) && marketCap < 100_000_000_000)) return false;
+      if (state.marketCapFilter === "missing" && Number.isFinite(marketCap)) return false;
+      const turnover = numericMetric(item, ["averageTurnover20"]);
+      if (state.liquidityFilter === "high" && !(turnover >= 5_000_000_000)) return false;
+      if (state.liquidityFilter === "standard" && !(turnover >= 1_000_000_000)) return false;
+      if (state.liquidityFilter === "minimum" && !(turnover >= 200_000_000)) return false;
+      if (state.liquidityFilter === "low" && !(Number.isFinite(turnover) && turnover < 200_000_000)) return false;
+      if (state.liquidityFilter === "missing" && Number.isFinite(turnover)) return false;
+      return true;
+    }
+
     function matches(item) {
       const haystack = `${item.code} ${item.name} ${item.themes.join(" ")} ${item.industry || ""}`.toLowerCase();
       const queryMatch = haystack.includes(state.query.toLowerCase());
-      const universeMatch = state.universe === "prime" || item.isNikkei225 === true;
-      return dataStatus.liveConnected && universeMatch && queryMatch;
+      const universeMatch = item.isNikkei225 === true;
+      return dataStatus.liveConnected && universeMatch && queryMatch && savedFilterMatches(item);
     }
 
     function searchText(item) {
@@ -2752,7 +3040,7 @@
       const query = state.query.trim().toLowerCase();
       if (!dataStatus.liveConnected || !state.searchOpen || query.length < 1) return [];
       return searchUniverse
-        .filter(item => state.universe === "prime" || item.isNikkei225 === true)
+        .filter(item => item.isNikkei225 === true)
         .filter(item => searchText(item).includes(query))
         .slice(0, 8);
     }
@@ -2778,7 +3066,7 @@
       el.searchSuggestions.hidden = false;
       el.searchSuggestions.innerHTML = suggestions.map((item, index) => {
         const activeClass = index === state.activeSuggestionIndex ? " active" : "";
-        const market = item.isNikkei225 ? "日経225" : "東証プライム";
+        const market = "日経225";
         return `
           <button id="searchSuggestion${index}" class="suggestion-button${activeClass}" type="button" role="option" aria-selected="${index === state.activeSuggestionIndex}" data-code="${escapeHtml(item.code)}">
             <span class="suggestion-main"><span>${escapeHtml(item.code)} ${escapeHtml(item.name)}</span><span>${escapeHtml(market)}</span></span>
@@ -3024,6 +3312,54 @@
       return null;
     }
 
+    function eventDistanceLabel(days) {
+      if (!Number.isFinite(Number(days))) return "日数未取得";
+      const value = Number(days);
+      if (value > 0) return `あと${value}日`;
+      if (value === 0) return "本日";
+      return `${Math.abs(value)}日前`;
+    }
+
+    function renderDecisionSupport(item, priceMetrics = {}) {
+      const reasons = item.scoreReasons || {};
+      const renderReasonItems = (target, values, fallback) => {
+        const rows = Array.isArray(values) && values.length ? values.slice(0, 3) : fallback;
+        target.innerHTML = rows.map(reason => `
+          <li class="reason-item">${escapeHtml(typeof reason === "string" ? reason : reason.text || reason.label || "確認待ち")}</li>
+        `).join("");
+      };
+      renderReasonItems(el.positiveReasons, reasons.positive, ["加点理由は次回データ生成後に表示します。"]);
+      renderReasonItems(el.negativeReasons, reasons.negative, ["減点理由は次回データ生成後に表示します。"]);
+      renderReasonItems(el.qualityReasons, reasons.quality, [
+        `データ信頼度 ${dataQualityScore(item)}点`,
+        ...(dataWarnings(item).slice(0, 2)),
+      ]);
+
+      const events = Array.isArray(item.events) ? item.events.slice(0, 3) : [];
+      el.eventList.innerHTML = events.length ? events.map(event => `
+        <li class="event-item">
+          <strong>${escapeHtml(event.label || "イベント")}</strong> ${escapeHtml(eventDistanceLabel(event.daysFromNow))} / ${escapeHtml(formatDate(event.date))}
+          ${event.title ? `<br>${escapeHtml(event.title)}` : ""}
+          ${event.url ? ` <a class="source-link" href="${escapeHtml(event.url)}" target="_blank" rel="noreferrer">開示</a>` : ""}
+        </li>
+      `).join("") : `<li class="event-item">決算予定日・権利落ち日・重要開示は未取得です。</li>`;
+
+      const atr = Number(item.atr14 ?? priceMetrics.atr14);
+      const recentLow = Number(item.recentLow20 ?? priceMetrics.recentLow20);
+      const stopPrice = Number(item.suggestedStopPrice ?? priceMetrics.suggestedStopPrice);
+      const stopWidth = Number(item.suggestedStopWidth ?? priceMetrics.suggestedStopWidth);
+      const turnover = Number(item.averageTurnover20 ?? priceMetrics.averageTurnover20);
+      const onePercent = Number(item.onePercentTurnoverYen ?? priceMetrics.onePercentTurnoverYen);
+      const executionEase = item.executionEase || priceMetrics.executionEase || "未取得";
+      el.tradeRiskSummary.innerHTML = [
+        `ATR14: <strong>${escapeHtml(formatPrice(atr))}</strong>`,
+        `20日安値: <strong>${escapeHtml(formatPrice(recentLow))}</strong>`,
+        `参考損切り: <strong>${escapeHtml(formatPrice(stopPrice))}</strong>${Number.isFinite(stopWidth) ? `（${escapeHtml(formatPercent(stopWidth))}）` : ""}`,
+        `平均売買代金: <strong>${escapeHtml(formatMarketCap(turnover))}</strong> / 約定しやすさ ${escapeHtml(executionEase)}`,
+        `売買代金1%: <strong>${escapeHtml(formatMarketCap(onePercent))}</strong>`,
+      ].join("<br>");
+    }
+
     function renderFundamentals(item, rows, priceMetrics = {}) {
       const price = latestPriceInfo(item, rows, priceMetrics);
       const changeClass = price.change > 0 ? "up" : price.change < 0 ? "down" : "";
@@ -3049,6 +3385,8 @@
         ["自己資本比率", formatFundamentalPercent(valueFrom(item, ["equityRatio", "capitalAdequacyRatio"]))],
         ["データ信頼度", `${dataQualityScore(item)}点${dataWarnings(item).length ? " / " + escapeHtml(dataWarnings(item).join("、")) : ""}`],
         ["52週高値更新", item.isNewHigh52w === true ? "更新" : "未更新"],
+        ["現在順位 / 前日差", `${item.rank ?? "-"}位${Number.isFinite(Number(item.rankChange)) ? ` / ${Number(item.rankChange) > 0 ? "+" : ""}${item.rankChange}位` : " / 比較なし"}`],
+        ["スコアバージョン", escapeHtml(item.scoreVersion || officialDataset?.scoreVersion || "未確認")],
       ];
       el.fundamentalGrid.innerHTML = fields.map(([label, value]) => `
         <div class="fundamental-item">
@@ -3056,6 +3394,7 @@
           <div class="fundamental-value">${String(value)}</div>
         </div>
       `).join("");
+      renderDecisionSupport(item, priceMetrics);
       renderDetailQuality(item);
       el.fundamentalNote.textContent = `株価は${formatDate(priceAsOf)}時点の取得値です。予想配当利回りはYahoo Financeの会社予想を優先します。予想DPSと実績EPSが混在する場合、配当性向は非算出にします。未取得項目は「未取得」と表示します。`;
     }
@@ -3249,6 +3588,15 @@
     }
 
     function renderScoreHistory(item) {
+      if (scoreHistoryStatus !== "available") {
+        el.scoreHistorySummary.innerHTML = "";
+        el.scoreHistoryLegend.innerHTML = "";
+        el.scoreHistoryComment.textContent = scoreHistoryStatus === "error"
+          ? "現在のスコア計算版と一致する履歴を取得できませんでした。旧版の履歴は混ぜずに表示を止めています。"
+          : "現在のスコア計算版に対応する履歴を読み込み中です。";
+        drawScoreHistoryChart([]);
+        return;
+      }
       const allRows = scoreRowsFor(item);
       const rows = rowsForScoreHistoryRange(allRows);
       const stats = scoreHistoryStats(rows);
@@ -3600,14 +3948,11 @@
       return searchUniverse
         .map(item => ({
           ...item,
-          liquidity: item.liquidity ?? 60,
-          relative: item.relative ?? 60,
-          earnings: item.earnings ?? 50,
-          risk: item.risk ?? 50,
-          valuation: item.valuation ?? valuationScore(item),
+          valuation: valuationScore(item),
           score: totalScore(item),
           supply: supplyScore(item)
         }))
+        .filter(item => Number.isFinite(item.score) && Number.isFinite(item.supply) && Number.isFinite(item.valuation))
         .filter(matches)
         .sort((a, b) => compareRows(a, b, key));
     }
@@ -3673,6 +4018,43 @@
       return rankedRows.slice(0, state.limit);
     }
 
+    function changeBadges(item) {
+      const badges = [];
+      if (Number.isFinite(Number(item.rankChange))) {
+        const change = Number(item.rankChange);
+        badges.push(`順位 ${change > 0 ? "▲" : change < 0 ? "▼" : "→"}${Math.abs(change)}`);
+      }
+      if (Number.isFinite(Number(item.scoreChange))) {
+        const change = Number(item.scoreChange);
+        badges.push(`スコア ${change > 0 ? "+" : ""}${Math.round(change)}`);
+      }
+      const factorLabels = { theme: "テーマ", supply: "需給", technical: "テクニカル", relative: "相対強度", earnings: "業績", liquidity: "流動性", valuation: "割安", risk: "リスク" };
+      const factor = Object.entries(item.factorChanges || {})
+        .filter(([, value]) => Number.isFinite(Number(value)) && Number(value) !== 0)
+        .sort((a, b) => Math.abs(Number(b[1])) - Math.abs(Number(a[1])))[0];
+      if (factor) badges.push(`${factorLabels[factor[0]] || factor[0]} ${Number(factor[1]) > 0 ? "+" : ""}${Math.round(Number(factor[1]))}`);
+      return badges.slice(0, 3);
+    }
+
+    function renderWatchAlerts() {
+      if (state.view !== "watchlist") {
+        el.watchAlerts.hidden = true;
+        el.watchAlerts.innerHTML = "";
+        return;
+      }
+      const watched = searchUniverse.filter(item => watchedCodes.has(String(item.code)));
+      const alerts = watched.flatMap(item => (Array.isArray(item.changeAlerts) ? item.changeAlerts : []).map(alert => ({ item, alert })));
+      el.watchAlerts.hidden = false;
+      el.watchAlerts.innerHTML = `
+        <strong>ウォッチ変化</strong>
+        <ul class="watch-alert-list">
+          ${alerts.length ? alerts.slice(0, 12).map(({ item, alert }) => `
+            <li class="watch-alert-item"><strong>${escapeHtml(item.code)} ${escapeHtml(item.name)}</strong> / ${escapeHtml(alert)}</li>
+          `).join("") : `<li class="watch-alert-item">前回データと比べた大きなスコア変化・新高値・品質低下はありません。</li>`}
+        </ul>
+      `;
+    }
+
     function renderRows(rows) {
       if (rows.length && !rows.some(item => String(item.code) === state.selectedCode)) {
         state.selectedCode = String(rows[0].code);
@@ -3686,6 +4068,7 @@
         const groupRankLabel = item.groupLabel ? `${item.groupLabel} ${item.groupRank || 1}位` : "";
         const warnings = dataWarnings(item);
         const quality = dataQualityScore(item);
+        const changes = changeBadges(item);
         return `
           <tr class="${selectedClass}" data-code="${escapeHtml(item.code)}" tabindex="0">
             <td>
@@ -3706,6 +4089,7 @@
             <td>
               <span class="score">${item.score}</span>
               <div class="theme-meta">信頼度 ${quality}点${warnings.length ? " / " + escapeHtml(warnings[0]) : ""}</div>
+              <div class="change-badges">${changes.map(change => `<span class="change-badge">${escapeHtml(change)}</span>`).join("")}</div>
             </td>
             <td>
               <strong>${item.margin.toFixed(1)}倍</strong>
@@ -3761,11 +4145,7 @@
     function comparisonRows() {
       const rowMap = new Map(searchUniverse.map(item => [String(item.code), {
         ...item,
-        liquidity: item.liquidity ?? 60,
-        relative: item.relative ?? 60,
-        earnings: item.earnings ?? 50,
-        risk: item.risk ?? 50,
-        valuation: item.valuation ?? valuationScore(item),
+        valuation: valuationScore(item),
         score: totalScore(item),
         supply: supplyScore(item),
       }]));
@@ -3832,7 +4212,7 @@
         return;
       }
       const counts = new Map();
-      searchUniverse.filter(item => state.universe === "prime" || item.isNikkei225 === true).forEach(item => {
+      searchUniverse.filter(item => item.isNikkei225 === true).forEach(item => {
         item.themes.forEach(theme => {
           const current = counts.get(theme) || { total: 0, score: 0 };
           current.total += 1;
@@ -3892,7 +4272,7 @@
       el.technicalEmpty.hidden = true;
       el.technicalBody.hidden = false;
       el.selectedName.textContent = item.name;
-      el.selectedCode.textContent = `${item.code} / ${item.industry || "業種未分類"} / ${item.isNikkei225 ? "日経225" : "東証プライム"}`;
+      el.selectedCode.textContent = `${item.code} / ${item.industry || "業種未分類"} / 日経225`;
       el.selectedJudgement.textContent = label;
       el.selectedJudgement.className = `badge ${className === "good" ? "ok" : "warn"}`;
       el.fundamentalTab.classList.toggle("active", state.detailTab === "fundamental");
@@ -3952,7 +4332,7 @@
       if (state.detailTab === "chart") {
         requestAnimationFrame(() => drawTechnicalChart(chartRows));
       }
-      if (state.detailTab === "scoreHistory") {
+      if (state.detailTab === "scoreHistory" && scoreHistoryStatus === "available") {
         requestAnimationFrame(() => drawScoreHistoryChart(rowsForScoreHistoryRange(scoreRowsFor(item))));
       }
     }
@@ -4022,8 +4402,8 @@
       el.watchlistView.classList.toggle("active", state.view === "watchlist");
       el.limit10.classList.toggle("active", state.limit === 10);
       el.limit20.classList.toggle("active", state.limit === 20);
-      el.primeUniverse.classList.toggle("active", state.universe === "prime");
       el.nikkeiUniverse.classList.toggle("active", state.universe === "nikkei225");
+      syncFilterControls();
     }
 
     function render() {
@@ -4033,6 +4413,7 @@
       renderBreakoutFilter();
       const rows = currentRows();
       renderRows(rows);
+      renderWatchAlerts();
       renderCompare();
       renderTechnical(rows);
       renderThemes(rows);
@@ -4042,11 +4423,11 @@
 
     function downloadCsv() {
       const rows = currentRows();
-      const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "信用倍率", "前回高値から", "52週高値更新", "売上高成長率", "利益成長率", "PER", "PBR", "ROE", "割安・収益性", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
+      const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "現在順位", "前日順位差", "スコア変化", "信用倍率", "前回高値から", "52週高値更新", "次イベントまで", "ATR14", "20日安値", "参考損切り価格", "参考損切り幅", "平均売買代金", "売上高成長率", "利益成長率", "PER", "PBR", "ROE", "割安・収益性", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
       const body = rows.map(item => {
         const [label] = statusFor(item);
         const groupLabel = item.groupLabel ? `${item.groupLabel} ${item.groupRank || 1}位` : "";
-        return [groupLabel, item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.margin, item.monthsFromHigh, item.isNewHigh52w ? "更新" : "", valueFrom(item, ["salesGrowth"]) ?? "", valueFrom(item, ["profitGrowth"]) ?? "", valueFrom(item, ["per", "PER"]) ?? "", valueFrom(item, ["pbr", "PBR"]) ?? "", valueFrom(item, ["roe", "ROE"]) ?? "", item.valuation ?? "", item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
+        return [groupLabel, item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.rank ?? "", item.rankChange ?? "", item.scoreChange ?? "", item.margin, item.monthsFromHigh, item.isNewHigh52w ? "更新" : "", item.nextEventDays ?? "", item.atr14 ?? "", item.recentLow20 ?? "", item.suggestedStopPrice ?? "", item.suggestedStopWidth ?? "", item.averageTurnover20 ?? "", valueFrom(item, ["salesGrowth"]) ?? "", valueFrom(item, ["profitGrowth"]) ?? "", valueFrom(item, ["per", "PER"]) ?? "", valueFrom(item, ["pbr", "PBR"]) ?? "", valueFrom(item, ["roe", "ROE"]) ?? "", item.valuation ?? "", item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
       });
       const csv = [header, ...body].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
@@ -4090,6 +4471,28 @@
       state.sortBy = event.target.value;
       render();
     });
+    el.industryFilter.addEventListener("change", event => {
+      state.industryFilter = event.target.value || "all";
+      saveFilters();
+      render();
+    });
+    el.marketCapFilter.addEventListener("change", event => {
+      state.marketCapFilter = event.target.value || "all";
+      saveFilters();
+      render();
+    });
+    el.liquidityFilter.addEventListener("change", event => {
+      state.liquidityFilter = event.target.value || "all";
+      saveFilters();
+      render();
+    });
+    el.filterReset.addEventListener("click", () => {
+      state.industryFilter = "all";
+      state.marketCapFilter = "all";
+      state.liquidityFilter = "all";
+      saveFilters();
+      render();
+    });
     el.groupSelect.addEventListener("change", event => {
       if (state.view === "theme") state.selectedTheme = event.target.value;
       if (state.view === "industry") state.selectedIndustry = event.target.value;
@@ -4100,10 +4503,6 @@
         state.breakoutMode = button.dataset.breakoutMode || "strict";
         render();
       });
-    });
-    el.primeUniverse.addEventListener("click", () => {
-      state.universe = "prime";
-      render();
     });
     el.nikkeiUniverse.addEventListener("click", () => {
       state.universe = "nikkei225";
@@ -4164,6 +4563,7 @@
     el.scoreHistoryTab.addEventListener("click", () => {
       state.detailTab = "scoreHistory";
       render();
+      void ensureScoreHistoryLoaded();
     });
     Object.entries(el.rangeButtons).forEach(([range, button]) => {
       button.addEventListener("click", () => {
@@ -4177,6 +4577,7 @@
         state.scoreHistoryRange = range;
         state.detailTab = "scoreHistory";
         render();
+        void ensureScoreHistoryLoaded();
       });
     });
     Object.entries(el.marketRangeButtons).forEach(([range, button]) => {
@@ -4234,6 +4635,7 @@
       renderMarketHistoryCharts();
     });
 
+    loadSavedFilters();
     loadWatchlist();
     loadBundledDataset();
   </script>

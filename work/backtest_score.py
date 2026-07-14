@@ -11,7 +11,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = ROOT / "outputs" / "data" / "latest-candidates.json"
-DEFAULT_SCORE_HISTORY = ROOT / "outputs" / "data" / "score-history.json"
+DEFAULT_SCORE_HISTORY = ROOT / "outputs" / "data" / "score-history-v2.json"
 DEFAULT_BACKTEST_OUTPUT = ROOT / "outputs" / "data" / "backtest-summary.json"
 
 
@@ -295,6 +295,26 @@ def print_report(snapshots: list[dict[str, Any]], trades: list[Trade], meta: dic
             )
 
 
+def backtest_verification_issues(payload: dict[str, Any]) -> list[str]:
+    provenance = payload.get("provenance") if isinstance(payload.get("provenance"), dict) else {}
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    strategy = payload.get("strategy") if isinstance(payload.get("strategy"), dict) else {}
+    artifacts = payload.get("artifacts") if isinstance(payload.get("artifacts"), dict) else {}
+    trades = artifacts.get("trades") if isinstance(artifacts.get("trades"), dict) else {}
+    checks = (
+        (provenance.get("generator"), "生成プログラム"),
+        (provenance.get("version"), "生成プログラム版"),
+        (provenance.get("dataHash"), "入力データハッシュ"),
+        (data.get("periodStart"), "検証開始日"),
+        (data.get("periodEnd"), "検証終了日"),
+        (strategy.get("parameters"), "売買パラメータ"),
+        (trades.get("path"), "取引明細パス"),
+        (trades.get("sha256"), "取引明細ハッシュ"),
+        (trades.get("count") if isinstance(trades.get("count"), int) else None, "取引明細件数"),
+    )
+    return [label for value, label in checks if value in (None, "", {}, [])]
+
+
 def backtest_summary_payload(
     snapshots: list[dict[str, Any]],
     trades: list[Trade],
@@ -307,19 +327,27 @@ def backtest_summary_payload(
     take_profit: float,
 ) -> dict[str, Any]:
     latest = snapshots[-1]
-    return {
-        "schemaVersion": 1,
+    payload = {
+        "schemaVersion": 2,
         "generatedAt": latest.get("generatedAt"),
-        "status": meta.get("status", "unknown"),
+        "status": "unverified",
+        "engineStatus": meta.get("status", "unknown"),
         "strategy": {
-            "name": "需給B / 買い75 / 売り65",
+            "name": "現行スコア2.1 / 買い75 / 売り65",
             "universe": "日経225",
             "buyScore": buy_score,
             "sellScore": sell_score,
             "maxHoldingDays": max_holding_days,
             "stopLoss": stop_loss,
             "takeProfit": take_profit,
-            "supplyRule": "信用倍率の軽さを60%、52週高値への近さを40%で評価する需給設定です。",
+            "parameters": {
+                "buyScore": buy_score,
+                "sellScore": sell_score,
+                "maxHoldingDays": max_holding_days,
+                "stopLoss": stop_loss,
+                "takeProfit": take_profit,
+            },
+            "supplyRule": "現行スコア2.1の需給はJPX信用倍率だけで評価し、52週高値はテクニカル・新高値判定で扱います。",
         },
         "data": available_data_summary(latest),
         "result": trade_summary(trades),
@@ -328,6 +356,13 @@ def backtest_summary_payload(
             "過去検証であり、将来の成績を保証するものではありません。",
         ],
     }
+    issues = backtest_verification_issues(payload)
+    payload["verification"] = {
+        "verified": not issues,
+        "missing": issues,
+    }
+    payload["status"] = "verified" if not issues else "unverified"
+    return payload
 
 
 def main() -> None:

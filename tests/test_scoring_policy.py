@@ -44,11 +44,13 @@ class ScoringPolicyTest(unittest.TestCase):
             "dividendYield": 0.03,
         }
 
-    def test_supply_score_rewards_near_52_week_high(self) -> None:
+    def test_supply_score_uses_margin_ratio_not_52_week_high(self) -> None:
         near_high = self.base_item()
         far_from_high = {**near_high, "monthsFromHigh": 18.0, "high52wDistance": 0.30}
+        heavy_margin = {**near_high, "margin": 6.0}
 
-        self.assertGreater(_supply_score(near_high), _supply_score(far_from_high))
+        self.assertEqual(_supply_score(near_high), _supply_score(far_from_high))
+        self.assertGreater(_supply_score(near_high), _supply_score(heavy_margin))
 
     def test_missing_fundamentals_lower_data_quality_and_total_score(self) -> None:
         complete = self.base_item()

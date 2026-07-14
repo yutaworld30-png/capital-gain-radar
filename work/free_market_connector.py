@@ -5,7 +5,7 @@ import html
 import json
 import re
 import time as time_module
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from io import StringIO
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -100,8 +100,10 @@ def fetch_yahoo_history(
             "L": float(low),
             "C": float(close),
             "V": float(volume or 0),
+            "AdjO": float(open_price) * factor,
             "AdjC": float(adjusted_close),
             "AdjH": float(high) * factor,
+            "AdjL": float(low) * factor,
             "Va": float(close) * float(volume or 0),
         })
     return rows, url
@@ -181,7 +183,6 @@ def fetch_yahoo_spark_histories(
                 "Date": datetime.fromtimestamp(timestamp, tz=timezone.utc).date().isoformat(),
                 "C": close_value,
                 "AdjC": close_value,
-                "AdjH": close_value,
                 "Va": close_value * latest_volume,
             })
         if rows:
@@ -196,8 +197,8 @@ def fetch_price_metrics_with_mirror(
     mirror: dict[str, object],
 ) -> dict[str, object]:
     yahoo_rows, yahoo_url = fetch_yahoo_history(code, start, end)
-    if len(yahoo_rows) < 120:
-        raise FreeMarketDataError("Yahoo Financeの価格履歴が120営業日未満です。")
+    if len(yahoo_rows) < 252:
+        raise FreeMarketDataError("Yahoo Financeの価格履歴が252営業日未満です。")
 
     validation_date = str(mirror.get("date") or "")
     yahoo_by_date = {str(item["Date"]): item for item in yahoo_rows}
@@ -281,17 +282,42 @@ def fetch_google_previous_close(code: str) -> tuple[float, str]:
     return float(match.group(1).replace(",", "")), url
 
 
+def _normalize_event_date(value: str, *, today: date | None = None) -> str | None:
+    today = today or date.today()
+    parts = [part for part in value.strip().replace("年", "/").replace("月", "/").replace("日", "").split("/") if part]
+    try:
+        if len(parts) == 3:
+            candidate = date(int(parts[0]), int(parts[1]), int(parts[2]))
+        elif len(parts) == 2:
+            candidate = date(today.year, int(parts[0]), int(parts[1]))
+            if candidate < today - timedelta(days=60):
+                candidate = date(today.year + 1, int(parts[0]), int(parts[1]))
+        else:
+            return None
+    except ValueError:
+        return None
+    return candidate.isoformat()
+
+
 def fetch_yahoo_dividend_forecast(code: str) -> dict[str, object]:
     url = f"{YAHOO_INFO_URL}/{code}.T"
     page = html.unescape(_fetch(url).decode("utf-8", errors="replace"))
     text = re.sub(r"<[^>]+>", " ", page)
     text = re.sub(r"\s+", " ", text)
     yield_match = re.search(
-        r"配当利回り\s*（会社予想）\s*用語\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*%\s*\(\s*([^)]+)\s*\)",
+        r"配当利回り\s*（会社予想）\s*用語\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*%\s*[（(]\s*([^）)]+)\s*[）)]",
         text,
     )
     dps_match = re.search(
-        r"1株配当\s*（会社予想）\s*用語\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*円\s*\(\s*([0-9]{4}/[0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}|--)\s*\)",
+        r"1株配当\s*（会社予想）\s*用語\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*円\s*[（(]\s*([0-9]{4}/[0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}|--)\s*[）)]",
+        text,
+    )
+    earnings_match = re.search(
+        r"(?:次回)?決算発表(?:予定)?日\s*(?:用語\s*)?([0-9]{4}(?:/|年)[0-9]{1,2}(?:/|月)[0-9]{1,2}日?|[0-9]{1,2}/[0-9]{1,2})",
+        text,
+    )
+    ex_dividend_match = re.search(
+        r"(?:予想)?(?:権利落ち日|配当落ち日)\s*(?:用語\s*)?([0-9]{4}(?:/|年)[0-9]{1,2}(?:/|月)[0-9]{1,2}日?|[0-9]{1,2}/[0-9]{1,2})",
         text,
     )
     forecast: dict[str, object] = {
@@ -315,18 +341,28 @@ def fetch_yahoo_dividend_forecast(code: str) -> dict[str, object]:
                 "dividendYieldSource": "Yahoo Finance 配当利回り（会社予想）",
                 "dividendYieldKind": "forecast",
             })
-    if "dps" not in forecast and "dividendYield" not in forecast:
-        raise FreeMarketDataError("Yahoo Financeの配当予想を確認できません。")
+    if earnings_match:
+        earnings_date = _normalize_event_date(earnings_match.group(1))
+        if earnings_date:
+            forecast["earningsAnnouncementDate"] = earnings_date
+            forecast["earningsAnnouncementSource"] = "Yahoo Finance 決算発表予定日"
+    if ex_dividend_match:
+        ex_dividend_date = _normalize_event_date(ex_dividend_match.group(1))
+        if ex_dividend_date:
+            forecast["exDividendDate"] = ex_dividend_date
+            forecast["exDividendSource"] = "Yahoo Finance 権利落ち日"
+    if not any(key in forecast for key in ("dps", "dividendYield", "earningsAnnouncementDate", "exDividendDate")):
+        raise FreeMarketDataError("Yahoo Financeの配当予想・イベント日を確認できません。")
     return forecast
 
 
 def fetch_validated_price_metrics(code: str, start: date, end: date) -> dict[str, object]:
     yahoo_rows, yahoo_url = fetch_yahoo_history(code, start, end)
     mirror_rows, mirror_url = fetch_yahoo_history(code, start, end, YAHOO_MIRROR_URL)
-    if len(yahoo_rows) < 120:
-        raise FreeMarketDataError("Yahoo Financeの価格履歴が120営業日未満です。")
-    if len(mirror_rows) < 120:
-        raise FreeMarketDataError("Yahoo Financeの検証経路が120営業日未満です。")
+    if len(yahoo_rows) < 252:
+        raise FreeMarketDataError("Yahoo Financeの価格履歴が252営業日未満です。")
+    if len(mirror_rows) < 252:
+        raise FreeMarketDataError("Yahoo Financeの検証経路が252営業日未満です。")
 
     mirror_by_date = {str(item["Date"]): item for item in mirror_rows}
     common_dates = [

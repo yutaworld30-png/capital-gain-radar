@@ -273,21 +273,11 @@ def analyze_disclosures(
         article_count = int(news_counts.get(theme, {}).get("articleCount", 0))
         if not events and article_count == 0:
             continue
-        momentum_values = [
-            float(price_metrics[code].get("return20", 0))
-            for code in unique_codes
-            if code in price_metrics
-        ]
-        positive_share = (
-            sum(value > 0 for value in momentum_values) / len(momentum_values)
-            if momentum_values else 0
-        )
         popularity = min(
             95,
-            40
-            + min(30, article_count)
-            + min(5, len(events) * 2)
-            + round(20 * positive_share),
+            35
+            + min(45, article_count * 2)
+            + min(15, len(events) * 3),
         )
         themes.append({
             "name": theme,
@@ -295,7 +285,6 @@ def analyze_disclosures(
             "newsArticleCount": article_count,
             "disclosureCount": len(events),
             "companyCount": len(unique_codes),
-            "positiveMomentumShare": round(positive_share, 3),
             "asOf": (
                 max(event["date"] for event in events)
                 if events
