@@ -1,0 +1,31 @@
+name: Temporary encrypted EDINET relay bb87c2ff
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  encrypt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Encrypt EDINET API key
+        shell: bash
+        env:
+          EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
+          PUBLIC_KEY_B64: LS0tLS1CRUdJTiBQVUJMSUMgS0VZLS0tLS0KTUlJQ0lqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FnOEFNSUlDQ2dLQ0FnRUFqeTNKWEQyM0pYZDBlR2xkYysxbgorN25pNTFjRC9LOGpva3VuVDN5b1BtS2tMQ3c1eERnSWpsUkw0WG9oRUJSU3RkMTl3Z0hmbTJtOGtQTHBTRHlSCnIxSXdJaXBzV3kxK2Z4MWdmL3ViZW1od25OZVFkKzZxaEVhUVBDUzZNQ1JUVnBzMTRJYXlpc1MvQXU2WkhVY0MKL3dWQ3BBdFV2ckx3N1ArcVROaHJxeUxaNHRWMWtHeTNGRnE0dW9ybmVLYXFtMGx2ZnRDWDNmVVJKS1Y4Q0tGeQpGN0NsRjlqL3JJRVZnQVpqdUZlVXpKM3NkM1E2bSswQmQrWWpiUlp3c2xramVQL01LYWhYUGRocTNLc3ZyM1l1Clk2L1hTOEZWL2hERGErR0pGL1pueFlzRnFhN0ZGNmdpRXJxZXppUFpjblovT1NZNkd3OFk2MlhtNDZCa3ZpME0KL3RtY3pVNGhGZmI0bHU3OUhzamVaSTlHNmliQXNLTnVtd1V4RjF4R0FTeHV4R1F4QmcvempteTM1SGhGN0Y4cgowZkZKZnNvTU51d1M1bDBzOE53b0VsOCswT0VHcjJVZGREMWJoazZQa3hVUXlrZS9ISm9kL3NEMUpobWp1Y21xCnFOS3ErQnJLYlM1b1NwMWRjVzREZzNjaTV6eTJ3bjg2dHErclZ4WmxZU2xTZHhocnFnMzVhNkpxWFRVZEFQc2oKMGRKaWxqZUtiOTZqb0QvdkVFZ3FGNmZYTlR1OUhkc2d5STdDUjlmbzVnd3BSdGVTTGtlRW5aYXNUQ1A3Mk9ILwp2YjlkbHhBYW1MZFJVTFhjVjVMM3R6WDhGc0J5OEoyM2t3RHY0WFVDVlJqOHpVUmJnWE5vZmJVZGRTT1ZKRG1sCkQrQUVjNXYwVFpWNFNzbXZFbDdrSURFQ0F3RUFBUT09Ci0tLS0tRU5EIFBVQkxJQyBLRVktLS0tLQo=
+        run: |
+          set -euo pipefail
+          test -n "$EDINET_API_KEY"
+          printf '%s' "$PUBLIC_KEY_B64" | base64 --decode > public.pem
+          printf '%s' "$EDINET_API_KEY" | openssl pkeyutl -encrypt -pubin -inkey public.pem -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256 -pkeyopt rsa_mgf1_md:sha256 -out edinet-api-key.enc
+          rm -f public.pem
+      - name: Upload encrypted artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: edinet-secret-bb87c2ff
+          path: edinet-api-key.enc
+          retention-days: 1
+          if-no-files-found: error
