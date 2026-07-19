@@ -15,3 +15,11 @@ Daily Nikkei 225 stock screening app for capital gain candidates.
 - ATR (14 days), the recent 20-day low, a reference stop width, and average turnover are generated from adjusted price history. They are reference values, not trading instructions.
 - Rank and factor changes are compared only with the previous snapshot using the same `scoreVersion` and `factorVersion`.
 - Industry, market-cap, and liquidity filters are saved locally in the browser. Watchlist alerts are temporary display state derived from generated JSON.
+
+## Nikkei 225 market analysis
+
+- `work/market_analysis.py` generates `outputs/data/nikkei225-analysis.json`.
+- The daily chart contains candlesticks, MA 5/25/75, Parabolic SAR, Bollinger Bands, Ichimoku, MACD, and RSI. Indicator values are calculated in Python and the browser only renders them.
+- The 25-day advance-decline ratio is derived from the current 225 components. It is marked as a reference because historical membership is not reconstructed.
+- JPX weekly margin/investor data and Nikkei weighted PER stay in `permission-required` state until their public display and processing terms are confirmed.
+- After confirmation, repository variables `JPX_PUBLIC_DATA_USE_CONFIRMED=1` and `NIKKEI_INDEX_DATA_USE_CONFIRMED=1` enable those sources in the Pages workflow.

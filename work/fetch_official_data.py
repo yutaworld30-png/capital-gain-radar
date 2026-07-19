@@ -48,6 +48,7 @@ from edinet_connector import (
     fetch_recent_securities_reports,
     parse_financial_metrics_from_xbrl,
 )
+from market_breadth import build_nikkei225_breadth
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -2126,6 +2127,9 @@ def main() -> None:
 
     if not collect_jquants_metrics(dataset, generated_at):
         collect_free_market_metrics(dataset, generated_at, previous_dataset)
+    dataset["nikkei225Breadth"] = build_nikkei225_breadth(
+        dataset.get("nikkei225Prices"),
+    )
     collect_tdnet_and_build_candidates(dataset, generated_at)
     collect_edinet_fundamentals(dataset, generated_at, previous_dataset)
     _attach_candidate_source_statuses(dataset)

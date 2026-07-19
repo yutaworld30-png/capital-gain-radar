@@ -5,10 +5,13 @@ import json
 from datetime import date
 from pathlib import Path
 
+from market_analysis import validate_analysis
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = ROOT / "outputs" / "data" / "latest-candidates.json"
 DEFAULT_HISTORY = ROOT / "outputs" / "data" / "score-history-v2.json"
+DEFAULT_ANALYSIS = ROOT / "outputs" / "data" / "nikkei225-analysis.json"
 REQUIRED_SOURCES = ("nikkei225", "primeMarket", "marginWeekly", "priceHistory", "themeNews", "fundamentals")
 
 
@@ -108,6 +111,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="GitHub Pages公開前の生成JSON品質チェック")
     parser.add_argument("dataset", nargs="?", type=Path, default=DEFAULT_DATASET)
     parser.add_argument("--history", type=Path, default=DEFAULT_HISTORY)
+    parser.add_argument("--analysis", type=Path, default=DEFAULT_ANALYSIS)
     args = parser.parse_args()
     try:
         dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
@@ -120,11 +124,16 @@ def main() -> int:
         errors.extend(validate_history(history, dataset))
     except (OSError, json.JSONDecodeError) as error:
         errors.append(f"スコア履歴JSONを読み込めません: {error}")
+    try:
+        analysis = json.loads(args.analysis.read_text(encoding="utf-8"))
+        errors.extend(f"日経225分析: {error}" for error in validate_analysis(analysis))
+    except (OSError, json.JSONDecodeError) as error:
+        errors.append(f"日経225分析JSONを読み込めません: {error}")
     if errors:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print("OK: 日経225候補JSONとスコア履歴JSONの品質チェックに合格しました。")
+    print("OK: 日経225候補・スコア履歴・日経225分析JSONの品質チェックに合格しました。")
     return 0
 
 

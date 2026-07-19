@@ -44,6 +44,12 @@ jobs:
       - name: Refresh market environment
         run: python work/market_environment.py
 
+      - name: Refresh Nikkei 225 technical analysis
+        env:
+          JPX_PUBLIC_DATA_USE_CONFIRMED: ${{ vars.JPX_PUBLIC_DATA_USE_CONFIRMED }}
+          NIKKEI_INDEX_DATA_USE_CONFIRMED: ${{ vars.NIKKEI_INDEX_DATA_USE_CONFIRMED }}
+        run: python work/market_analysis.py
+
       - name: Validate generated stock data
         run: python work/validate_output.py
 
