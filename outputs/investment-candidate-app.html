@@ -421,6 +421,29 @@
       padding: 16px;
     }
 
+    .local-private-notice {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
+      border: 1px solid #e1c45a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #fff9df;
+      color: #493a00;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .local-private-notice strong {
+      flex: 0 0 auto;
+      font-size: 12px;
+    }
+
+    .local-private-notice[hidden] {
+      display: none;
+    }
+
     .nikkei-analysis-toolbar {
       display: flex;
       align-items: center;
@@ -729,11 +752,51 @@
       border-color: var(--mint);
     }
 
+    .weekly-target-control .breakout-options {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .breakout-description {
       margin-top: 8px;
       color: var(--muted);
       font-size: 12px;
       line-height: 1.5;
+    }
+
+    .weekly-target-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .weekly-target-stat {
+      min-width: 0;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+    }
+
+    .weekly-target-stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .weekly-target-stat strong {
+      display: block;
+      margin-top: 3px;
+      color: var(--ink);
+      font-size: 15px;
+      line-height: 1.35;
+    }
+
+    .weekly-score-line {
+      margin-top: 6px;
+      font-size: 12px;
+      font-weight: 800;
     }
 
     h2 {
@@ -751,6 +814,39 @@
       border-collapse: collapse;
       min-width: 960px;
     }
+
+    table[data-view="weekly"] {
+      min-width: 1455px;
+      table-layout: fixed;
+    }
+
+    table[data-view="weekly"] th,
+    table[data-view="weekly"] td {
+      vertical-align: top;
+    }
+
+    table[data-view="weekly"] th:nth-child(1),
+    table[data-view="weekly"] td:nth-child(1) { width: 190px; }
+    table[data-view="weekly"] th:nth-child(2),
+    table[data-view="weekly"] td:nth-child(2) { width: 120px; }
+    table[data-view="weekly"] th:nth-child(3),
+    table[data-view="weekly"] td:nth-child(3) { width: 100px; }
+    table[data-view="weekly"] th:nth-child(4),
+    table[data-view="weekly"] td:nth-child(4) { width: 230px; }
+    table[data-view="weekly"] th:nth-child(5),
+    table[data-view="weekly"] td:nth-child(5) { width: 165px; }
+    table[data-view="weekly"] th:nth-child(6),
+    table[data-view="weekly"] td:nth-child(6) { width: 120px; }
+    table[data-view="weekly"] th:nth-child(7),
+    table[data-view="weekly"] td:nth-child(7) { width: 180px; }
+    table[data-view="weekly"] th:nth-child(8),
+    table[data-view="weekly"] td:nth-child(8) { width: 120px; }
+    table[data-view="weekly"] th:nth-child(9),
+    table[data-view="weekly"] td:nth-child(9) { width: 90px; }
+    table[data-view="weekly"] th:nth-child(10),
+    table[data-view="weekly"] td:nth-child(10) { width: 70px; }
+    table[data-view="weekly"] th:nth-child(11),
+    table[data-view="weekly"] td:nth-child(11) { width: 70px; }
 
     th,
     td {
@@ -1684,6 +1780,46 @@
         grid-template-columns: 1fr;
       }
 
+      .weekly-target-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      table[data-view="weekly"] {
+        min-width: 690px;
+        table-layout: fixed;
+      }
+
+      table[data-view="weekly"] th,
+      table[data-view="weekly"] td {
+        vertical-align: top;
+      }
+
+      table[data-view="weekly"] th:nth-child(2),
+      table[data-view="weekly"] td:nth-child(2),
+      table[data-view="weekly"] th:nth-child(3),
+      table[data-view="weekly"] td:nth-child(3),
+      table[data-view="weekly"] th:nth-child(6),
+      table[data-view="weekly"] td:nth-child(6),
+      table[data-view="weekly"] th:nth-child(7),
+      table[data-view="weekly"] td:nth-child(7),
+      table[data-view="weekly"] th:nth-child(8),
+      table[data-view="weekly"] td:nth-child(8),
+      table[data-view="weekly"] th:nth-child(10),
+      table[data-view="weekly"] td:nth-child(10) {
+        display: none;
+      }
+
+      table[data-view="weekly"] th:nth-child(1),
+      table[data-view="weekly"] td:nth-child(1) { width: 190px; }
+      table[data-view="weekly"] th:nth-child(4),
+      table[data-view="weekly"] td:nth-child(4) { width: 250px; }
+      table[data-view="weekly"] th:nth-child(5),
+      table[data-view="weekly"] td:nth-child(5) { width: 140px; }
+      table[data-view="weekly"] th:nth-child(9),
+      table[data-view="weekly"] td:nth-child(9) { width: 80px; }
+      table[data-view="weekly"] th:nth-child(11),
+      table[data-view="weekly"] td:nth-child(11) { width: 48px; }
+
       .nikkei-analysis-panel .panel-header {
         align-items: stretch;
         flex-direction: column;
@@ -1738,6 +1874,7 @@
         </div>
         <div class="segmented five" aria-label="表示タブ">
           <button id="overallView" class="active" type="button">総合ランキング</button>
+          <button id="weeklyTargetView" type="button">週5%候補</button>
           <button id="breakoutView" type="button">新高値ブレイク</button>
           <button id="themeView" type="button">テーマ別ランキング</button>
           <button id="industryView" type="button">業種別ランキング</button>
@@ -1842,7 +1979,8 @@
           <div class="guide-body">
             <ol class="guide-list">
               <li>対象は日経225採用銘柄です。225銘柄の中からランキング候補を確認します。</li>
-              <li>総合、新高値ブレイク、テーマ別ランキング、業種別ランキング、ウォッチリストを切り替えて候補を確認します。</li>
+              <li>総合、週5%候補、新高値ブレイク、テーマ別ランキング、業種別ランキング、ウォッチリストを切り替えて候補を確認します。</li>
+              <li>週5%候補では、20万円を元手に100株単位で買える銘柄を、1銘柄運用・2銘柄運用ごとに確認できます。条件一致がなければ無理に買わず、未達理由を確認します。</li>
               <li>新高値ブレイクは、厳選・標準・予備軍の3段階で条件を切り替えて確認できます。</li>
               <li>テーマ別・業種別では、選択したテーマ/業種のスコア上位5銘柄を表示します。</li>
               <li>銘柄検索はコード、銘柄名、テーマ、業種で絞り込みでき、入力途中の候補から直接選べます。</li>
@@ -1944,6 +2082,10 @@
           <span class="updated" id="nikkeiAnalysisStatus">JSON読込待ち</span>
         </div>
         <div class="nikkei-analysis-body">
+          <div class="local-private-notice" id="nikkeiLocalPrivateNotice" hidden>
+            <strong>ローカル個人利用モード</strong>
+            <span>日経PER・JPX週次統計をローカル環境だけで表示しています。PCと同じWi-Fi内の認証済み端末以外へ、画面やデータを公開・共有・再配布しないでください。</span>
+          </div>
           <div class="nikkei-analysis-toolbar">
             <div class="range-tabs nikkei-range-tabs" aria-label="日経225分析の表示期間">
               <button id="nikkeiRange1w" type="button">1週間</button>
@@ -2049,7 +2191,7 @@
           <div class="metric-value" id="metricCandidates">0</div>
         </div>
         <div class="metric">
-          <div class="metric-label">平均スコア</div>
+          <div class="metric-label" id="metricScoreLabel">平均スコア</div>
           <div class="metric-value" id="metricScore">0</div>
         </div>
         <div class="metric">
@@ -2081,6 +2223,17 @@
                 <button id="breakoutWatch" type="button" data-breakout-mode="watch">予備軍</button>
               </div>
               <div class="breakout-description" id="breakoutDescription"></div>
+            </div>
+          </div>
+          <div class="ranking-tools" id="weeklyTargetFilter" hidden>
+            <label>資金配分</label>
+            <div class="breakout-control weekly-target-control">
+              <div class="breakout-options" role="group" aria-label="週5%候補の資金配分">
+                <button id="weeklySingle" type="button" data-weekly-target-mode="single">1銘柄運用</button>
+                <button id="weeklyDouble" type="button" data-weekly-target-mode="double">2銘柄運用</button>
+              </div>
+              <div class="breakout-description" id="weeklyTargetDescription"></div>
+              <div class="weekly-target-summary" id="weeklyTargetSummary"></div>
             </div>
           </div>
           <div class="watch-alerts" id="watchAlerts" hidden></div>
@@ -2274,6 +2427,7 @@
       selectedTheme: "",
       selectedIndustry: "",
       breakoutMode: "strict",
+      weeklyTargetMode: "single",
       searchOpen: false,
       activeSuggestionIndex: 0,
       detailTab: "fundamental",
@@ -2343,6 +2497,7 @@
 
     const el = {
       overallView: document.querySelector("#overallView"),
+      weeklyTargetView: document.querySelector("#weeklyTargetView"),
       breakoutView: document.querySelector("#breakoutView"),
       themeView: document.querySelector("#themeView"),
       industryView: document.querySelector("#industryView"),
@@ -2362,6 +2517,7 @@
       resultCount: document.querySelector("#resultCount"),
       metricCandidates: document.querySelector("#metricCandidates"),
       metricScore: document.querySelector("#metricScore"),
+      metricScoreLabel: document.querySelector("#metricScoreLabel"),
       metricMargin: document.querySelector("#metricMargin"),
       metricTheme: document.querySelector("#metricTheme"),
       rankingTitle: document.querySelector("#rankingTitle"),
@@ -2371,8 +2527,12 @@
       groupSelect: document.querySelector("#groupSelect"),
       breakoutFilter: document.querySelector("#breakoutFilter"),
       breakoutDescription: document.querySelector("#breakoutDescription"),
+      weeklyTargetFilter: document.querySelector("#weeklyTargetFilter"),
+      weeklyTargetDescription: document.querySelector("#weeklyTargetDescription"),
+      weeklyTargetSummary: document.querySelector("#weeklyTargetSummary"),
       watchAlerts: document.querySelector("#watchAlerts"),
       breakoutButtons: document.querySelectorAll("[data-breakout-mode]"),
+      weeklyTargetButtons: document.querySelectorAll("[data-weekly-target-mode]"),
       themeList: document.querySelector("#themeList"),
       exportBtn: document.querySelector("#exportBtn"),
       importBtn: document.querySelector("#importBtn"),
@@ -2403,6 +2563,7 @@
         "3m": document.querySelector("#marketRange3m"),
       },
       nikkeiAnalysisStatus: document.querySelector("#nikkeiAnalysisStatus"),
+      nikkeiLocalPrivateNotice: document.querySelector("#nikkeiLocalPrivateNotice"),
       nikkeiAnalysisKpis: document.querySelector("#nikkeiAnalysisKpis"),
       nikkeiAnalysisChart: document.querySelector("#nikkeiAnalysisChart"),
       nikkeiAnalysisLegend: document.querySelector("#nikkeiAnalysisLegend"),
@@ -3628,7 +3789,8 @@
         売り残 ${Number.isFinite(sellMillion) ? sellMillion.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) : "--"}百万株<br>
         基準 ${escapeHtml(formatDate(latest.weekEnd))}
       `;
-      el.nikkeiMarginNote.textContent = `緑: 買い残、赤: 売り残。${section.scope || "東京・名古屋二市場合計"}、単位は百万株です。`;
+      el.nikkeiMarginNote.textContent = section.note
+        || `緑: 買い残、赤: 売り残。${section.scope || "東京・名古屋二市場合計"}、単位は百万株です。`;
       drawAnalysisSeriesChart(
         el.nikkeiMarginChart,
         rows.slice(-26),
@@ -3671,7 +3833,8 @@
       el.nikkeiInvestorFlowList.innerHTML = categoryConfig.map(([key, label, color]) => `
         <span><span style="color:${color}">●</span> ${escapeHtml(label)} ${escapeHtml(signedAnalysisValue(flows[key]?.net100mYen))}億円</span>
       `).join("");
-      el.nikkeiInvestorNote.textContent = `差引額の週次推移。${section.scope || "東京・名古屋二市場合計（金額）"}です。`;
+      el.nikkeiInvestorNote.textContent = section.note
+        || `差引額の週次推移。${section.scope || "東京・名古屋二市場合計（金額）"}です。`;
       drawAnalysisSeriesChart(
         el.nikkeiInvestorChart,
         rows.slice(-26),
@@ -3724,6 +3887,7 @@
         button.setAttribute("aria-pressed", String(active));
       });
       if (!payload || !Array.isArray(payload.rows) || !payload.rows.length) {
+        el.nikkeiLocalPrivateNotice.hidden = true;
         el.nikkeiAnalysisStatus.textContent = "日経225分析JSON未読込";
         el.nikkeiAnalysisKpis.innerHTML = `
           <div class="nikkei-analysis-kpi">
@@ -3755,7 +3919,9 @@
       const macdLabel = !Number.isFinite(macd) || !Number.isFinite(macdSignal)
         ? "未取得"
         : macd >= macdSignal ? "シグナルより上" : "シグナルより下";
-      el.nikkeiAnalysisStatus.textContent = `価格 ${formatDate(payload.priceSource?.asOf || latest.date)} / 生成 ${formatDate(payload.generatedAt)}`;
+      const localPrivate = payload.distributionMode === "local-private";
+      el.nikkeiLocalPrivateNotice.hidden = !localPrivate;
+      el.nikkeiAnalysisStatus.textContent = `${localPrivate ? "ローカル限定 / " : ""}価格 ${formatDate(payload.priceSource?.asOf || latest.date)} / 生成 ${formatDate(payload.generatedAt)}`;
       el.nikkeiAnalysisKpis.innerHTML = [
         ["日経225", `${Math.round(Number(latest.close)).toLocaleString("ja-JP")}円`, `基準 ${formatDate(latest.date)}`],
         ["移動平均", trend, `5日 ${Math.round(Number(latest.ma5)).toLocaleString("ja-JP")} / 25日 ${Math.round(Number(latest.ma25)).toLocaleString("ja-JP")} / 75日 ${Math.round(Number(latest.ma75)).toLocaleString("ja-JP")}`],
@@ -3792,8 +3958,9 @@
         <span class="legend-item"><span class="legend-line" style="background:${color}"></span>${escapeHtml(label)}</span>
       `).join("");
       const per = payload.per || {};
+      const perPrefix = localPrivate ? "ローカル個人利用専用。 " : "";
       el.nikkeiPerNote.textContent = per.status === "available" && per.reference
-        ? `PER整数倍ライン: ${formatDate(per.reference.date)}の加重平均PER ${Number(per.reference.weightedPer).toFixed(2)}倍から推計したEPSを固定して表示します。日々の業績変化を反映する理論価格ではありません。`
+        ? `${perPrefix}PER整数倍ライン: ${formatDate(per.reference.date)}の加重平均PER ${Number(per.reference.weightedPer).toFixed(2)}倍から推計したEPSを固定して表示します。日々の業績変化を反映する理論価格ではありません。`
         : per.note || "PER整数倍ラインは利用条件とデータを確認できるまで表示しません。";
       requestAnimationFrame(() => {
         drawNikkeiAnalysisChart();
@@ -4010,6 +4177,13 @@
     }
 
     function statusFor(item) {
+      if (state.view === "weekly") {
+        const profile = weeklyTargetProfile(item);
+        if (!profile) return ["未判定", "bad"];
+        if (profile.status === "qualified") return ["条件一致", "good"];
+        if (profile.status === "watch") return ["監視候補", "watch"];
+        return ["見送り", "bad"];
+      }
       const highDistance = Number(item.high52wDistance);
       const nearHigh = item.isNewHigh52w === true || (Number.isFinite(highDistance) && highDistance <= 0.05);
       if (item.margin <= 2 && nearHigh && totalScore(item) >= 80) return ["候補", "good"];
@@ -4861,6 +5035,17 @@
       return item[key];
     }
 
+    function weeklyTargetProfile(item, mode = state.weeklyTargetMode) {
+      const profile = item?.weeklyTarget?.profiles?.[mode];
+      return profile && typeof profile === "object" ? profile : null;
+    }
+
+    function weeklyTargetStatusRank(profile) {
+      if (profile?.status === "qualified") return 0;
+      if (profile?.status === "watch") return 1;
+      return 2;
+    }
+
     function compareRows(a, b, key) {
       const aRaw = sortValue(a, key);
       const bRaw = sortValue(b, key);
@@ -4944,6 +5129,18 @@
       if (state.view === "breakout") {
         return rankedRows.filter(item => isBreakoutCandidate(item)).slice(0, state.limit);
       }
+      if (state.view === "weekly") {
+        return rankedRows
+          .filter(item => weeklyTargetProfile(item)?.budgetFit === true)
+          .sort((a, b) => {
+            const aProfile = weeklyTargetProfile(a);
+            const bProfile = weeklyTargetProfile(b);
+            return weeklyTargetStatusRank(aProfile) - weeklyTargetStatusRank(bProfile)
+              || Number(bProfile?.score || 0) - Number(aProfile?.score || 0)
+              || Number(b.score || 0) - Number(a.score || 0);
+          })
+          .slice(0, state.limit);
+      }
       if (state.view === "watchlist") {
         return rankedRows.filter(item => watchedCodes.has(String(item.code)));
       }
@@ -5001,6 +5198,12 @@
         const warnings = dataWarnings(item);
         const quality = dataQualityScore(item);
         const changes = changeBadges(item);
+        const weeklyProfile = state.view === "weekly" ? weeklyTargetProfile(item) : null;
+        const weeklyReason = weeklyProfile
+          ? (weeklyProfile.strictMatch
+            ? weeklyProfile.positives?.[0] || "必須条件をすべて通過"
+            : weeklyProfile.blockers?.[0] || "条件を確認してください")
+          : "";
         return `
           <tr class="${selectedClass}" data-code="${escapeHtml(item.code)}" tabindex="0">
             <td>
@@ -5021,6 +5224,10 @@
             <td>
               <span class="score">${item.score}</span>
               <div class="theme-meta">信頼度 ${quality}点${warnings.length ? " / " + escapeHtml(warnings[0]) : ""}</div>
+              ${weeklyProfile ? `
+                <div class="weekly-score-line">週次適合度 ${escapeHtml(weeklyProfile.score)}点</div>
+                <div class="theme-meta">100株 ${Number.isFinite(Number(weeklyProfile.estimatedCostYen)) ? Number(weeklyProfile.estimatedCostYen).toLocaleString("ja-JP") + "円" : "未取得"} / ${escapeHtml(weeklyReason)}</div>
+              ` : ""}
               <div class="change-badges">${changes.map(change => `<span class="change-badge">${escapeHtml(change)}</span>`).join("")}</div>
             </td>
             <td>
@@ -5057,6 +5264,8 @@
       if (!rows.length) {
         el.empty.textContent = state.view === "watchlist"
           ? "ウォッチリストは空です。ランキングの☆ボタンから銘柄を追加できます。"
+          : state.view === "weekly"
+            ? "この資金配分で100株購入できる銘柄、または週5%候補判定済みのデータがありません。"
           : state.view === "breakout"
             ? breakoutProfile().empty
             : "表示できる銘柄がありません。検索条件や対象銘柄を確認してください。";
@@ -5271,8 +5480,12 @@
 
     function renderMetrics(rows) {
       const avg = (values) => values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      const scoreValues = state.view === "weekly"
+        ? rows.map(item => Number(weeklyTargetProfile(item)?.score)).filter(Number.isFinite)
+        : rows.map(item => item.score);
       el.metricCandidates.textContent = rows.length;
-      el.metricScore.textContent = rows.length ? Math.round(avg(rows.map(item => item.score))) : "-";
+      el.metricScoreLabel.textContent = state.view === "weekly" ? "平均適合度" : "平均スコア";
+      el.metricScore.textContent = scoreValues.length ? Math.round(avg(scoreValues)) : "-";
       el.metricMargin.textContent = rows.length ? avg(rows.map(item => item.margin)).toFixed(1) : "-";
       el.resultCount.textContent = `${rows.length}件`;
     }
@@ -5315,10 +5528,47 @@
       });
     }
 
+    function renderWeeklyTargetFilter() {
+      const isWeeklyTarget = state.view === "weekly";
+      el.weeklyTargetFilter.hidden = !isWeeklyTarget;
+      if (!isWeeklyTarget) return;
+
+      const policy = officialDataset?.weeklyTargetPolicy || {};
+      const config = policy.profiles?.[state.weeklyTargetMode] || {};
+      const positions = Number(config.positions || (state.weeklyTargetMode === "double" ? 2 : 1));
+      const allocation = Number(config.allocationYen || (state.weeklyTargetMode === "double" ? 90000 : 180000));
+      const maxPrice = Number(config.maxPrice || (state.weeklyTargetMode === "double" ? 900 : 1800));
+      const targetReturn = Number(policy.targetReturn ?? 0.05);
+      const stopLimit = Number(policy.stopLimit ?? 0.025);
+      const rows = rankedUniverseRows().filter(item => weeklyTargetProfile(item)?.budgetFit === true);
+      const qualified = rows.filter(item => weeklyTargetProfile(item)?.status === "qualified").length;
+      const watched = rows.filter(item => weeklyTargetProfile(item)?.status === "watch").length;
+      const totalAllocation = allocation * positions;
+
+      el.weeklyTargetDescription.textContent = state.weeklyTargetMode === "double"
+        ? `100株ずつ2銘柄、1銘柄${maxPrice.toLocaleString("ja-JP")}円以下・各${allocation.toLocaleString("ja-JP")}円までを目安にします。条件一致がなければ売買を見送ります。`
+        : `100株で1銘柄、株価${maxPrice.toLocaleString("ja-JP")}円以下・${allocation.toLocaleString("ja-JP")}円までを目安にし、残りを予備資金にします。条件一致がなければ売買を見送ります。`;
+      el.weeklyTargetSummary.innerHTML = [
+        ["厳格条件一致", `${qualified}銘柄`],
+        ["監視候補", `${watched}銘柄`],
+        ["投入上限", `${totalAllocation.toLocaleString("ja-JP")}円`],
+        [`週${Math.round(targetReturn * 100)}%値幅 / 損切り上限`, `+${Math.round(totalAllocation * targetReturn).toLocaleString("ja-JP")}円 / -${Math.round(totalAllocation * stopLimit).toLocaleString("ja-JP")}円`],
+      ].map(([label, value]) => `
+        <div class="weekly-target-stat">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
+        </div>
+      `).join("");
+      el.weeklyTargetButtons.forEach(button => {
+        button.classList.toggle("active", button.dataset.weeklyTargetMode === state.weeklyTargetMode);
+      });
+    }
+
     function syncLabels() {
       const profile = breakoutProfile();
       const viewLabels = {
         overall: ["総合ランキング", "スコア上位を毎日更新します"],
+        weekly: ["週5%候補", "20万円・100株単位で、1〜2銘柄に絞るための条件適合度を表示します"],
         breakout: [`新高値ブレイク（${profile.label}）`, profile.note],
         theme: ["テーマ別ランキング", "選択したテーマのスコア上位5銘柄を表示します"],
         industry: ["業種別ランキング", "選択した業種のスコア上位5銘柄を表示します"],
@@ -5327,7 +5577,10 @@
       const [title, note] = viewLabels[state.view] || viewLabels.overall;
       el.rankingTitle.textContent = title;
       el.rankingNote.textContent = note;
+      const rankingTable = el.rows.closest("table");
+      if (rankingTable) rankingTable.dataset.view = state.view;
       el.overallView.classList.toggle("active", state.view === "overall");
+      el.weeklyTargetView.classList.toggle("active", state.view === "weekly");
       el.breakoutView.classList.toggle("active", state.view === "breakout");
       el.themeView.classList.toggle("active", state.view === "theme");
       el.industryView.classList.toggle("active", state.view === "industry");
@@ -5335,6 +5588,7 @@
       el.limit10.classList.toggle("active", state.limit === 10);
       el.limit20.classList.toggle("active", state.limit === 20);
       el.nikkeiUniverse.classList.toggle("active", state.universe === "nikkei225");
+      el.sortBy.disabled = state.view === "weekly";
       syncFilterControls();
     }
 
@@ -5343,6 +5597,7 @@
       pruneCompareCodes();
       renderGroupFilter();
       renderBreakoutFilter();
+      renderWeeklyTargetFilter();
       const rows = currentRows();
       renderRows(rows);
       renderWatchAlerts();
@@ -5355,11 +5610,12 @@
 
     function downloadCsv() {
       const rows = currentRows();
-      const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "現在順位", "前日順位差", "スコア変化", "信用倍率", "前回高値から", "52週高値更新", "次イベントまで", "ATR14", "20日安値", "参考損切り価格", "参考損切り幅", "平均売買代金", "売上高成長率", "利益成長率", "PER", "PBR", "ROE", "割安・収益性", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
+      const header = ["分類", "コード", "銘柄", "テーマ", "業種", "総合スコア", "週5%適合度", "週5%判定", "100株購入額", "週5%目標額", "損切り上限額", "主な未達条件", "現在順位", "前日順位差", "スコア変化", "信用倍率", "前回高値から", "52週高値更新", "次イベントまで", "ATR14", "20日安値", "参考損切り価格", "参考損切り幅", "平均売買代金", "売上高成長率", "利益成長率", "PER", "PBR", "ROE", "割安・収益性", "流動性", "相対強度", "業績", "リスク", "判定", "ウォッチ"];
       const body = rows.map(item => {
         const [label] = statusFor(item);
         const groupLabel = item.groupLabel ? `${item.groupLabel} ${item.groupRank || 1}位` : "";
-        return [groupLabel, item.code, item.name, item.themes.join("/"), item.industry || "", item.score, item.rank ?? "", item.rankChange ?? "", item.scoreChange ?? "", item.margin, item.monthsFromHigh, item.isNewHigh52w ? "更新" : "", item.nextEventDays ?? "", item.atr14 ?? "", item.recentLow20 ?? "", item.suggestedStopPrice ?? "", item.suggestedStopWidth ?? "", item.averageTurnover20 ?? "", valueFrom(item, ["salesGrowth"]) ?? "", valueFrom(item, ["profitGrowth"]) ?? "", valueFrom(item, ["per", "PER"]) ?? "", valueFrom(item, ["pbr", "PBR"]) ?? "", valueFrom(item, ["roe", "ROE"]) ?? "", item.valuation ?? "", item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
+        const weeklyProfile = weeklyTargetProfile(item);
+        return [groupLabel, item.code, item.name, item.themes.join("/"), item.industry || "", item.score, weeklyProfile?.score ?? "", weeklyProfile?.status ?? "", weeklyProfile?.estimatedCostYen ?? "", weeklyProfile?.targetProfitYen ?? "", weeklyProfile?.stopLossYen ?? "", weeklyProfile?.blockers?.[0] ?? "", item.rank ?? "", item.rankChange ?? "", item.scoreChange ?? "", item.margin, item.monthsFromHigh, item.isNewHigh52w ? "更新" : "", item.nextEventDays ?? "", item.atr14 ?? "", item.recentLow20 ?? "", item.suggestedStopPrice ?? "", item.suggestedStopWidth ?? "", item.averageTurnover20 ?? "", valueFrom(item, ["salesGrowth"]) ?? "", valueFrom(item, ["profitGrowth"]) ?? "", valueFrom(item, ["per", "PER"]) ?? "", valueFrom(item, ["pbr", "PBR"]) ?? "", valueFrom(item, ["roe", "ROE"]) ?? "", item.valuation ?? "", item.liquidity, item.relative, item.earnings, item.risk, label, watchedCodes.has(String(item.code)) ? "追加済み" : ""];
       });
       const csv = [header, ...body].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\n");
       const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
@@ -5373,6 +5629,10 @@
 
     el.overallView.addEventListener("click", () => {
       state.view = "overall";
+      render();
+    });
+    el.weeklyTargetView.addEventListener("click", () => {
+      state.view = "weekly";
       render();
     });
     el.breakoutView.addEventListener("click", () => {
@@ -5433,6 +5693,12 @@
     el.breakoutButtons.forEach(button => {
       button.addEventListener("click", () => {
         state.breakoutMode = button.dataset.breakoutMode || "strict";
+        render();
+      });
+    });
+    el.weeklyTargetButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        state.weeklyTargetMode = button.dataset.weeklyTargetMode || "single";
         render();
       });
     });

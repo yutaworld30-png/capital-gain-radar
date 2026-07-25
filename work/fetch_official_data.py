@@ -49,6 +49,7 @@ from edinet_connector import (
     parse_financial_metrics_from_xbrl,
 )
 from market_breadth import build_nikkei225_breadth
+from weekly_target import attach_weekly_targets
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -2135,6 +2136,7 @@ def main() -> None:
     _attach_candidate_source_statuses(dataset)
     _attach_event_summaries(dataset, generated_at)
     _attach_scores(dataset)
+    attach_weekly_targets(dataset)
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     sources = dataset["sources"]  # type: ignore[assignment]
