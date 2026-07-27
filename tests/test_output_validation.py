@@ -16,22 +16,38 @@ from validate_output import validate_dataset, validate_history  # noqa: E402
 class OutputValidationTest(unittest.TestCase):
     def valid_dataset(self) -> dict[str, object]:
         today = date(2026, 7, 14)
-        components = [{"code": f"{1000 + index:04d}", "name": f"fixture-{index}"} for index in range(225)]
+        components = [{"code": f"{1000 + index:04d}", "name": f"fixture-{index}"} for index in range(1500)]
         sources = {
             key: {"status": "available", "asOf": today.isoformat()}
-            for key in ("nikkei225", "primeMarket", "marginWeekly", "priceHistory", "themeNews", "fundamentals")
+            for key in ("topix", "marginWeekly", "priceHistory", "themeNews", "fundamentals")
         }
         return {
             "schemaVersion": 2,
-            "universe": {"id": "nikkei225", "expectedCount": 225},
-            "scoreVersion": "2.1.0",
-            "factorVersion": "nikkei225-capital-gain-v2.1",
+            "generatedAt": "2026-07-14T16:10:00+09:00",
+            "universe": {"id": "topix", "expectedCount": 1500},
+            "scoreVersion": "3.0.0",
+            "factorVersion": "topix-capital-gain-v3.0",
             "priceBasis": "adjusted-ohlc",
             "highLookbackDays": 252,
-            "nikkei225Components": components,
+            "topixComponents": components,
+            "priceHistoryBundle": {
+                "status": "available",
+                "generatedAt": "2026-07-14T16:10:00+09:00",
+                "scoreVersion": "3.0.0",
+                "factorVersion": "topix-capital-gain-v3.0",
+                "priceBasis": "adjusted-ohlc",
+                "highLookbackDays": 252,
+                "recordCount": 1500,
+                "shards": [{
+                    "key": "1",
+                    "url": "data/price-history/topix-1.json",
+                    "recordCount": 1500,
+                }],
+            },
             "sources": sources,
             "searchUniverse": [{
                 "code": "1000",
+                "isTopix": True,
                 "score": 70,
                 "supply": 80,
                 "valuation": 60,
@@ -42,8 +58,8 @@ class OutputValidationTest(unittest.TestCase):
                     "negative": ["a", "b", "c"],
                     "quality": ["a", "b", "c"],
                 },
-                "scoreVersion": "2.1.0",
-                "factorVersion": "nikkei225-capital-gain-v2.1",
+                "scoreVersion": "3.0.0",
+                "factorVersion": "topix-capital-gain-v3.0",
                 "priceBasis": "adjusted-ohlc",
                 "highLookbackDays": 252,
             }],
@@ -54,12 +70,12 @@ class OutputValidationTest(unittest.TestCase):
 
     def test_stale_source_and_wrong_component_count_fail(self) -> None:
         payload = self.valid_dataset()
-        payload["nikkei225Components"] = payload["nikkei225Components"][:-1]
+        payload["topixComponents"] = payload["topixComponents"][:-1]
         payload["sources"]["priceHistory"]["asOf"] = (date(2026, 7, 14) - timedelta(days=8)).isoformat()
 
         errors = validate_dataset(payload, today=date(2026, 7, 14))
 
-        self.assertTrue(any("225件" in error for error in errors))
+        self.assertTrue(any("ユニバース契約" in error for error in errors))
         self.assertTrue(any("7日超" in error for error in errors))
 
     def test_missing_persisted_score_fails(self) -> None:
@@ -67,6 +83,12 @@ class OutputValidationTest(unittest.TestCase):
         payload["searchUniverse"][0].pop("score")
 
         self.assertTrue(any("score" in error for error in validate_dataset(payload, today=date(2026, 7, 14))))
+
+    def test_missing_price_history_bundle_fails(self) -> None:
+        payload = self.valid_dataset()
+        payload.pop("priceHistoryBundle")
+
+        self.assertTrue(any("価格履歴契約" in error for error in validate_dataset(payload, today=date(2026, 7, 14))))
 
     def test_history_rejects_mixed_factor_versions(self) -> None:
         dataset = self.valid_dataset()

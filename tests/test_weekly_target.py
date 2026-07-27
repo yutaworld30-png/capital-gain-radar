@@ -90,7 +90,7 @@ class WeeklyTargetTests(unittest.TestCase):
         first = qualified_row()
         second = dict(first)
         dataset = {
-            "nikkei225Prices": [{"code": "9999", "chartHistory": chart_history()}],
+            "topixPrices": [{"code": "9999", "chartHistory": chart_history()}],
             "searchUniverse": [first],
             "candidates": [second],
         }
@@ -100,6 +100,19 @@ class WeeklyTargetTests(unittest.TestCase):
         self.assertEqual(dataset["weeklyTargetPolicy"]["version"], WEEKLY_TARGET_VERSION)
         self.assertEqual(first["weeklyTarget"]["version"], WEEKLY_TARGET_VERSION)
         self.assertEqual(second["weeklyTarget"]["version"], WEEKLY_TARGET_VERSION)
+
+    def test_compact_chart_rows_are_supported(self) -> None:
+        compact_history = [
+            [row["date"], row["open"], row["high"], row["low"], row["close"], row["volume"]]
+            for row in chart_history()
+        ]
+        result = build_weekly_target(
+            qualified_row(),
+            {"chartHistory": compact_history},
+        )
+
+        self.assertIsNotNone(result["metrics"]["ma75"])
+        self.assertIsNotNone(result["metrics"]["rsi14"])
 
 
 if __name__ == "__main__":

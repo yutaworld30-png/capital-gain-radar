@@ -1,12 +1,14 @@
 # Capital Gain Radar
 
-Daily Nikkei 225 stock screening app for capital gain candidates.
+Daily TOPIX stock screening app for capital gain candidates.
 
-- Universe: Nikkei 225 only
-- Score contract: `scoreVersion=2.1.0`, `factorVersion=nikkei225-capital-gain-v2.1`
+- Universe: TOPIX constituents identified from the JPX listed-company file
+- Score contract: `scoreVersion=3.0.0`, `factorVersion=topix-capital-gain-v3.0`
 - Current score history: `outputs/data/score-history-v2.json`
 - Legacy/reconstructed history remains in `score-history.json` and is not loaded by the app.
 - Pages workflow runs unit tests and `work/validate_output.py` before uploading generated files.
+- Evidence-backed themes come from recent news, TDnet disclosures, and the curated code map. Other stocks receive a clearly labelled JPX-industry reference category; that fallback does not add theme-score points.
+- Ranking data is delivered in `latest-candidates.json`. OHLCV history is split under `outputs/data/price-history/` and loaded only for the selected stock, keeping the first screen lighter.
 
 ## Decision support
 
@@ -23,3 +25,32 @@ Daily Nikkei 225 stock screening app for capital gain candidates.
 - The 25-day advance-decline ratio is derived from the current 225 components. It is marked as a reference because historical membership is not reconstructed.
 - JPX weekly margin/investor data and Nikkei weighted PER stay in `permission-required` state until their public display and processing terms are confirmed.
 - After confirmation, repository variables `JPX_PUBLIC_DATA_USE_CONFIRMED=1` and `NIKKEI_INDEX_DATA_USE_CONFIRMED=1` enable those sources in the Pages workflow.
+
+## Local private mode
+
+- `start-local-private.ps1` first copies the currently verified TOPIX candidate JSON into `.local-data/`, then refreshes Nikkei weighted PER and JPX weekly statistics into `.local-data/nikkei225-analysis.json`. Both files are served to the existing app only on `127.0.0.1`.
+- `.local-data/` is ignored by Git. The Pages validator also rejects any analysis JSON whose `distributionMode` is `local-private`.
+- This mode is intended for personal use on the same PC. It must not be exposed to a LAN, committed, shared, or deployed. Local-only operation does not itself determine whether a data license is required.
+- Start from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-local-private.ps1
+```
+
+- Open `http://127.0.0.1:8766/investment-candidate-app.html`. Stop the foreground server with `Ctrl+C`.
+- If Python is not on `PATH`, set `CAPITAL_GAIN_RADAR_PYTHON` to the absolute path of `python.exe` before starting.
+
+### Mobile access on the same private Wi-Fi
+
+- `start-mobile-private.ps1` binds the server to one private IPv4 address instead of every network interface.
+- The first run changes only the selected Wi-Fi profile to `Private` and creates a Windows Firewall inbound rule scoped to that address, TCP port, Python executable, Private profile, and `LocalSubnet`.
+- LAN mode requires a password of at least eight characters. The launcher generates a 12-character password and shows it only in the foreground PowerShell window. Login attempts are rate-limited after five failures in one minute.
+- Start from PowerShell and approve the Windows administrator confirmation on the first run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-mobile-private.ps1
+```
+
+- On Windows, `start-mobile-private.cmd` can be double-clicked instead. Keep its console window open while using the app.
+- Connect the PC and phone to the same trusted Wi-Fi, open the displayed `http://192.168.x.x:8768/` URL, and enter the displayed password.
+- Do not use this mode on public Wi-Fi, configure router port forwarding, or share the URL/password outside the household network.

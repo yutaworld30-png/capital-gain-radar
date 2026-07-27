@@ -922,6 +922,11 @@
       white-space: nowrap;
     }
 
+    .pill.reference {
+      background: #f1f4f7;
+      color: #627083;
+    }
+
     .score {
       display: inline-grid;
       place-items: center;
@@ -1854,7 +1859,7 @@
         <div class="mark">CG</div>
         <div>
           <h1>Capital Gain Radar</h1>
-          <p class="subhead">日経225候補スクリーナー</p>
+          <p class="subhead">TOPIX候補スクリーナー</p>
         </div>
       </div>
 
@@ -1863,7 +1868,7 @@
           <strong>対象銘柄</strong>
         </div>
         <div class="segmented one" aria-label="対象銘柄">
-          <button id="nikkeiUniverse" class="active" type="button">日経225</button>
+          <button id="topixUniverse" class="active" type="button">TOPIX</button>
         </div>
       </div>
 
@@ -1978,7 +1983,7 @@
           </div>
           <div class="guide-body">
             <ol class="guide-list">
-              <li>対象は日経225採用銘柄です。225銘柄の中からランキング候補を確認します。</li>
+              <li>対象はTOPIX構成銘柄です。JPX公式一覧の基準日時点の構成銘柄からランキング候補を確認します。</li>
               <li>総合、週5%候補、新高値ブレイク、テーマ別ランキング、業種別ランキング、ウォッチリストを切り替えて候補を確認します。</li>
               <li>週5%候補では、20万円を元手に100株単位で買える銘柄を、1銘柄運用・2銘柄運用ごとに確認できます。条件一致がなければ無理に買わず、未達理由を確認します。</li>
               <li>新高値ブレイクは、厳選・標準・予備軍の3段階で条件を切り替えて確認できます。</li>
@@ -2000,7 +2005,7 @@
               <div class="score-detail-grid">
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">テーマ性</div><span class="formula-weight">20%</span></div>
-                  <div class="factor-text">直近ニュースやTDnet開示から、資金が集まりやすいテーマとの関連を見ます。</div>
+                  <div class="factor-text">直近ニュースやTDnet開示から、資金が集まりやすいテーマとの関連を見ます。「業種参考」の分類は検索用で、テーマ点へは加点しません。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">需給</div><span class="formula-weight">20%</span></div>
@@ -2012,7 +2017,7 @@
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">相対強度</div><span class="formula-weight">13%</span></div>
-                  <div class="factor-text">20営業日騰落率を、日経225全体40%・同業種60%の順位に直して比較します。</div>
+                  <div class="factor-text">20営業日騰落率を、TOPIX全体40%・同業種60%の順位に直して比較します。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">業績</div><span class="formula-weight">13%</span></div>
@@ -2020,7 +2025,7 @@
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">流動性</div><span class="formula-weight">7%</span></div>
-                  <div class="factor-text">20営業日平均売買代金を、日経225全体40%・同業種60%の順位に直して比較します。</div>
+                  <div class="factor-text">20営業日平均売買代金を、TOPIX全体40%・同業種60%の順位に直して比較します。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">割安・収益性</div><span class="formula-weight">8%</span></div>
@@ -2362,12 +2367,12 @@
 
       <section class="source-strip" aria-label="データ取得状況">
         <div class="source-card">
-          <div class="source-label">日経225市場・業種情報</div>
-          <div class="source-value" id="primeStatus">未読込</div>
+          <div class="source-label">TOPIX構成・市場・業種</div>
+          <div class="source-value" id="topixStatus">未読込</div>
         </div>
         <div class="source-card">
-          <div class="source-label">日経225採用銘柄</div>
-          <div class="source-value" id="nikkeiStatus">未読込</div>
+          <div class="source-label">株価・52週高値</div>
+          <div class="source-value" id="priceStatus">未読込</div>
         </div>
         <div class="source-card">
           <div class="source-label">信用取引週末残高</div>
@@ -2392,7 +2397,7 @@
       </section>
 
       <p class="note">
-        この画面では、検証済みの日経225採用銘柄だけを表示します。採用判定、価格、ニュース、信用取引残高、決算情報を取得し、取得元リンクと更新日時を候補ごとに保存します。最終的な売買判断はご自身の確認が必要です。
+        この画面では、JPX公式一覧で確認したTOPIX構成銘柄だけを表示します。構成判定、価格、ニュース、信用取引残高、決算情報を取得し、取得元リンクと更新日時を候補ごとに保存します。最終的な売買判断はご自身の確認が必要です。
       </p>
     </main>
   </div>
@@ -2401,6 +2406,9 @@
     let candidates = [];
     let searchUniverse = [];
     let priceMetricsByCode = new Map();
+    let priceHistoryShardPromises = new Map();
+    let priceHistoryLoadedShards = new Set();
+    let priceHistoryErrorShards = new Set();
     let officialDataset = null;
     let scoreHistory = null;
     let scoreHistoryLoadPromise = null;
@@ -2420,7 +2428,7 @@
       view: "overall",
       limit: 10,
       sortBy: "score",
-      universe: "nikkei225",
+      universe: "topix",
       query: "",
       selectedCode: "",
       compareCodes: [],
@@ -2485,8 +2493,7 @@
 
     const dataStatus = {
       liveConnected: false,
-      primeLoaded: false,
-      nikkeiLoaded: false,
+      topixLoaded: false,
       marginLoaded: false,
       priceLoaded: false,
       themeLoaded: false,
@@ -2509,7 +2516,7 @@
       marketCapFilter: document.querySelector("#marketCapFilter"),
       liquidityFilter: document.querySelector("#liquidityFilter"),
       filterReset: document.querySelector("#filterReset"),
-      nikkeiUniverse: document.querySelector("#nikkeiUniverse"),
+      topixUniverse: document.querySelector("#topixUniverse"),
       searchBox: document.querySelector("#searchBox"),
       searchSuggestions: document.querySelector("#searchSuggestions"),
       rows: document.querySelector("#candidateRows"),
@@ -2538,8 +2545,8 @@
       importBtn: document.querySelector("#importBtn"),
       dataFile: document.querySelector("#dataFile"),
       refreshBtn: document.querySelector("#refreshBtn"),
-      primeStatus: document.querySelector("#primeStatus"),
-      nikkeiStatus: document.querySelector("#nikkeiStatus"),
+      topixStatus: document.querySelector("#topixStatus"),
+      priceStatus: document.querySelector("#priceStatus"),
       marginStatus: document.querySelector("#marginStatus"),
       edinetStatus: document.querySelector("#edinetStatus"),
       candidateStatus: document.querySelector("#candidateStatus"),
@@ -2796,6 +2803,7 @@
     }
 
     function isAboveMovingAverage(item, period = 25) {
+      if (period === 25 && typeof item?.aboveMa25 === "boolean") return item.aboveMa25;
       const rows = chartRowsFor(item);
       if (rows.length < period) return false;
       const closes = rows.map(row => row.close);
@@ -2896,16 +2904,12 @@
       const existing = Array.isArray(dataset?.qualityChecks) ? dataset.qualityChecks : [];
       const checks = existing.length ? [...existing] : [
         {
-          label: "日経225市場・業種情報",
-          status: dataStatus.primeLoaded ? "available" : "not-connected",
+          label: "TOPIX構成・市場・業種情報",
+          status: dataStatus.topixLoaded ? "available" : "not-connected",
           required: true,
-          message: dataStatus.primeLoaded ? "JPX公式一覧を確認済み" : "公式データの確認が必要です。",
-        },
-        {
-          label: "日経225採用銘柄",
-          status: dataStatus.nikkeiLoaded ? "available" : "not-connected",
-          required: true,
-          message: dataStatus.nikkeiLoaded ? "225銘柄を確認済み" : "公式データの確認が必要です。",
+          message: dataStatus.topixLoaded
+            ? `${Number(dataset?.universe?.expectedCount || 0)}銘柄をJPX公式一覧で確認済み`
+            : "公式データの確認が必要です。",
         },
         {
           label: "信用倍率",
@@ -2920,7 +2924,7 @@
           message: dataset?.sources?.priceHistory?.reason || "信頼できる価格データソースの接続が必要です。",
         },
         {
-          label: "テーマ人気・ニュース",
+          label: "テーマ人気・事業領域",
           status: dataset?.sources?.themeNews?.status || "not-connected",
           required: true,
           message: dataset?.sources?.themeNews?.reason || "ニュースとテーマ判定データの接続が必要です。",
@@ -3015,6 +3019,75 @@
       }
       await scoreHistoryLoadPromise;
       render();
+    }
+
+    function priceHistoryShardEntry(code) {
+      const bundle = officialDataset?.priceHistoryBundle;
+      const shards = Array.isArray(bundle?.shards) ? bundle.shards : [];
+      const key = String(code || "").trim().charAt(0).toUpperCase();
+      return shards.find(item => String(item?.key || "").toUpperCase() === key) || null;
+    }
+
+    function priceHistoryStateFor(code) {
+      if (priceMetricsByCode.has(String(code))) return "available";
+      const entry = priceHistoryShardEntry(code);
+      if (!entry) return "unavailable";
+      const key = String(entry.key || "").toUpperCase();
+      if (priceHistoryErrorShards.has(key)) return "error";
+      if (priceHistoryShardPromises.has(key)) return "loading";
+      return "not-loaded";
+    }
+
+    async function loadPriceHistoryShard(entry) {
+      const key = String(entry?.key || "").toUpperCase();
+      const url = String(entry?.url || "");
+      if (!key || !/^data\/price-history\/topix-[0-9A-Z_]+\.json$/.test(url)) {
+        throw new Error("価格履歴ファイルの参照先が不正です。");
+      }
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const loaded = await response.json();
+      if (
+        loaded?.generatedAt !== officialDataset?.generatedAt ||
+        loaded?.scoreVersion !== officialDataset?.scoreVersion ||
+        loaded?.factorVersion !== officialDataset?.factorVersion ||
+        loaded?.priceBasis !== officialDataset?.priceBasis ||
+        loaded?.highLookbackDays !== officialDataset?.highLookbackDays ||
+        String(loaded?.shardKey || "").toUpperCase() !== key ||
+        !Array.isArray(loaded?.prices)
+      ) {
+        throw new Error("価格履歴の生成版がランキングデータと一致しません。");
+      }
+      loaded.prices.forEach(item => {
+        const code = String(item?.code || "");
+        if (code.charAt(0).toUpperCase() === key && Array.isArray(item?.chartHistory)) {
+          priceMetricsByCode.set(code, item);
+        }
+      });
+      priceHistoryLoadedShards.add(key);
+      priceHistoryErrorShards.delete(key);
+    }
+
+    async function ensurePriceHistoryLoaded(code) {
+      const normalizedCode = String(code || "");
+      if (!normalizedCode || priceMetricsByCode.has(normalizedCode)) return;
+      const entry = priceHistoryShardEntry(normalizedCode);
+      if (!entry) return;
+      const key = String(entry.key || "").toUpperCase();
+      if (priceHistoryErrorShards.has(key)) return;
+      let promise = priceHistoryShardPromises.get(key);
+      if (!promise) {
+        promise = loadPriceHistoryShard(entry)
+          .catch(() => {
+            priceHistoryErrorShards.add(key);
+          })
+          .finally(() => {
+            priceHistoryShardPromises.delete(key);
+          });
+        priceHistoryShardPromises.set(key, promise);
+      }
+      await promise;
+      if (state.detailTab === "chart") render();
     }
 
     function formatBacktestValue(kpi) {
@@ -3983,46 +4056,62 @@
 
     function applyDataset(dataset, sourceLabel) {
       officialDataset = dataset;
+      priceHistoryShardPromises = new Map();
+      priceHistoryLoadedShards = new Set();
+      priceHistoryErrorShards = new Set();
       const sources = dataset?.sources || {};
-      const prime = sources.primeMarket || {};
-      const nikkei = sources.nikkei225 || {};
+      const topix = sources.topix || {};
       const margin = sources.marginWeekly || {};
       const price = sources.priceHistory || {};
       const theme = sources.themeNews || {};
       const fundamentals = sources.fundamentals || {};
       const edinet = sources.edinetFundamentals || {};
-      const rawCandidates = Array.isArray(dataset?.candidates) ? dataset.candidates : [];
-      const rawSearchUniverse = Array.isArray(dataset?.searchUniverse) ? dataset.searchUniverse : rawCandidates;
-      const rawPrices = Array.isArray(dataset?.nikkei225Prices) ? dataset.nikkei225Prices : [];
+      const rawSearchUniverse = Array.isArray(dataset?.searchUniverse) ? dataset.searchUniverse : [];
+      const rawCandidates = Array.isArray(dataset?.candidates) && dataset.candidates.length
+        ? dataset.candidates
+        : rawSearchUniverse;
+      const rawPrices = Array.isArray(dataset?.topixPrices) ? dataset.topixPrices : [];
+      const priceBundle = dataset?.priceHistoryBundle || {};
+      const priceDeliveryValid = rawPrices.length > 0 || Boolean(
+        priceBundle?.status === "available" &&
+        priceBundle?.generatedAt === dataset?.generatedAt &&
+        priceBundle?.scoreVersion === dataset?.scoreVersion &&
+        priceBundle?.factorVersion === dataset?.factorVersion &&
+        Array.isArray(priceBundle?.shards) &&
+        priceBundle.shards.length > 0
+      );
       const fieldCheckedCandidates = rawCandidates.filter(hasRequiredCandidateFields);
       const loadedCandidates = fieldCheckedCandidates.filter(hasCandidateEvidence).map(normalizeStock);
       const loadedSearchUniverse = rawSearchUniverse.filter(hasRequiredCandidateFields).map(normalizeStock);
 
       const sourceIsCurrent = source => source?.status === "available" && source?.refreshStatus !== "error";
-      dataStatus.primeLoaded = sourceIsCurrent(prime) && Array.isArray(dataset?.primeMarketComponents) && dataset.primeMarketComponents.length === 225;
-      dataStatus.nikkeiLoaded = sourceIsCurrent(nikkei) && Array.isArray(dataset?.nikkei225Components) && dataset.nikkei225Components.length === 225;
+      const expectedCount = Number(dataset?.universe?.expectedCount || 0);
+      dataStatus.topixLoaded = sourceIsCurrent(topix)
+        && expectedCount >= 1500
+        && expectedCount <= 2000
+        && Array.isArray(dataset?.topixComponents)
+        && dataset.topixComponents.length === expectedCount;
       dataStatus.marginLoaded = sourceIsCurrent(margin) && (margin.scope === "per-issue" || margin.hasPerIssueData === true);
-      dataStatus.priceLoaded = sourceIsCurrent(price);
+      dataStatus.priceLoaded = sourceIsCurrent(price) && priceDeliveryValid;
       dataStatus.themeLoaded = sourceIsCurrent(theme);
       dataStatus.fundamentalsLoaded = sourceIsCurrent(fundamentals);
       dataStatus.scoreContractLoaded = Boolean(
         Number(dataset?.schemaVersion) >= 2 &&
-        dataset?.universe?.id === "nikkei225" &&
+        dataset?.universe?.id === "topix" &&
         dataset?.scoreVersion &&
         dataset?.factorVersion &&
         dataset?.priceBasis === "adjusted-ohlc" &&
         dataset?.highLookbackDays === 252
       );
       dataStatus.liveConnected = loadedSearchUniverse.length > 0
-        && dataStatus.primeLoaded
-        && dataStatus.nikkeiLoaded
+        && dataStatus.topixLoaded
         && dataStatus.marginLoaded
         && dataStatus.priceLoaded
         && dataStatus.themeLoaded
         && dataStatus.fundamentalsLoaded
         && dataStatus.scoreContractLoaded;
       dataStatus.message = dataStatus.liveConnected
-        ? "日経225の検証済みデータ表示中"
+        ? `TOPIXの検証済みデータ表示中（${loadedSearchUniverse.length}銘柄）`
         : (dataStatus.scoreContractLoaded ? "候補算出に必要なデータ待ち" : "スコア定義を確認できないため非表示");
       candidates = dataStatus.liveConnected ? loadedCandidates : [];
       searchUniverse = dataStatus.liveConnected ? loadedSearchUniverse : [];
@@ -4043,13 +4132,13 @@
         invalid: rawSearchUniverse.length - loadedSearchUniverse.length,
       };
 
-      el.primeStatus.innerHTML = dataStatus.primeLoaded
-        ? `<a class="source-link" href="${escapeHtml(prime.url)}" target="_blank" rel="noreferrer">公式</a> / ${dataset.primeMarketComponents.length}銘柄 / 基準 ${escapeHtml(formatDate(prime.asOf))}`
+      el.topixStatus.innerHTML = dataStatus.topixLoaded
+        ? `<a class="source-link" href="${escapeHtml(topix.url)}" target="_blank" rel="noreferrer">公式</a> / ${dataset.topixComponents.length}銘柄 / 基準 ${escapeHtml(formatDate(topix.asOf))}`
         : `<span class="badge warn">未取得</span>`;
 
-      el.nikkeiStatus.innerHTML = dataStatus.nikkeiLoaded
-        ? `<a class="source-link" href="${escapeHtml(nikkei.url)}" target="_blank" rel="noreferrer">公式</a> / ${dataset.nikkei225Components.length}銘柄 / ${escapeHtml(formatDate(nikkei.updatedAt || nikkei.checkedAt))}`
-        : `<span class="badge warn">未取得</span>`;
+      el.priceStatus.innerHTML = dataStatus.priceLoaded
+        ? `<a class="source-link" href="${escapeHtml(price.url)}" target="_blank" rel="noreferrer">取得元</a> / ${Number(price.recordCount || 0)}銘柄 / 基準 ${escapeHtml(formatDate(price.asOf))}`
+        : `<span class="badge warn">${escapeHtml(price.reason || "株価未取得")}</span>`;
 
       el.marginStatus.innerHTML = dataStatus.marginLoaded
         ? `<a class="source-link" href="${escapeHtml(margin.url)}" target="_blank" rel="noreferrer">公式</a> / 基準 ${escapeHtml(formatDate(margin.asOf))} / 公表 ${escapeHtml(formatDate(margin.updatedAt || margin.checkedAt))}`
@@ -4080,7 +4169,8 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         applyDataset(await response.json(), "公式データ読込");
       } catch (error) {
-        el.nikkeiStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
+        el.topixStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
+        el.priceStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
         el.marginStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
         el.edinetStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
         el.candidateStatus.innerHTML = `<span class="badge warn">JSON取込待ち</span>`;
@@ -4127,7 +4217,7 @@
     function matches(item) {
       const haystack = `${item.code} ${item.name} ${item.themes.join(" ")} ${item.industry || ""}`.toLowerCase();
       const queryMatch = haystack.includes(state.query.toLowerCase());
-      const universeMatch = item.isNikkei225 === true;
+      const universeMatch = item.isTopix === true;
       return dataStatus.liveConnected && universeMatch && queryMatch && savedFilterMatches(item);
     }
 
@@ -4139,7 +4229,7 @@
       const query = state.query.trim().toLowerCase();
       if (!dataStatus.liveConnected || !state.searchOpen || query.length < 1) return [];
       return searchUniverse
-        .filter(item => item.isNikkei225 === true)
+        .filter(item => item.isTopix === true)
         .filter(item => searchText(item).includes(query))
         .slice(0, 8);
     }
@@ -4165,7 +4255,7 @@
       el.searchSuggestions.hidden = false;
       el.searchSuggestions.innerHTML = suggestions.map((item, index) => {
         const activeClass = index === state.activeSuggestionIndex ? " active" : "";
-        const market = "日経225";
+        const market = item.exchangeSection ? `TOPIX / ${item.exchangeSection}` : "TOPIX";
         return `
           <button id="searchSuggestion${index}" class="suggestion-button${activeClass}" type="button" role="option" aria-selected="${index === state.activeSuggestionIndex}" data-code="${escapeHtml(item.code)}">
             <span class="suggestion-main"><span>${escapeHtml(item.code)} ${escapeHtml(item.name)}</span><span>${escapeHtml(market)}</span></span>
@@ -4201,12 +4291,12 @@
       const rows = Array.isArray(metrics?.chartHistory) ? metrics.chartHistory : [];
       return rows
         .map(row => ({
-          date: String(row.date || ""),
-          open: Number(row.open),
-          high: Number(row.high),
-          low: Number(row.low),
-          close: Number(row.close),
-          volume: Number(row.volume),
+          date: String(Array.isArray(row) ? row[0] || "" : row.date || ""),
+          open: Number(Array.isArray(row) ? row[1] : row.open),
+          high: Number(Array.isArray(row) ? row[2] : row.high),
+          low: Number(Array.isArray(row) ? row[3] : row.low),
+          close: Number(Array.isArray(row) ? row[4] : row.close),
+          volume: Number(Array.isArray(row) ? row[5] : row.volume),
         }))
         .filter(row => row.date && Number.isFinite(row.close) && row.close > 0);
     }
@@ -5219,7 +5309,7 @@
                 ${evidenceLink(item.sources?.edinet, "EDINET")}
               </div>
             </td>
-            <td><div class="pill-row">${item.themes.map(t => `<span class="pill">${escapeHtml(t)}</span>`).join("")}</div></td>
+            <td><div class="pill-row">${item.themes.map(t => `<span class="pill ${item.themeBasis === "jpx-industry-proxy" ? "reference" : ""}" title="${item.themeBasis === "jpx-industry-proxy" ? "JPX業種から付けた参考分類。テーマ点への加点なし" : "ニュース・TDnet等の根拠テーマ"}">${escapeHtml(t)}</span>`).join("")}</div></td>
             <td>${escapeHtml(item.industry || "業種未分類")}</td>
             <td>
               <span class="score">${item.score}</span>
@@ -5353,7 +5443,7 @@
         return;
       }
       const counts = new Map();
-      searchUniverse.filter(item => item.isNikkei225 === true).forEach(item => {
+      searchUniverse.filter(item => item.isTopix === true).forEach(item => {
         item.themes.forEach(theme => {
           const current = counts.get(theme) || { total: 0, score: 0 };
           current.total += 1;
@@ -5388,6 +5478,15 @@
 
       const priceMetrics = priceMetricsByCode.get(String(item.code)) || {};
       const chartRows = chartRowsFor(item);
+      const priceHistoryState = priceHistoryStateFor(item.code);
+      if (
+        state.detailTab === "chart" &&
+        priceHistoryState !== "available" &&
+        priceHistoryState !== "error" &&
+        priceHistoryState !== "unavailable"
+      ) {
+        void ensurePriceHistoryLoaded(item.code);
+      }
       const hasEnoughChartRows = chartRows.length >= 50;
 
       const closes = chartRows.map(row => row.close);
@@ -5413,7 +5512,7 @@
       el.technicalEmpty.hidden = true;
       el.technicalBody.hidden = false;
       el.selectedName.textContent = item.name;
-      el.selectedCode.textContent = `${item.code} / ${item.industry || "業種未分類"} / 日経225`;
+      el.selectedCode.textContent = `${item.code} / ${item.industry || "業種未分類"} / ${item.exchangeSection || "市場区分未取得"} / TOPIX`;
       el.selectedJudgement.textContent = label;
       el.selectedJudgement.className = `badge ${className === "good" ? "ok" : "warn"}`;
       el.fundamentalTab.classList.toggle("active", state.detailTab === "fundamental");
@@ -5439,7 +5538,11 @@
       ].map(([color, text]) => `
         <span class="legend-item"><span class="legend-line" style="background:${color}"></span>${escapeHtml(text)}</span>
       `).join("");
-      el.chartNote.textContent = !hasEnoughChartRows
+      el.chartNote.textContent = priceHistoryState === "loading" || priceHistoryState === "not-loaded"
+        ? "選択した銘柄のチャート履歴だけを読み込んでいます。ランキングの初回表示は軽量化されています。"
+        : priceHistoryState === "error"
+        ? "この銘柄のチャート履歴を読み込めませんでした。データ更新後にもう一度確認してください。"
+        : !hasEnoughChartRows
         ? "この銘柄はチャート表示に必要な価格履歴が不足しています。スコア推移は履歴データがあれば確認できます。"
         : hasOhlc
         ? "この銘柄は詳細OHLCVを取得済みのため、ローソク足・出来高・RSI・MACDを表示しています。"
@@ -5587,7 +5690,7 @@
       el.watchlistView.classList.toggle("active", state.view === "watchlist");
       el.limit10.classList.toggle("active", state.limit === 10);
       el.limit20.classList.toggle("active", state.limit === 20);
-      el.nikkeiUniverse.classList.toggle("active", state.universe === "nikkei225");
+      el.topixUniverse.classList.toggle("active", state.universe === "topix");
       el.sortBy.disabled = state.view === "weekly";
       syncFilterControls();
     }
@@ -5702,8 +5805,8 @@
         render();
       });
     });
-    el.nikkeiUniverse.addEventListener("click", () => {
-      state.universe = "nikkei225";
+    el.topixUniverse.addEventListener("click", () => {
+      state.universe = "topix";
       render();
     });
     el.searchBox.addEventListener("input", event => {

@@ -1,2 +1,6 @@
 __pycache__/
 *.py[cod]
+.local-data/
+work/tmp/
+outputs/data/latest-candidates.json
+outputs/data/price-history/

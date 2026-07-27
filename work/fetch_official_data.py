@@ -6,6 +6,7 @@ import re
 import time
 import zipfile
 import xlrd
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
@@ -39,6 +40,7 @@ from tdnet_connector import (
     analyze_disclosures,
     fetch_recent_disclosures,
     fetch_theme_news_counts,
+    industry_theme,
 )
 from edinet_connector import (
     EDINET_DOCUMENTS_URL,
@@ -55,6 +57,7 @@ from weekly_target import attach_weekly_targets
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "outputs" / "data" / "latest-candidates.json"
 SCORE_HISTORY_OUTPUT = ROOT / "outputs" / "data" / "score-history-v2.json"
+PRICE_HISTORY_DIR = ROOT / "outputs" / "data" / "price-history"
 PDF_INSPECTION_DIR = ROOT / "work" / "tmp" / "pdfs"
 PAGES_BASE_URL = "https://yutaworld30-png.github.io/capital-gain-radar"
 NIKKEI_URL = "https://indexes.nikkei.co.jp/en/nkave/index/component?idx=nk225"
@@ -63,10 +66,12 @@ JPX_LIST_FILE_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdi
 JPX_MARGIN_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin/05.html"
 JPX_MARGIN_INDEX_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin/index.html"
 SCHEMA_VERSION = 2
-SCORE_VERSION = "2.1.0"
-FACTOR_VERSION = "nikkei225-capital-gain-v2.1"
+SCORE_VERSION = "3.0.0"
+FACTOR_VERSION = "topix-capital-gain-v3.0"
 PRICE_BASIS = "adjusted-ohlc"
 HIGH_LOOKBACK_DAYS = 252
+TOPIX_MIN_COMPONENTS = 1500
+TOPIX_MAX_COMPONENTS = 2000
 SOURCE_FRESHNESS_DAYS = {
     "priceHistory": 7,
     "marginRatio": 14,
@@ -93,13 +98,14 @@ IMPORTANT_DISCLOSURE_KEYWORDS = (
 )
 
 
-def scoring_contract_metadata() -> dict[str, object]:
+def scoring_contract_metadata(expected_count: int | None = None) -> dict[str, object]:
     return {
         "schemaVersion": SCHEMA_VERSION,
         "universe": {
-            "id": "nikkei225",
-            "label": "日経225",
-            "expectedCount": 225,
+            "id": "topix",
+            "label": "TOPIX",
+            "expectedCount": expected_count,
+            "membershipBasis": "JPX上場銘柄一覧の規模区分",
         },
         "scoreVersion": SCORE_VERSION,
         "factorVersion": FACTOR_VERSION,
@@ -202,20 +208,22 @@ def parse_nikkei_components(html: str) -> list[dict[str, str]]:
     return unique
 
 
-def parse_prime_components(content: bytes, nikkei_codes: set[str]) -> tuple[list[dict[str, object]], str]:
+def parse_topix_components(content: bytes, nikkei_codes: set[str]) -> tuple[list[dict[str, object]], str]:
     workbook = xlrd.open_workbook(file_contents=content)
     sheet = workbook.sheet_by_index(0)
     headers = [str(value).strip() for value in sheet.row_values(0)]
-    required = {"日付", "コード", "銘柄名", "市場・商品区分"}
+    required = {"日付", "コード", "銘柄名", "市場・商品区分", "規模区分"}
     if not required.issubset(headers):
         raise ValueError("JPX上場銘柄一覧の列構成を確認できません。")
     indexes = {name: headers.index(name) for name in required}
     components: list[dict[str, object]] = []
+    seen: set[str] = set()
     as_of = ""
     for row_index in range(1, sheet.nrows):
         row = sheet.row_values(row_index)
         market = str(row[indexes["市場・商品区分"]]).strip()
-        if not market.startswith("プライム"):
+        topix_size = str(row[indexes["規模区分"]]).strip()
+        if not topix_size.startswith("TOPIX "):
             continue
         raw_code = row[indexes["コード"]]
         code = str(int(raw_code)) if isinstance(raw_code, float) and raw_code.is_integer() else str(raw_code).strip()
@@ -224,9 +232,9 @@ def parse_prime_components(content: bytes, nikkei_codes: set[str]) -> tuple[list
         date_text = str(int(raw_date)) if isinstance(raw_date, float) and raw_date.is_integer() else str(raw_date)
         if re.fullmatch(r"\d{8}", date_text):
             as_of = f"{date_text[:4]}-{date_text[4:6]}-{date_text[6:]}"
-        if code in nikkei_codes and re.fullmatch(r"[0-9A-Z]{4}", code) and name:
+        if code not in seen and re.fullmatch(r"[0-9A-Z]{4}", code) and name:
             industry = ""
-            for header_name in ("33業種区分", "17業種区分", "規模区分"):
+            for header_name in ("33業種区分", "17業種区分"):
                 if header_name in headers:
                     industry = str(row[headers.index(header_name)]).strip()
                     if industry and industry != "-":
@@ -234,10 +242,14 @@ def parse_prime_components(content: bytes, nikkei_codes: set[str]) -> tuple[list
             components.append({
                 "code": code,
                 "name": name,
-                "market": "日経225",
+                "market": "TOPIX",
+                "exchangeSection": market.split("（", 1)[0],
                 "industry": industry or "業種未分類",
+                "topixSize": topix_size,
+                "isTopix": True,
                 "isNikkei225": code in nikkei_codes,
             })
+            seen.add(code)
     return components, as_of
 
 
@@ -412,12 +424,16 @@ def collect_jquants_metrics(dataset: dict[str, object], generated_at: str) -> bo
     price_source = sources["priceHistory"]  # type: ignore[index]
     financial_source = sources["fundamentals"]  # type: ignore[index]
     api_key = os.environ.get("JQUANTS_API_KEY", "").strip()
-    if not api_key:
+    topix_opt_in = os.environ.get("JQUANTS_TOPIX_ENABLED", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    if not api_key or not topix_opt_in:
         return False
 
-    components = dataset.get("nikkei225Components")
-    if not isinstance(components, list) or len(components) != 225:
-        reason = "日経225構成銘柄の検証が完了していないため、J-Quants取得を停止しました。"
+    components = dataset.get("topixComponents")
+    expected_count = len(components) if isinstance(components, list) else 0
+    if not isinstance(components, list) or not (TOPIX_MIN_COMPONENTS <= expected_count <= TOPIX_MAX_COMPONENTS):
+        reason = "TOPIX構成銘柄の検証が完了していないため、J-Quants取得を停止しました。"
         price_source["status"] = "blocked"
         price_source["reason"] = reason
         financial_source["status"] = "blocked"
@@ -455,10 +471,23 @@ def collect_jquants_metrics(dataset: dict[str, object], generated_at: str) -> bo
         item for item in price_metrics
         if not item.get("asOf") or (today - date.fromisoformat(str(item["asOf"]))).days > 7
     ]
-    price_ok = len(price_metrics) == 225 and not stale_prices and not price_errors
-    financial_ok = len(financial_metrics) == 225 and not financial_errors
-    dataset["nikkei225Prices"] = price_metrics
-    dataset["nikkei225Financials"] = financial_metrics
+    price_coverage = len(price_metrics) / max(1, expected_count)
+    financial_coverage = len(financial_metrics) / max(1, expected_count)
+    price_ok = price_coverage >= 0.95 and not stale_prices
+    financial_ok = financial_coverage >= 0.95
+    nikkei_codes = {
+        str(item.get("code", ""))
+        for item in dataset.get("nikkei225Components", [])
+        if isinstance(item, dict)
+    }
+    dataset["topixPrices"] = price_metrics
+    dataset["nikkei225Prices"] = [
+        item for item in price_metrics if str(item.get("code", "")) in nikkei_codes
+    ]
+    dataset["topixFinancials"] = financial_metrics
+    dataset["nikkei225Financials"] = [
+        item for item in financial_metrics if str(item.get("code", "")) in nikkei_codes
+    ]
 
     price_source["status"] = "available" if price_ok else ("stale-data" if stale_prices else "partial")
     price_source["recordCount"] = len(price_metrics)
@@ -467,9 +496,9 @@ def collect_jquants_metrics(dataset: dict[str, object], generated_at: str) -> bo
     price_source["asOf"] = max((str(item.get("asOf") or "") for item in price_metrics), default=None)
     price_source["errors"] = price_errors[:10]
     price_source["reason"] = (
-        "日経225全銘柄の調整済み株価と売買代金を確認しました。"
+        "TOPIX構成銘柄の95%以上で調整済み株価と売買代金を確認しました。"
         if price_ok
-        else f"価格データは{len(price_metrics)}/225件、鮮度不足は{len(stale_prices)}件です。"
+        else f"価格データは{len(price_metrics)}/{expected_count}件、鮮度不足は{len(stale_prices)}件です。"
     )
 
     financial_source["status"] = "available" if financial_ok else "partial"
@@ -478,9 +507,9 @@ def collect_jquants_metrics(dataset: dict[str, object], generated_at: str) -> bo
     financial_source["asOf"] = max((str(item.get("asOf") or "") for item in financial_metrics), default=None)
     financial_source["errors"] = financial_errors[:10]
     financial_source["reason"] = (
-        "日経225全銘柄の財務情報サマリーを確認しました。"
+        "TOPIX構成銘柄の95%以上で財務情報サマリーを確認しました。"
         if financial_ok
-        else f"財務データは{len(financial_metrics)}/225件です。"
+        else f"財務データは{len(financial_metrics)}/{expected_count}件です。"
     )
     return True
 
@@ -493,10 +522,12 @@ def collect_free_market_metrics(
     sources = dataset["sources"]  # type: ignore[assignment]
     price_source = sources["priceHistory"]  # type: ignore[index]
     financial_source = sources["fundamentals"]  # type: ignore[index]
-    components = dataset.get("nikkei225Components")
-    if not isinstance(components, list) or len(components) != 225:
+    components = dataset.get("topixComponents")
+    if not isinstance(components, list) or not (
+        TOPIX_MIN_COMPONENTS <= len(components) <= TOPIX_MAX_COMPONENTS
+    ):
         price_source["status"] = "blocked"
-        price_source["reason"] = "日経225採用225銘柄の検証が完了していません。"
+        price_source["reason"] = "TOPIX構成銘柄の検証が完了していません。"
         return
 
     today = date.today()
@@ -522,23 +553,25 @@ def collect_free_market_metrics(
     for offset in range(0, len(codes), 50):
         collect_mirror_batch(codes[offset:offset + 50])
         time.sleep(0.15)
+        completed = min(offset + 50, len(codes))
+        if completed % 500 == 0 or completed == len(codes):
+            print(f"Price validation snapshots: {completed}/{len(codes)}", flush=True)
 
     component_map = {str(component.get("code", "")): component for component in components}
-    for code in codes:
+    max_workers = max(1, min(16, int(os.environ.get("TOPIX_PRICE_WORKERS", "8"))))
+
+    def collect_price_record(code: str) -> tuple[dict[str, object] | None, str | None]:
         component = component_map.get(code, {})
         name = str(component.get("name", ""))
         mirror = mirror_latest.get(code)
         if not mirror:
-            errors.append(f"{code}: 終値照合データを取得できません。")
-            continue
+            return None, f"{code}: 終値照合データを取得できません。"
         try:
             primary_rows, primary_url = fetch_yahoo_history(code, start, today)
         except FreeMarketDataError as error:
-            errors.append(f"{code}: OHLCV価格履歴を取得できません（{error}）")
-            continue
+            return None, f"{code}: OHLCV価格履歴を取得できません（{error}）"
         if len(primary_rows) < HIGH_LOOKBACK_DAYS:
-            errors.append(f"{code}: OHLCV価格履歴が{HIGH_LOOKBACK_DAYS}営業日未満です。")
-            continue
+            return None, f"{code}: OHLCV価格履歴が{HIGH_LOOKBACK_DAYS}営業日未満です。"
         validation_date = str(mirror.get("date") or "")
         primary_match = next(
             (
@@ -548,27 +581,24 @@ def collect_free_market_metrics(
             None,
         )
         if not primary_match:
-            errors.append(f"{code}: OHLCV履歴と照合経路で共通する最新取引日がありません。")
-            continue
+            return None, f"{code}: OHLCV履歴と照合経路で共通する最新取引日がありません。"
         primary_close = float(primary_match["C"])
         mirror_close = float(mirror["close"])
         close_difference = abs(primary_close - mirror_close) / max(primary_close, mirror_close)
         if close_difference > 0.001:
-            errors.append(f"{code}: 終値の差が許容範囲を超えています（{close_difference:.2%}）。")
-            continue
+            return None, f"{code}: 終値の差が許容範囲を超えています（{close_difference:.2%}）。"
         try:
             metrics = calculate_price_metrics(primary_rows)
         except JQuantsError as error:
-            errors.append(f"{code}: {error}")
-            continue
+            return None, f"{code}: {error}"
         latest_date = date.fromisoformat(str(metrics["asOf"]))
         if (today - latest_date).days > 7:
-            errors.append(f"{code}: 最新株価が7日以上更新されていません。")
-            continue
-        validated.append({
+            return None, f"{code}: 最新株価が7日以上更新されていません。"
+        return {
             "code": code,
             "name": name,
-            "isNikkei225": True,
+            "isTopix": True,
+            "isNikkei225": component.get("isNikkei225") is True,
             **metrics,
             "chartHistory": [
                 {
@@ -608,11 +638,41 @@ def collect_free_market_metrics(
                     "provider": "Yahoo Finance mirror spark",
                 },
             },
-        })
+        }, None
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(collect_price_record, code): code
+            for code in codes
+        }
+        for completed, future in enumerate(as_completed(futures), start=1):
+            code = futures[future]
+            try:
+                record, error = future.result()
+            except Exception as error:
+                errors.append(f"{code}: OHLCV価格履歴の取得処理に失敗しました（{error}）")
+                continue
+            if record:
+                validated.append(record)
+            if error:
+                errors.append(error)
+            if completed % 100 == 0 or completed == len(futures):
+                print(
+                    f"TOPIX OHLCV: {completed}/{len(futures)} "
+                    f"(verified {len(validated)}, errors {len(errors)})",
+                    flush=True,
+                )
 
     validated.sort(key=lambda item: str(item["code"]))
-    dataset["nikkei225Prices"] = validated
-    dataset["primeMarketPrices"] = validated
+    nikkei_codes = {
+        str(item.get("code", ""))
+        for item in dataset.get("nikkei225Components", [])
+        if isinstance(item, dict)
+    }
+    dataset["topixPrices"] = validated
+    dataset["nikkei225Prices"] = [
+        item for item in validated if str(item.get("code", "")) in nikkei_codes
+    ]
     coverage = len(validated) / max(1, len(components))
     price_source["provider"] = "Yahoo Finance（2配信経路）"
     price_source["url"] = YAHOO_INFO_URL
@@ -626,7 +686,7 @@ def collect_free_market_metrics(
     price_source["asOf"] = max((str(item.get("asOf") or "") for item in validated), default=None)
     price_source["errors"] = errors[:25]
     price_source["reason"] = (
-        f"Yahoo FinanceのOHLCVと別配信経路の終値を照合し、日経225の{len(validated)}/{len(components)}銘柄を確認しました。"
+        f"Yahoo FinanceのOHLCVと別配信経路の終値を照合し、TOPIXの{len(validated)}/{len(components)}銘柄を確認しました。"
         if coverage >= 0.95
         else f"無料経路でOHLCVと終値を検証できた価格は{len(validated)}/{len(components)}件です。未検証銘柄は候補から除外します。"
     )
@@ -641,8 +701,7 @@ def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: 
     candidates = dataset.get("candidates")
     price_groups = [
         group for group in (
-            dataset.get("primeMarketPrices"),
-            dataset.get("nikkei225Prices"),
+            dataset.get("topixPrices"),
         )
         if isinstance(group, list)
     ]
@@ -654,12 +713,7 @@ def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: 
         for item in candidates
         if isinstance(item, dict) and item.get("code")
     }
-    nikkei_codes = {
-        str(item.get("code", ""))
-        for item in dataset.get("nikkei225Components", [])
-        if isinstance(item, dict) and item.get("code")
-    }
-    detail_codes = sorted(candidate_codes | nikkei_codes)
+    detail_codes = sorted(candidate_codes)
     if not detail_codes:
         return
 
@@ -676,6 +730,7 @@ def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: 
     detailed_count = 0
     errors: list[str] = []
 
+    missing_codes: list[str] = []
     for code in detail_codes:
         targets = [price_map[code] for price_map in price_maps if code in price_map]
         if not targets:
@@ -688,11 +743,13 @@ def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: 
         ):
             detailed_count += 1
             continue
+        missing_codes.append(code)
+
+    def fetch_chart_history(code: str) -> tuple[str, list[dict[str, object]], str, str | None]:
         try:
             rows, url = fetch_yahoo_history(code, start, today)
         except FreeMarketDataError as error:
-            errors.append(f"{code}: OHLCV履歴を取得できませんでした（{error}）")
-            continue
+            return code, [], "", f"{code}: OHLCV履歴を取得できませんでした（{error}）"
         chart_history = [
             {
                 "date": str(row.get("Date")),
@@ -713,20 +770,32 @@ def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: 
             )
         ]
         if len(chart_history) < 50:
-            errors.append(f"{code}: OHLCV履歴が50営業日未満です。")
-            continue
-        for target in targets:
-            target["chartHistory"] = chart_history
-            target["chartType"] = "ohlcv"
-            sources = target.setdefault("sources", {})
-            if isinstance(sources, dict):
-                sources["chartDetail"] = {
-                    "url": url,
-                    "updatedAt": chart_history[-1]["date"],
-                    "provider": "Yahoo Finance chart",
-                }
-        detailed_count += 1
-        time.sleep(0.08)
+            return code, [], url, f"{code}: OHLCV履歴が50営業日未満です。"
+        return code, chart_history, url, None
+
+    max_workers = max(1, min(16, int(os.environ.get("TOPIX_PRICE_WORKERS", "8"))))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(fetch_chart_history, code)
+            for code in missing_codes
+        ]
+        for future in as_completed(futures):
+            code, chart_history, url, error = future.result()
+            if error:
+                errors.append(error)
+                continue
+            targets = [price_map[code] for price_map in price_maps if code in price_map]
+            for target in targets:
+                target["chartHistory"] = chart_history
+                target["chartType"] = "ohlcv"
+                sources = target.setdefault("sources", {})
+                if isinstance(sources, dict):
+                    sources["chartDetail"] = {
+                        "url": url,
+                        "updatedAt": chart_history[-1]["date"],
+                        "provider": "Yahoo Finance chart",
+                    }
+            detailed_count += 1
 
     sources = dataset.get("sources")
     if isinstance(sources, dict) and isinstance(sources.get("priceHistory"), dict):
@@ -741,10 +810,10 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
     sources = dataset["sources"]  # type: ignore[assignment]
     theme_source = sources["themeNews"]  # type: ignore[index]
     financial_source = sources["fundamentals"]  # type: ignore[index]
-    components = dataset.get("nikkei225Components")
-    prices = dataset.get("nikkei225Prices")
-    margins = dataset.get("nikkei225Margin")
-    required_source_keys = ("nikkei225", "primeMarket", "marginWeekly", "priceHistory")
+    components = dataset.get("topixComponents")
+    prices = dataset.get("topixPrices")
+    margins = dataset.get("topixMargin")
+    required_source_keys = ("topix", "marginWeekly", "priceHistory")
     required_sources_available = all(
         isinstance(sources.get(key), dict)
         and sources[key].get("status") == "available"  # type: ignore[index]
@@ -758,7 +827,7 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
         or not isinstance(margins, list)
     ):
         theme_source["status"] = "blocked"
-        theme_source["reason"] = "日経225・市場区分・価格・信用倍率の最新データ検証完了を待っています。"
+        theme_source["reason"] = "TOPIX構成・価格・信用倍率の最新データ検証完了を待っています。"
         financial_source["status"] = "blocked"
         financial_source["reason"] = "必須取得元に更新失敗または鮮度不足があるため候補生成を停止しました。"
         return
@@ -829,7 +898,16 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
         price_sources = price.get("sources", {})
         candidate_name = str(margin.get("name") or price.get("name") or code)
         component = component_map.get(code, {})
+        industry = str(component.get("industry") or "業種未分類")
+        display_themes = assigned_themes or [industry_theme(industry)]
+        theme_basis = "news-tdnet-evidence" if assigned_themes else "jpx-industry-proxy"
         latest_close = price.get("latestClose")
+        chart_history = price.get("chartHistory")
+        previous_close = None
+        if isinstance(chart_history, list) and len(chart_history) >= 2:
+            previous_row = chart_history[-2]
+            if isinstance(previous_row, dict) and isinstance(previous_row.get("close"), (int, float)):
+                previous_close = previous_row["close"]
         previous_high = price.get("high52w") or price.get("previousHigh")
         high_distance = None
         if (
@@ -842,10 +920,15 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
         search_universe.append({
             "code": code,
             "name": candidate_name,
-            "market": "日経225",
-            "industry": str(component.get("industry") or "業種未分類"),
+            "market": "TOPIX",
+            "exchangeSection": component.get("exchangeSection"),
+            "topixSize": component.get("topixSize"),
+            "isTopix": True,
+            "industry": industry,
             "isNikkei225": code in nikkei_codes,
-            "themes": assigned_themes or ["テーマ未分類"],
+            "themes": display_themes,
+            "themeBasis": theme_basis,
+            "themeEvidence": bool(assigned_themes),
             "theme": theme_score,
             "margin": round(float(margin_ratio), 2),
             "monthsFromHigh": float(price.get("monthsFromHigh", 0)),
@@ -872,6 +955,7 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
             "earnings": int(financial.get("earnings", 50)),
             "risk": int(price.get("risk", 100)),
             "latestClose": price.get("latestClose"),
+            "previousClose": previous_close,
             "priceAsOf": price.get("asOf"),
             "supplyMemo": (
                 f"売残 {int(margin.get('outstandingSales', 0)):,}株 / "
@@ -889,10 +973,17 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
                 "theme": {
                     "url": (
                         latest_disclosure["url"]
-                        if latest_disclosure
+                        if assigned_themes and latest_disclosure
                         else primary_theme_detail.get("newsUrl", TDNET_MAIN_URL)
+                        if assigned_themes
+                        else sources["topix"].get("url")  # type: ignore[index]
                     ),
-                    "updatedAt": primary_theme_detail.get("asOf", generated_at),
+                    "updatedAt": (
+                        primary_theme_detail.get("asOf", generated_at)
+                        if assigned_themes
+                        else sources["topix"].get("asOf")  # type: ignore[index]
+                    ),
+                    "basis": theme_basis,
                 },
                 "earnings": {
                     "url": latest_disclosure["url"] if latest_disclosure else TDNET_MAIN_URL,
@@ -903,7 +994,7 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
 
     dataset["tdnetDisclosures"] = disclosures
     dataset["themeNewsCounts"] = news_counts
-    dataset["primeMarketFinancials"] = financials
+    dataset["topixFinancials"] = financials
     dataset["nikkei225Financials"] = [
         item for item in financials
         if str(item["code"]) in nikkei_codes
@@ -912,24 +1003,33 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
     dataset["searchUniverse"] = search_universe
     dataset["candidates"] = search_universe
     dataset["candidatePolicy"] = {
-        "scope": "nikkei225-only",
-        "description": "日経225採用銘柄だけを対象とし、テーマ未分類銘柄も総合ランキングへ含めます。",
-        "themeAssignedCount": sum(1 for item in search_universe if str(item["code"]) in theme_map),
-        "unclassifiedCount": sum(1 for item in search_universe if str(item["code"]) not in theme_map),
+        "scope": "topix-only",
+        "description": "TOPIX構成銘柄を対象とし、ニュース根拠がない銘柄はJPX業種による参考分類を表示します。参考分類はテーマ点へ加点しません。",
+        "componentCount": len(components),
+        "eligibleCount": len(search_universe),
+        "themeAssignedCount": sum(1 for item in search_universe if item.get("themeEvidence") is True),
+        "themeEvidenceCount": sum(1 for item in search_universe if item.get("themeEvidence") is True),
+        "industryProxyCount": sum(1 for item in search_universe if item.get("themeBasis") == "jpx-industry-proxy"),
+        "unclassifiedCount": sum(1 for item in search_universe if not item.get("themes")),
+        "classificationCoverage": round(
+            sum(1 for item in search_universe if item.get("themes")) / max(1, len(search_universe)),
+            4,
+        ),
     }
     augment_candidate_chart_histories(dataset, generated_at)
 
     theme_source["url"] = TDNET_MAIN_URL
-    theme_source["provider"] = "Google News RSS + TDnet"
+    theme_source["provider"] = "Google News RSS + TDnet + JPX industry proxy"
     theme_source["status"] = "available"
     theme_source["recordCount"] = len(disclosures)
     theme_source["themeCount"] = len(themes)
     theme_source["checkedAt"] = generated_at
     theme_source["errors"] = errors[:10]
+    evidence_count = dataset["candidatePolicy"]["themeEvidenceCount"]  # type: ignore[index]
+    proxy_count = dataset["candidatePolicy"]["industryProxyCount"]  # type: ignore[index]
     theme_source["reason"] = (
-        f"直近7日のニュース件数とTDnet開示から{len(themes)}テーマを算出しました。"
-        if themes
-        else "TDnet直近31日の開示にテーマキーワードがありませんでした。"
+        f"ニュース・TDnet等の根拠テーマを{evidence_count}銘柄へ付与し、"
+        f"残る{proxy_count}銘柄はJPX業種から参考分類しました。参考分類はテーマ点へ加点しません。"
     )
 
     financial_source["url"] = TDNET_MAIN_URL
@@ -939,7 +1039,7 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
     financial_source["checkedAt"] = generated_at
     financial_source["errors"] = errors[:10]
     financial_source["reason"] = (
-        "TDnet直近31日の業績修正・増配・減配等を日経225全体で確認しました。"
+        "TDnet直近31日の業績修正・増配・減配等をTOPIX全体で確認しました。"
         if len(financials) == len(codes)
         else f"TDnet業績判定は{len(financials)}/{len(codes)}件です。"
     )
@@ -1675,6 +1775,185 @@ def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[
     return updated
 
 
+def _compact_chart_history(history: object) -> list[list[object]]:
+    if not isinstance(history, list):
+        return []
+    rows: list[list[object]] = []
+    for row in history:
+        if isinstance(row, dict):
+            values = [
+                row.get("date"),
+                row.get("open"),
+                row.get("high"),
+                row.get("low"),
+                row.get("close"),
+                row.get("volume"),
+            ]
+        elif isinstance(row, list) and len(row) >= 6:
+            values = row[:6]
+        else:
+            continue
+        if values[0] and all(isinstance(value, (int, float)) for value in values[1:5]):
+            rows.append(values)
+    return rows
+
+
+def build_price_history_shards(
+    dataset: dict[str, object],
+    generated_at: str,
+) -> tuple[dict[str, object], dict[str, dict[str, object]]]:
+    grouped: dict[str, list[dict[str, object]]] = {}
+    prices = dataset.get("topixPrices")
+    if isinstance(prices, list):
+        for item in prices:
+            if not isinstance(item, dict):
+                continue
+            code = str(item.get("code") or "").strip()
+            history = _compact_chart_history(item.get("chartHistory"))
+            if not code or len(history) < 5:
+                continue
+            shard_key = re.sub(r"[^0-9A-Z]", "_", code[0].upper())
+            grouped.setdefault(shard_key, []).append({
+                "code": code,
+                "asOf": item.get("asOf"),
+                "chartType": item.get("chartType"),
+                "latestClose": item.get("latestClose"),
+                "previousClose": history[-2][4] if len(history) >= 2 else None,
+                "return20": item.get("return20"),
+                "annualizedVolatility": item.get("annualizedVolatility"),
+                "chartHistory": history,
+            })
+
+    chart_format = {
+        "version": 1,
+        "fields": ["date", "open", "high", "low", "close", "volume"],
+    }
+    payloads: dict[str, dict[str, object]] = {}
+    shard_entries: list[dict[str, object]] = []
+    for shard_key in sorted(grouped):
+        shard_prices = sorted(grouped[shard_key], key=lambda item: str(item["code"]))
+        payload = {
+            "schemaVersion": 1,
+            "generatedAt": generated_at,
+            "scoreVersion": SCORE_VERSION,
+            "factorVersion": FACTOR_VERSION,
+            "priceBasis": PRICE_BASIS,
+            "highLookbackDays": HIGH_LOOKBACK_DAYS,
+            "chartHistoryFormat": chart_format,
+            "shardKey": shard_key,
+            "prices": shard_prices,
+        }
+        encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        payloads[shard_key] = payload
+        shard_entries.append({
+            "key": shard_key,
+            "url": f"data/price-history/topix-{shard_key}.json",
+            "recordCount": len(shard_prices),
+            "byteSize": len(encoded),
+        })
+
+    record_count = sum(int(item["recordCount"]) for item in shard_entries)
+    bundle = {
+        "schemaVersion": 1,
+        "status": "available" if record_count else "empty",
+        "generatedAt": generated_at,
+        "scoreVersion": SCORE_VERSION,
+        "factorVersion": FACTOR_VERSION,
+        "priceBasis": PRICE_BASIS,
+        "highLookbackDays": HIGH_LOOKBACK_DAYS,
+        "recordCount": record_count,
+        "loadingPolicy": "on-demand-by-code-prefix",
+        "shards": shard_entries,
+    }
+    return bundle, payloads
+
+
+def write_price_history_shards(
+    dataset: dict[str, object],
+    generated_at: str,
+) -> dict[str, object]:
+    bundle, payloads = build_price_history_shards(dataset, generated_at)
+    PRICE_HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+    for shard_key, payload in payloads.items():
+        target = PRICE_HISTORY_DIR / f"topix-{shard_key}.json"
+        temporary = target.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        temporary.replace(target)
+    return bundle
+
+
+def _compact_weekly_target(value: object) -> object:
+    if not isinstance(value, dict):
+        return value
+    profiles = value.get("profiles")
+    compact_profiles: dict[str, dict[str, object]] = {}
+    if isinstance(profiles, dict):
+        profile_fields = (
+            "label",
+            "maxPrice",
+            "budgetFit",
+            "score",
+            "status",
+            "strictMatch",
+            "estimatedCostYen",
+            "targetProfitYen",
+            "stopLossYen",
+        )
+        for name, profile in profiles.items():
+            if not isinstance(profile, dict):
+                continue
+            compact = {key: profile.get(key) for key in profile_fields if key in profile}
+            compact["positives"] = list(profile.get("positives", []))[:3]
+            compact["blockers"] = list(profile.get("blockers", []))[:3]
+            compact_profiles[str(name)] = compact
+    return {
+        key: value.get(key)
+        for key in ("version", "targetReturn", "stopLimit")
+        if key in value
+    } | {"profiles": compact_profiles}
+
+
+def compact_dataset_for_output(dataset: dict[str, object]) -> None:
+    rows = dataset.get("searchUniverse")
+    if isinstance(rows, list):
+        for row in rows:
+            if isinstance(row, dict) and "weeklyTarget" in row:
+                weekly_target = row.get("weeklyTarget")
+                if isinstance(weekly_target, dict) and isinstance(weekly_target.get("metrics"), dict):
+                    ma25 = weekly_target["metrics"].get("ma25")
+                    latest_close = row.get("latestClose")
+                    if isinstance(ma25, (int, float)) and isinstance(latest_close, (int, float)):
+                        row["ma25"] = ma25
+                        row["aboveMa25"] = latest_close > ma25
+                row["weeklyTarget"] = _compact_weekly_target(weekly_target)
+    dataset["chartHistoryFormat"] = {
+        "version": 1,
+        "fields": ["date", "open", "high", "low", "close", "volume"],
+    }
+    dataset["delivery"] = {
+        "initialPayload": "ranking-and-details",
+        "priceHistory": "lazy-sharded",
+    }
+    dataset["candidateCollection"] = "searchUniverse"
+    dataset["candidates"] = []
+    dataset.pop("topixPrices", None)
+    dataset.pop("nikkei225Prices", None)
+    for key in (
+        "topixMargin",
+        "nikkei225Margin",
+        "topixFinancials",
+        "nikkei225Financials",
+        "tdnetDisclosures",
+        "themeNewsCounts",
+        "themes",
+        "edinetFundamentals",
+    ):
+        dataset.pop(key, None)
+
+
 def collect_edinet_fundamentals(
     dataset: dict[str, object],
     generated_at: str,
@@ -1688,19 +1967,43 @@ def collect_edinet_fundamentals(
         source["reason"] = "ランキング対象銘柄の生成後にEDINET財務指標を取得します。"
         return
 
+    ranked = sorted(
+        [
+            item for item in search_universe
+            if isinstance(item, dict) and re.fullmatch(r"\d{4}", str(item.get("code", "")))
+        ],
+        key=_total_score,
+        reverse=True,
+    )
     yahoo_company_delay = max(0.0, float(os.environ.get("YAHOO_DIVIDEND_REQUEST_DELAY_SECONDS", "0.45")))
     yahoo_company_limit = max(1, int(os.environ.get("YAHOO_COMPANY_MAX_DOWNLOADS", "225")))
     yahoo_company_data: dict[str, dict[str, object]] = {}
     yahoo_company_errors: list[str] = []
-    company_rows = [
-        row for row in search_universe
-        if isinstance(row, dict) and re.fullmatch(r"\d{4}", str(row.get("code", "")))
-    ][:yahoo_company_limit]
-    for row in company_rows:
+    company_rows = ranked[:yahoo_company_limit]
+
+    def fetch_company_data(row: dict[str, object]) -> tuple[str, dict[str, object] | None, str | None]:
         code = str(row.get("code"))
         try:
             company_data = fetch_yahoo_dividend_forecast(code)
-            yahoo_company_data[code] = company_data
+            result = (code, company_data, None)
+        except FreeMarketDataError as error:
+            result = (code, None, f"{code}: 配当予想・イベント日を取得できません（{error}）")
+        if yahoo_company_delay:
+            time.sleep(yahoo_company_delay)
+        return result
+
+    company_row_map = {str(row.get("code")): row for row in company_rows}
+    company_workers = max(1, min(4, int(os.environ.get("YAHOO_COMPANY_WORKERS", "4"))))
+    with ThreadPoolExecutor(max_workers=company_workers) as executor:
+        futures = [executor.submit(fetch_company_data, row) for row in company_rows]
+        for completed, future in enumerate(as_completed(futures), start=1):
+            code, company_data, error = future.result()
+            row = company_row_map[code]
+            if error:
+                yahoo_company_errors.append(error)
+                continue
+            if company_data is not None:
+                yahoo_company_data[code] = company_data
             for field in (
                 "dps",
                 "dpsAsOf",
@@ -1730,10 +2033,12 @@ def collect_edinet_fundamentals(
                     "basis": "Yahoo Finance会社予想",
                     "maxAgeDays": SOURCE_FRESHNESS_DAYS["dividend"],
                 }
-        except FreeMarketDataError as error:
-            yahoo_company_errors.append(f"{code}: 配当予想・イベント日を取得できません（{error}）")
-        if yahoo_company_delay:
-            time.sleep(yahoo_company_delay)
+            if completed % 25 == 0 or completed == len(futures):
+                print(
+                    f"Yahoo company pages: {completed}/{len(futures)} "
+                    f"(verified {len(yahoo_company_data)}, errors {len(yahoo_company_errors)})",
+                    flush=True,
+                )
 
     def attach(metrics: list[dict[str, object]], *, reused: bool = False) -> None:
         metric_map = {str(item.get("code")): item for item in metrics}
@@ -1822,18 +2127,8 @@ def collect_edinet_fundamentals(
 
     max_downloads = max(1, int(os.environ.get("EDINET_MAX_DOWNLOADS", "225")))
     lookback_days = max(30, int(os.environ.get("EDINET_LOOKBACK_DAYS", "430")))
-    ranked = sorted(
-        [item for item in search_universe if isinstance(item, dict) and re.fullmatch(r"\d{4}", str(item.get("code", "")))],
-        key=_total_score,
-        reverse=True,
-    )
-    nikkei_codes = [
-        str(item.get("code"))
-        for item in dataset.get("nikkei225Components", [])
-        if isinstance(item, dict) and re.fullmatch(r"\d{4}", str(item.get("code", "")))
-    ]
     ranked_codes = [str(item.get("code")) for item in ranked]
-    target_codes = list(dict.fromkeys([*nikkei_codes, *ranked_codes]))[:max_downloads]
+    target_codes = list(dict.fromkeys(ranked_codes))[:max_downloads]
     metrics: list[dict[str, object]] = []
     errors: list[str] = list(yahoo_company_errors)
     try:
@@ -1879,14 +2174,14 @@ def collect_edinet_fundamentals(
     source["status"] = "available" if metrics else "partial"
     source["recordCount"] = len(metrics)
     source["targetCount"] = len(target_codes)
-    source["targetPolicy"] = "nikkei225-first"
+    source["targetPolicy"] = "topix-score-priority"
     source["perCount"] = _count_numeric(metrics, "per")
     source["pbrCount"] = _count_numeric(metrics, "pbr")
     source["roeCount"] = _count_numeric(metrics, "roe")
     source["checkedAt"] = generated_at
     source["errors"] = errors[:10]
     source["reason"] = (
-        f"日経225を優先し、EDINET有価証券報告書XBRLから{len(metrics)}/{len(target_codes)}銘柄の財務指標を算出しました。"
+        f"TOPIXのスコア上位候補を優先し、EDINET有価証券報告書XBRLから{len(metrics)}/{len(target_codes)}銘柄の財務指標を算出しました。"
         if metrics
         else "EDINET APIには接続できましたが、対象銘柄の財務指標を算出できませんでした。"
     )
@@ -1933,8 +2228,8 @@ def main() -> None:
     dataset: dict[str, object] = {
         **scoring_contract_metadata(),
         "generatedAt": generated_at,
+        "topixComponents": [],
         "nikkei225Components": [],
-        "primeMarketComponents": [],
         "candidates": [],
         "sources": {
             "nikkei225": {
@@ -1942,7 +2237,7 @@ def main() -> None:
                 "status": "error",
                 "checkedAt": generated_at,
             },
-            "primeMarket": {
+            "topix": {
                 "url": JPX_LIST_URL,
                 "fileUrl": JPX_LIST_FILE_URL,
                 "status": "error",
@@ -2022,40 +2317,49 @@ def main() -> None:
             str(item.get("code", ""))
             for item in dataset["nikkei225Components"]  # type: ignore[union-attr]
         }
-        prime_components, prime_as_of = parse_prime_components(
+        topix_components, topix_as_of = parse_topix_components(
             fetch_bytes(JPX_LIST_FILE_URL),
             nikkei_codes,
         )
-        metadata_by_code = {str(item.get("code", "")): item for item in prime_components}
-        enriched_components = [
+        if not (TOPIX_MIN_COMPONENTS <= len(topix_components) <= TOPIX_MAX_COMPONENTS):
+            raise ValueError(
+                f"TOPIX構成銘柄数が想定範囲外です（{len(topix_components)}件）。"
+            )
+        metadata_by_code = {str(item.get("code", "")): item for item in topix_components}
+        enriched_nikkei_components = [
             {
                 **item,
                 **metadata_by_code.get(str(item.get("code", "")), {}),
                 "market": "日経225",
+                "isTopix": str(item.get("code", "")) in metadata_by_code,
                 "isNikkei225": True,
             }
             for item in dataset["nikkei225Components"]  # type: ignore[union-attr]
             if isinstance(item, dict)
         ]
-        source = dataset["sources"]["primeMarket"]  # type: ignore[index]
-        source["status"] = "available" if len(prime_components) == 225 else "partial"
-        source["recordCount"] = len(prime_components)
-        source["asOf"] = prime_as_of
-        source["reason"] = f"JPX公式一覧で日経225の市場区分・業種を{len(prime_components)}/225銘柄確認しました。"
-        dataset["nikkei225Components"] = enriched_components
-        dataset["primeMarketComponents"] = enriched_components
+        source = dataset["sources"]["topix"]  # type: ignore[index]
+        source["status"] = "available"
+        source["recordCount"] = len(topix_components)
+        source["asOf"] = topix_as_of
+        source["membershipBasis"] = "JPX上場銘柄一覧の規模区分がTOPIXで始まる銘柄"
+        source["reason"] = (
+            f"JPX公式一覧の規模区分からTOPIX構成{len(topix_components)}銘柄を確認しました。"
+        )
+        dataset["universe"]["expectedCount"] = len(topix_components)  # type: ignore[index]
+        dataset["topixComponents"] = topix_components
+        dataset["nikkei225Components"] = enriched_nikkei_components
     except (URLError, TimeoutError, OSError, ValueError, xlrd.XLRDError) as error:
-        source = dataset["sources"]["primeMarket"]  # type: ignore[index]
+        source = dataset["sources"]["topix"]  # type: ignore[index]
         source["reason"] = str(error)
-        previous_source = previous_dataset.get("sources", {}).get("primeMarket", {})  # type: ignore[union-attr]
-        previous_components = previous_dataset.get("primeMarketComponents")
+        previous_source = previous_dataset.get("sources", {}).get("topix", {})  # type: ignore[union-attr]
+        previous_components = previous_dataset.get("topixComponents")
         if (
             isinstance(previous_source, dict)
             and previous_source.get("status") == "available"
             and isinstance(previous_components, list)
-            and len(previous_components) == 225
+            and TOPIX_MIN_COMPONENTS <= len(previous_components) <= TOPIX_MAX_COMPONENTS
         ):
-            dataset["sources"]["primeMarket"] = {
+            dataset["sources"]["topix"] = {
                 **previous_source,
                 "status": "stale-fallback",
                 "previousStatus": previous_source.get("status"),
@@ -2063,7 +2367,8 @@ def main() -> None:
                 "refreshCheckedAt": generated_at,
                 "refreshReason": str(error),
             }  # type: ignore[index]
-            dataset["primeMarketComponents"] = previous_components
+            dataset["universe"]["expectedCount"] = len(previous_components)  # type: ignore[index]
+            dataset["topixComponents"] = previous_components
 
     try:
         margin_html = fetch_text(JPX_MARGIN_URL)
@@ -2072,17 +2377,25 @@ def main() -> None:
         page_links = parse_margin_page_links(margin_index_html)
         pdf_inspection = inspect_latest_margin_pdf(file_links)
         margin_records = pdf_inspection.pop("records", [])
+        topix_codes = {
+            str(item["code"])
+            for item in dataset["topixComponents"]  # type: ignore[union-attr]
+        }
         nikkei_codes = {
             str(item["code"])
             for item in dataset["nikkei225Components"]  # type: ignore[union-attr]
         }
-        nikkei_margin_records = [
+        topix_margin_records = [
             item for item in margin_records
+            if str(item["code"]) in topix_codes
+        ]
+        nikkei_margin_records = [
+            item for item in topix_margin_records
             if str(item["code"]) in nikkei_codes
         ]
-        nikkei_coverage = len(nikkei_margin_records) / max(1, len(nikkei_codes))
+        topix_coverage = len(topix_margin_records) / max(1, len(topix_codes))
         source = dataset["sources"]["marginWeekly"]  # type: ignore[index]
-        source["status"] = "available" if nikkei_coverage >= 0.95 else ("partial" if margin_records else "file-index-only")
+        source["status"] = "available" if topix_coverage >= 0.95 else ("partial" if margin_records else "file-index-only")
         source["updatedAt"] = extract_latest_date(margin_html)
         source["fileCount"] = len(file_links)
         source["files"] = file_links[:12]
@@ -2090,29 +2403,29 @@ def main() -> None:
         source["pdfInspection"] = pdf_inspection
         source["asOf"] = pdf_inspection.get("asOf")
         source["scope"] = "per-issue"
-        source["hasPerIssueData"] = nikkei_coverage >= 0.95
+        source["hasPerIssueData"] = topix_coverage >= 0.95
         source["recordCount"] = len(margin_records)
+        source["topixMatchCount"] = len(topix_margin_records)
+        source["topixCoverage"] = round(topix_coverage, 4)
         source["nikkei225MatchCount"] = len(nikkei_margin_records)
-        source["primeMarketMatchCount"] = len(nikkei_margin_records)
-        source["primeMarketCoverage"] = round(nikkei_coverage, 4)
         source["reason"] = (
-            f"JPX公式PDFから日経225の{len(nikkei_margin_records)}/{len(nikkei_codes)}銘柄の売残・買残を確認しました。"
-            if nikkei_coverage >= 0.95
-            else f"JPX公式PDFを解析しましたが、日経225との照合は{len(nikkei_margin_records)}/{len(nikkei_codes)}件です。"
+            f"JPX公式PDFからTOPIXの{len(topix_margin_records)}/{len(topix_codes)}銘柄の売残・買残を確認しました。"
+            if topix_coverage >= 0.95
+            else f"JPX公式PDFを解析しましたが、TOPIXとの照合は{len(topix_margin_records)}/{len(topix_codes)}件です。"
         )
+        dataset["topixMargin"] = topix_margin_records
         dataset["nikkei225Margin"] = nikkei_margin_records
-        dataset["primeMarketMargin"] = nikkei_margin_records
     except (URLError, TimeoutError, OSError) as error:
         source = dataset["sources"]["marginWeekly"]  # type: ignore[index]
         source["reason"] = str(error)
         previous_source = previous_dataset.get("sources", {}).get("marginWeekly", {})  # type: ignore[union-attr]
-        previous_margin = previous_dataset.get("nikkei225Margin")
-        previous_prime_margin = previous_dataset.get("primeMarketMargin")
+        previous_margin = previous_dataset.get("topixMargin")
+        expected_count = int(dataset.get("universe", {}).get("expectedCount") or 0)  # type: ignore[union-attr]
         if (
             isinstance(previous_source, dict)
             and previous_source.get("status") == "available"
             and isinstance(previous_margin, list)
-            and len(previous_margin) == 225
+            and len(previous_margin) / max(1, expected_count) >= 0.95
         ):
             dataset["sources"]["marginWeekly"] = {
                 **previous_source,
@@ -2122,9 +2435,16 @@ def main() -> None:
                 "refreshCheckedAt": generated_at,
                 "refreshReason": str(error),
             }  # type: ignore[index]
-            dataset["nikkei225Margin"] = previous_margin
-            if isinstance(previous_prime_margin, list):
-                dataset["primeMarketMargin"] = previous_prime_margin
+            dataset["topixMargin"] = previous_margin
+            nikkei_codes = {
+                str(item.get("code", ""))
+                for item in dataset.get("nikkei225Components", [])
+                if isinstance(item, dict)
+            }
+            dataset["nikkei225Margin"] = [
+                item for item in previous_margin
+                if isinstance(item, dict) and str(item.get("code", "")) in nikkei_codes
+            ]
 
     if not collect_jquants_metrics(dataset, generated_at):
         collect_free_market_metrics(dataset, generated_at, previous_dataset)
@@ -2140,8 +2460,7 @@ def main() -> None:
 
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     sources = dataset["sources"]  # type: ignore[assignment]
-    nikkei_source = sources["nikkei225"]  # type: ignore[index]
-    prime_source = sources["primeMarket"]  # type: ignore[index]
+    topix_source = sources["topix"]  # type: ignore[index]
     margin_source = sources["marginWeekly"]  # type: ignore[index]
     price_source = sources["priceHistory"]  # type: ignore[index]
     theme_source = sources["themeNews"]  # type: ignore[index]
@@ -2183,17 +2502,11 @@ def main() -> None:
     }
     dataset["qualityChecks"] = [
         {
-            "label": "日経225市場・業種情報",
-            "status": prime_source["status"],
+            "label": "TOPIX構成・市場・業種情報",
+            "status": topix_source["status"],
             "required": True,
-            "message": prime_source.get("reason", "未確認"),
-            "url": prime_source.get("url"),
-        },
-        {
-            "label": "日経225採用銘柄",
-            "status": nikkei_source["status"],
-            "required": True,
-            "message": "225銘柄を確認済み" if nikkei_source.get("status") == "available" else nikkei_source.get("reason", "未確認"),
+            "message": topix_source.get("reason", "未確認"),
+            "url": topix_source.get("url"),
         },
         {
             "label": "信用倍率",
@@ -2247,13 +2560,19 @@ def main() -> None:
         },
     ]
     score_history = update_score_history(dataset, generated_at)
+    dataset["priceHistoryBundle"] = write_price_history_shards(dataset, generated_at)
+    compact_dataset_for_output(dataset)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(dataset, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Wrote {OUTPUT}")
     print(f"Wrote {SCORE_HISTORY_OUTPUT}")
+    print(
+        f"Wrote price history shards: "
+        f"{len(dataset.get('priceHistoryBundle', {}).get('shards', []))}"  # type: ignore[union-attr]
+    )
     print(f"Score history snapshots: {len(score_history.get('snapshots', []))}")
     print(f"Nikkei 225 components: {len(dataset['nikkei225Components'])}")
-    print(f"Screening universe: Nikkei 225 ({len(dataset['nikkei225Components'])})")
+    print(f"Screening universe: TOPIX ({len(dataset['topixComponents'])})")
     print(f"Margin status: {dataset['sources']['marginWeekly']['status']}")  # type: ignore[index]
     print(f"Margin PDF: {dataset['sources']['marginWeekly'].get('pdfInspection', {}).get('status', 'not-checked')}")  # type: ignore[index]
 

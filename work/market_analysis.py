@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import os
@@ -29,6 +30,9 @@ from market_technical import (
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "outputs" / "data" / "nikkei225-analysis.json"
+LOCAL_DATA_DIR = ROOT / ".local-data"
+LOCAL_OUTPUT = LOCAL_DATA_DIR / "nikkei225-analysis.json"
+LOCAL_CANDIDATE_OUTPUT = LOCAL_DATA_DIR / "latest-candidates.json"
 CANDIDATE_OUTPUT = ROOT / "outputs" / "data" / "latest-candidates.json"
 PUBLISHED_CANDIDATE_URL = (
     "https://yutaworld30-png.github.io/capital-gain-radar/"
@@ -38,6 +42,8 @@ YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/%5EN225"
 NIKKEI_PER_URL = "https://indexes.nikkei.co.jp/nkave/archives/data?list=per"
 SCHEMA_VERSION = 1
 ANALYSIS_VERSION = "nikkei225-analysis-v1"
+PUBLIC_DISTRIBUTION_MODE = "public"
+LOCAL_PRIVATE_DISTRIBUTION_MODE = "local-private"
 PER_MULTIPLIER_MIN = 12
 PER_MULTIPLIER_MAX = 24
 
@@ -146,19 +152,29 @@ def parse_weighted_per_html(html: str) -> list[dict[str, Any]]:
     return [by_date[key] for key in sorted(by_date)]
 
 
-def _load_previous() -> dict[str, Any]:
+def _load_previous(path: Path = OUTPUT) -> dict[str, Any]:
     try:
-        payload = json.loads(OUTPUT.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
         return payload if isinstance(payload, dict) else {}
     except (OSError, json.JSONDecodeError):
         return {}
 
 
-def _load_breadth() -> dict[str, Any]:
+def _load_breadth(
+    path: Path = CANDIDATE_OUTPUT,
+    *,
+    allow_published_fallback: bool = True,
+) -> dict[str, Any]:
     payload: object
     try:
-        payload = json.loads(CANDIDATE_OUTPUT.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        if not allow_published_fallback:
+            return {
+                "status": "unavailable",
+                "rows": [],
+                "note": "ローカル候補JSONを読み込めませんでした。",
+            }
         try:
             payload = json.loads(fetch_bytes(PUBLISHED_CANDIDATE_URL).decode("utf-8"))
         except (MarketAnalysisError, json.JSONDecodeError):
@@ -171,6 +187,12 @@ def _load_breadth() -> dict[str, Any]:
     if isinstance(breadth, dict):
         return breadth
     prices = payload.get("nikkei225Prices") if isinstance(payload, dict) else None
+    if not isinstance(prices, list) and isinstance(payload, dict):
+        topix_prices = payload.get("topixPrices")
+        prices = [
+            item for item in topix_prices
+            if isinstance(item, dict) and item.get("isNikkei225") is True
+        ] if isinstance(topix_prices, list) else None
     if isinstance(prices, list):
         return build_nikkei225_breadth(prices)
     return {
@@ -189,9 +211,30 @@ def _permission_required_source(url: str, note: str) -> dict[str, Any]:
     }
 
 
-def _per_data(previous: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def _weekly_recency_status(as_of: object, *, max_age_days: int = 21) -> tuple[str, str | None]:
+    try:
+        source_date = date.fromisoformat(str(as_of))
+    except ValueError:
+        return "unavailable", "週次データの基準日を確認できません。"
+    age_days = (date.today() - source_date).days
+    if age_days < -2:
+        return "stale-fallback", "週次データの基準日が未来日になっています。"
+    if age_days > max_age_days:
+        return (
+            "stale-fallback",
+            f"週次データの基準日が{age_days}日前のため、最新値として扱いません。",
+        )
+    return "available", None
+
+
+def _per_data(
+    previous: dict[str, Any],
+    *,
+    distribution_mode: str = PUBLIC_DISTRIBUTION_MODE,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     prior_rows = previous.get("per", {}).get("rows", []) if isinstance(previous.get("per"), dict) else []
-    if not _env_enabled("NIKKEI_INDEX_DATA_USE_CONFIRMED"):
+    local_private = distribution_mode == LOCAL_PRIVATE_DISTRIBUTION_MODE
+    if not local_private and not _env_enabled("NIKKEI_INDEX_DATA_USE_CONFIRMED"):
         return [], _permission_required_source(
             NIKKEI_PER_URL,
             "日経指数データのウェブ表示・演算利用条件を確認後に有効化します。",
@@ -209,7 +252,12 @@ def _per_data(previous: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str,
             "status": "available" if rows else "unavailable",
             "url": NIKKEI_PER_URL,
             "asOf": rows[-1]["date"] if rows else None,
-            "note": "日経平均プロフィルの加重平均PER。利用条件確認済みフラグで取得しています。",
+            "accessMode": distribution_mode,
+            "note": (
+                "日経平均プロフィルの加重平均PER。ローカル個人利用モードで取得しています。"
+                if local_private
+                else "日経平均プロフィルの加重平均PER。利用条件確認済みフラグで取得しています。"
+            ),
         }
     except MarketAnalysisError as error:
         if isinstance(prior_rows, list) and prior_rows:
@@ -222,8 +270,13 @@ def _per_data(previous: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str,
         return [], {"status": "unavailable", "url": NIKKEI_PER_URL, "asOf": None, "note": str(error)}
 
 
-def _weekly_data(previous: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
-    if not _env_enabled("JPX_PUBLIC_DATA_USE_CONFIRMED"):
+def _weekly_data(
+    previous: dict[str, Any],
+    *,
+    distribution_mode: str = PUBLIC_DISTRIBUTION_MODE,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    local_private = distribution_mode == LOCAL_PRIVATE_DISTRIBUTION_MODE
+    if not local_private and not _env_enabled("JPX_PUBLIC_DATA_USE_CONFIRMED"):
         margin = {
             **_permission_required_source(
                 MARGIN_HISTORY_PAGE,
@@ -248,12 +301,16 @@ def _weekly_data(previous: dict[str, Any]) -> tuple[dict[str, Any], dict[str, An
     )
     try:
         margin_rows, margin_url = fetch_margin_history(previous_margin)
+        margin_as_of = margin_rows[-1]["weekEnd"] if margin_rows else None
+        margin_status, margin_note = _weekly_recency_status(margin_as_of)
         margin = {
-            "status": "available",
+            "status": margin_status,
             "url": margin_url,
-            "asOf": margin_rows[-1]["weekEnd"] if margin_rows else None,
+            "asOf": margin_as_of,
             "unit": "thousand-shares",
             "scope": "東京・名古屋二市場合計",
+            "accessMode": distribution_mode,
+            "note": margin_note,
             "rows": margin_rows,
         }
     except JpxWeeklyError as error:
@@ -266,12 +323,19 @@ def _weekly_data(previous: dict[str, Any]) -> tuple[dict[str, Any], dict[str, An
         }
     try:
         investor_rows, source_urls = fetch_investor_history(previous_investor)
+        investor_as_of = investor_rows[-1]["periodEnd"] if investor_rows else None
+        investor_status, investor_note = _weekly_recency_status(investor_as_of)
+        if not source_urls:
+            investor_status = "stale-fallback" if investor_rows else "unavailable"
+            investor_note = "直近の投資主体別ファイルを更新できず、前回履歴を維持しています。"
         investor = {
-            "status": "available",
+            "status": investor_status,
             "url": INVESTOR_ARCHIVE_BASE.format(index=0),
-            "asOf": investor_rows[-1]["periodEnd"] if investor_rows else None,
+            "asOf": investor_as_of,
             "unit": "100m-yen",
             "scope": "東京・名古屋二市場合計（金額）",
+            "accessMode": distribution_mode,
+            "note": investor_note,
             "sourceFiles": source_urls[-8:],
             "rows": investor_rows,
         }
@@ -320,10 +384,15 @@ def _per_reference(
     }
 
 
-def validate_analysis(payload: object) -> list[str]:
+def validate_analysis(payload: object, *, public_only: bool = False) -> list[str]:
     if not isinstance(payload, dict):
         return ["ルートがJSONオブジェクトではありません。"]
     errors: list[str] = []
+    distribution_mode = payload.get("distributionMode", PUBLIC_DISTRIBUTION_MODE)
+    if distribution_mode not in {PUBLIC_DISTRIBUTION_MODE, LOCAL_PRIVATE_DISTRIBUTION_MODE}:
+        errors.append("distributionModeが不正です。")
+    if public_only and distribution_mode != PUBLIC_DISTRIBUTION_MODE:
+        errors.append("ローカル個人利用データは公開成果物に含められません。")
     if payload.get("schemaVersion") != SCHEMA_VERSION:
         errors.append("schemaVersionが一致しません。")
     if payload.get("analysisVersion") != ANALYSIS_VERSION:
@@ -356,20 +425,27 @@ def build_analysis_payload(
     margin: dict[str, Any] | None = None,
     investor: dict[str, Any] | None = None,
     breadth: dict[str, Any] | None = None,
+    distribution_mode: str = PUBLIC_DISTRIBUTION_MODE,
 ) -> dict[str, Any]:
     previous = previous or {}
     if per_rows is None or per_source is None:
-        per_rows, per_source = _per_data(previous)
+        per_rows, per_source = _per_data(previous, distribution_mode=distribution_mode)
     if margin is None or investor is None:
-        margin, investor = _weekly_data(previous)
+        margin, investor = _weekly_data(previous, distribution_mode=distribution_mode)
     technical_rows = build_technical_rows(raw_rows, weighted_per_rows=per_rows)
+    local_private = distribution_mode == LOCAL_PRIVATE_DISTRIBUTION_MODE
     payload = {
         "schemaVersion": SCHEMA_VERSION,
         "analysisVersion": ANALYSIS_VERSION,
         "technicalVersion": TECHNICAL_VERSION,
         "generatedAt": generated_at,
         "scope": "日経225",
-        "usage": "相場環境の確認用です。個別銘柄ランキングの総合スコアには反映しません。",
+        "distributionMode": distribution_mode,
+        "usage": (
+            "ローカル個人利用専用です。外部公開・共有・再配布をしないでください。"
+            if local_private
+            else "相場環境の確認用です。個別銘柄ランキングの総合スコアには反映しません。"
+        ),
         "parameters": indicator_parameters(),
         "priceSource": {
             "status": "available",
@@ -391,16 +467,56 @@ def build_analysis_payload(
         "investorFlows": investor,
         "breadth": breadth if breadth is not None else _load_breadth(),
     }
+    quality_issues = validate_analysis(payload)
+    if local_private:
+        for key, label in (
+            ("per", "日経PER"),
+            ("margin", "信用残"),
+            ("investorFlows", "投資主体別"),
+        ):
+            section = payload.get(key) if isinstance(payload.get(key), dict) else {}
+            if section.get("status") != "available":
+                quality_issues.append(f"{label}が最新の利用可能状態ではありません。")
     payload["quality"] = {
-        "status": "available" if not validate_analysis(payload) else "partial",
-        "issues": validate_analysis(payload),
+        "status": "available" if not quality_issues else "partial",
+        "issues": quality_issues,
     }
     return payload
 
 
-def main() -> int:
+def resolve_output_path(*, local_private: bool, requested: Path | None = None) -> Path:
+    output = requested or (LOCAL_OUTPUT if local_private else OUTPUT)
+    if not output.is_absolute():
+        output = ROOT / output
+    output = output.resolve()
+    if local_private and not output.is_relative_to(LOCAL_DATA_DIR.resolve()):
+        raise MarketAnalysisError(
+            "ローカル個人利用データは .local-data 配下にのみ保存できます。"
+        )
+    return output
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="日経225テクニカル分析JSONを生成")
+    parser.add_argument(
+        "--local-private",
+        action="store_true",
+        help="日経PER・JPX週次統計をローカル個人利用専用として取得する",
+    )
+    parser.add_argument("--output", type=Path, help="JSON出力先")
+    args = parser.parse_args(argv)
+    try:
+        output = resolve_output_path(local_private=args.local_private, requested=args.output)
+    except MarketAnalysisError as error:
+        print(f"ERROR: {error}")
+        return 2
+    distribution_mode = (
+        LOCAL_PRIVATE_DISTRIBUTION_MODE
+        if args.local_private
+        else PUBLIC_DISTRIBUTION_MODE
+    )
     generated_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
-    previous = _load_previous()
+    previous = _load_previous(output)
     try:
         raw_rows, price_url = fetch_nikkei225_ohlc()
     except MarketAnalysisError as error:
@@ -411,20 +527,26 @@ def main() -> int:
         generated_at=generated_at,
         price_url=price_url,
         previous=previous,
+        breadth=(
+            _load_breadth(LOCAL_CANDIDATE_OUTPUT, allow_published_fallback=False)
+            if args.local_private
+            else None
+        ),
+        distribution_mode=distribution_mode,
     )
     errors = validate_analysis(payload)
     if errors:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
     )
     print(
         "OK: 日経225分析JSONを生成しました "
-        f"({len(payload['rows'])}日, {payload['priceSource']['asOf']})"
+        f"({len(payload['rows'])}日, {payload['priceSource']['asOf']}, {distribution_mode})"
     )
     return 0
 

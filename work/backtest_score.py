@@ -105,7 +105,13 @@ def row_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def price_map(snapshot: dict[str, Any]) -> dict[str, dict[date, float]]:
-    prices = snapshot.get("primeMarketPrices")
+    prices = snapshot.get("nikkei225Prices")
+    if not isinstance(prices, list):
+        topix_prices = snapshot.get("topixPrices")
+        prices = [
+            item for item in topix_prices
+            if isinstance(item, dict) and item.get("isNikkei225") is True
+        ] if isinstance(topix_prices, list) else None
     if not isinstance(prices, list):
         return {}
     result: dict[str, dict[date, float]] = {}
@@ -117,10 +123,14 @@ def price_map(snapshot: dict[str, Any]) -> dict[str, dict[date, float]]:
             continue
         rows: dict[date, float] = {}
         for row in history:
-            if not isinstance(row, dict):
+            if isinstance(row, dict):
+                raw_date = row.get("date")
+                close = row.get("close")
+            elif isinstance(row, list) and len(row) >= 5:
+                raw_date = row[0]
+                close = row[4]
+            else:
                 continue
-            raw_date = row.get("date")
-            close = row.get("close")
             if isinstance(raw_date, str) and isinstance(close, (int, float)) and close > 0:
                 rows[parse_date(raw_date)] = float(close)
         if rows:

@@ -198,12 +198,12 @@ class P0AccuracyTest(unittest.TestCase):
         self.assertEqual(row["highLookbackDays"], HIGH_LOOKBACK_DAYS)
         self.assertIsInstance(row["score"], int)
 
-    def test_dataset_contract_is_nikkei225_only(self) -> None:
-        contract = scoring_contract_metadata()
+    def test_dataset_contract_is_topix(self) -> None:
+        contract = scoring_contract_metadata(1637)
 
         self.assertEqual(contract["schemaVersion"], 2)
-        self.assertEqual(contract["universe"]["id"], "nikkei225")
-        self.assertEqual(contract["universe"]["expectedCount"], 225)
+        self.assertEqual(contract["universe"]["id"], "topix")
+        self.assertEqual(contract["universe"]["expectedCount"], 1637)
         self.assertEqual(contract["priceBasis"], "adjusted-ohlc")
         self.assertEqual(contract["highLookbackDays"], 252)
 

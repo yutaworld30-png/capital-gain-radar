@@ -28,6 +28,9 @@ class NikkeiAnalysisUiTests(unittest.TestCase):
             '"rsi14"',
             "row.spanA",
             "row.psar",
+            'id="nikkeiLocalPrivateNotice"',
+            'payload.distributionMode === "local-private"',
+            "ローカル個人利用専用。",
         ):
             self.assertIn(expected, source)
 

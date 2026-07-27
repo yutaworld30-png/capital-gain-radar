@@ -37,10 +37,14 @@ def build_nikkei225_breadth(
                 continue
             by_date: dict[str, float] = {}
             for row in history:
-                if not isinstance(row, dict):
+                if isinstance(row, dict):
+                    row_date = str(row.get("date") or "")
+                    close = _number(row.get("close"))
+                elif isinstance(row, list) and len(row) >= 5:
+                    row_date = str(row[0] or "")
+                    close = _number(row[4])
+                else:
                     continue
-                row_date = str(row.get("date") or "")
-                close = _number(row.get("close"))
                 if row_date and close is not None and close > 0:
                     by_date[row_date] = close
             ordered = sorted(by_date.items())

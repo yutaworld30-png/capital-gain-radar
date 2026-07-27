@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from datetime import date
 from pathlib import Path
 
@@ -12,7 +13,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = ROOT / "outputs" / "data" / "latest-candidates.json"
 DEFAULT_HISTORY = ROOT / "outputs" / "data" / "score-history-v2.json"
 DEFAULT_ANALYSIS = ROOT / "outputs" / "data" / "nikkei225-analysis.json"
-REQUIRED_SOURCES = ("nikkei225", "primeMarket", "marginWeekly", "priceHistory", "themeNews", "fundamentals")
+REQUIRED_SOURCES = ("topix", "marginWeekly", "priceHistory", "themeNews", "fundamentals")
+TOPIX_MIN_COMPONENTS = 1500
+TOPIX_MAX_COMPONENTS = 2000
 
 
 def _as_date(value: object) -> date | None:
@@ -32,21 +35,49 @@ def validate_dataset(payload: object, *, today: date | None = None) -> list[str]
     universe = payload.get("universe") if isinstance(payload.get("universe"), dict) else {}
     if payload.get("schemaVersion") != 2:
         errors.append("schemaVersionが2ではありません。")
-    if universe.get("id") != "nikkei225" or universe.get("expectedCount") != 225:
-        errors.append("対象ユニバースが日経225として固定されていません。")
+    expected_count = universe.get("expectedCount")
+    if (
+        universe.get("id") != "topix"
+        or not isinstance(expected_count, int)
+        or not (TOPIX_MIN_COMPONENTS <= expected_count <= TOPIX_MAX_COMPONENTS)
+    ):
+        errors.append("対象ユニバースが検証済みTOPIX構成として設定されていません。")
     if not payload.get("scoreVersion") or not payload.get("factorVersion"):
         errors.append("スコア計算版がありません。")
     if payload.get("priceBasis") != "adjusted-ohlc" or payload.get("highLookbackDays") != 252:
         errors.append("株価基準または52週高値の営業日数が契約と一致しません。")
 
-    components = payload.get("nikkei225Components")
-    if not isinstance(components, list) or len(components) != 225:
-        errors.append("日経225構成銘柄が225件ではありません。")
+    price_bundle = payload.get("priceHistoryBundle") if isinstance(payload.get("priceHistoryBundle"), dict) else {}
+    price_shards = price_bundle.get("shards") if isinstance(price_bundle.get("shards"), list) else []
+    minimum_price_count = round(int(expected_count or 0) * 0.95)
+    if (
+        price_bundle.get("status") != "available"
+        or price_bundle.get("generatedAt") != payload.get("generatedAt")
+        or price_bundle.get("scoreVersion") != payload.get("scoreVersion")
+        or price_bundle.get("factorVersion") != payload.get("factorVersion")
+        or price_bundle.get("priceBasis") != payload.get("priceBasis")
+        or price_bundle.get("highLookbackDays") != payload.get("highLookbackDays")
+        or not isinstance(price_bundle.get("recordCount"), int)
+        or int(price_bundle.get("recordCount") or 0) < minimum_price_count
+        or not price_shards
+    ):
+        errors.append("遅延読込用のTOPIX価格履歴契約が不完全です。")
+    elif any(
+        not isinstance(item, dict)
+        or not re.fullmatch(r"data/price-history/topix-[0-9A-Z_]+\.json", str(item.get("url") or ""))
+        or not isinstance(item.get("recordCount"), int)
+        for item in price_shards
+    ):
+        errors.append("TOPIX価格履歴の分割ファイル一覧が不正です。")
+
+    components = payload.get("topixComponents")
+    if not isinstance(components, list) or len(components) != expected_count:
+        errors.append("TOPIX構成銘柄数がユニバース契約と一致しません。")
         component_codes: set[str] = set()
     else:
         component_codes = {str(item.get("code")) for item in components if isinstance(item, dict)}
-        if len(component_codes) != 225:
-            errors.append("日経225構成銘柄コードに重複または欠損があります。")
+        if len(component_codes) != expected_count:
+            errors.append("TOPIX構成銘柄コードに重複または欠損があります。")
 
     sources = payload.get("sources") if isinstance(payload.get("sources"), dict) else {}
     for key in REQUIRED_SOURCES:
@@ -69,7 +100,9 @@ def validate_dataset(payload: object, *, today: date | None = None) -> list[str]
             continue
         code = str(row.get("code") or "")
         if component_codes and code not in component_codes:
-            errors.append(f"{code or index + 1}: 日経225構成銘柄外です。")
+            errors.append(f"{code or index + 1}: TOPIX構成銘柄外です。")
+        if row.get("isTopix") is not True:
+            errors.append(f"{code or index + 1}: TOPIX所属フラグがありません。")
         for key in ("score", "supply", "valuation", "dataQuality"):
             value = row.get(key)
             if not isinstance(value, (int, float)) or isinstance(value, bool):
@@ -83,6 +116,57 @@ def validate_dataset(payload: object, *, today: date | None = None) -> list[str]
             errors.append(f"{code}: スコア計算版がデータセットと一致しません。")
         if row.get("priceBasis") != "adjusted-ohlc" or row.get("highLookbackDays") != 252:
             errors.append(f"{code}: 52週高値の計算基準が一致しません。")
+    return errors
+
+
+def validate_price_history_files(dataset: dict[str, object], site_root: Path) -> list[str]:
+    bundle = dataset.get("priceHistoryBundle") if isinstance(dataset.get("priceHistoryBundle"), dict) else {}
+    shards = bundle.get("shards") if isinstance(bundle.get("shards"), list) else []
+    errors: list[str] = []
+    seen_codes: set[str] = set()
+    total_rows = 0
+    resolved_root = site_root.resolve()
+    for entry in shards:
+        if not isinstance(entry, dict):
+            continue
+        url = str(entry.get("url") or "")
+        if not re.fullmatch(r"data/price-history/topix-[0-9A-Z_]+\.json", url):
+            continue
+        path = (site_root / Path(url)).resolve()
+        if resolved_root not in path.parents:
+            errors.append(f"価格履歴ファイルが公開フォルダー外を参照しています: {url}")
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            errors.append(f"価格履歴ファイルを読み込めません: {url} ({error})")
+            continue
+        prices = payload.get("prices") if isinstance(payload, dict) and isinstance(payload.get("prices"), list) else []
+        if (
+            payload.get("generatedAt") != dataset.get("generatedAt")
+            or payload.get("scoreVersion") != dataset.get("scoreVersion")
+            or payload.get("factorVersion") != dataset.get("factorVersion")
+            or payload.get("priceBasis") != dataset.get("priceBasis")
+            or payload.get("highLookbackDays") != dataset.get("highLookbackDays")
+            or len(prices) != entry.get("recordCount")
+        ):
+            errors.append(f"価格履歴ファイルの生成版または件数が一致しません: {url}")
+            continue
+        for item in prices:
+            code = str(item.get("code") or "") if isinstance(item, dict) else ""
+            history = item.get("chartHistory") if isinstance(item, dict) else None
+            if not code or code in seen_codes:
+                errors.append(f"価格履歴の銘柄コードが欠損または重複しています: {url}")
+                break
+            if not isinstance(history, list) or len(history) < 50 or any(
+                not isinstance(row, list) or len(row) != 6 for row in history
+            ):
+                errors.append(f"価格履歴のOHLCV配列が不完全です: {code}")
+                break
+            seen_codes.add(code)
+        total_rows += len(prices)
+    if total_rows != bundle.get("recordCount") or len(seen_codes) != total_rows:
+        errors.append("価格履歴の分割ファイル合計が契約件数と一致しません。")
     return errors
 
 
@@ -119,6 +203,7 @@ def main() -> int:
         print(f"ERROR: 候補JSONを読み込めません: {error}")
         return 1
     errors = validate_dataset(dataset)
+    errors.extend(validate_price_history_files(dataset, args.dataset.parent.parent))
     try:
         history = json.loads(args.history.read_text(encoding="utf-8"))
         errors.extend(validate_history(history, dataset))
@@ -126,14 +211,17 @@ def main() -> int:
         errors.append(f"スコア履歴JSONを読み込めません: {error}")
     try:
         analysis = json.loads(args.analysis.read_text(encoding="utf-8"))
-        errors.extend(f"日経225分析: {error}" for error in validate_analysis(analysis))
+        errors.extend(
+            f"日経225分析: {error}"
+            for error in validate_analysis(analysis, public_only=True)
+        )
     except (OSError, json.JSONDecodeError) as error:
         errors.append(f"日経225分析JSONを読み込めません: {error}")
     if errors:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print("OK: 日経225候補・スコア履歴・日経225分析JSONの品質チェックに合格しました。")
+    print("OK: TOPIX候補・スコア履歴・日経225分析JSONの品質チェックに合格しました。")
     return 0
 
 

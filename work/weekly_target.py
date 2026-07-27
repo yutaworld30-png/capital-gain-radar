@@ -86,7 +86,20 @@ def _rsi(closes: list[float], period: int = 14) -> float | None:
 
 def _chart_metrics(price: dict[str, object]) -> dict[str, float | bool | None]:
     raw_rows = price.get("chartHistory")
-    rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+    rows: list[dict[str, object]] = []
+    if isinstance(raw_rows, list):
+        for row in raw_rows:
+            if isinstance(row, dict):
+                rows.append(row)
+            elif isinstance(row, list) and len(row) >= 6:
+                rows.append({
+                    "date": row[0],
+                    "open": row[1],
+                    "high": row[2],
+                    "low": row[3],
+                    "close": row[4],
+                    "volume": row[5],
+                })
     rows.sort(key=lambda row: str(row.get("date") or ""))
     closes = [
         float(row["close"])
@@ -305,7 +318,9 @@ def build_weekly_target(
 
 
 def attach_weekly_targets(dataset: dict[str, object]) -> None:
-    prices = dataset.get("nikkei225Prices")
+    prices = dataset.get("topixPrices")
+    if not isinstance(prices, list):
+        prices = dataset.get("nikkei225Prices")
     price_map = {
         str(item.get("code")): item
         for item in prices
