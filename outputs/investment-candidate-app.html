@@ -1699,6 +1699,18 @@
       line-height: 1.5;
     }
 
+    .mobile-sheet-header,
+    .mobile-filter-apply,
+    .mobile-candidate-controls,
+    .mobile-section-tabs,
+    .mobile-more-menu,
+    .mobile-candidate-cards,
+    .mobile-detail-bar,
+    .mobile-sheet-backdrop,
+    .mobile-bottom-nav {
+      display: none;
+    }
+
     @media (max-width: 1050px) {
       .app {
         grid-template-columns: 1fr;
@@ -1850,11 +1862,892 @@
         font-size: 21px;
       }
     }
+
+    @media (max-width: 720px) {
+      :root {
+        --mobile-nav-height: 70px;
+      }
+
+      body {
+        min-width: 0;
+        background: #f3f6f8;
+      }
+
+      body.mobile-filter-open,
+      body.mobile-detail-open {
+        overflow: hidden;
+      }
+
+      .app {
+        display: block;
+        min-height: 100dvh;
+      }
+
+      main {
+        width: 100%;
+        padding: 10px 10px calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 18px);
+      }
+
+      aside {
+        display: none;
+      }
+
+      body.mobile-filter-open aside {
+        position: fixed;
+        z-index: 95;
+        inset: auto 0 0;
+        display: block;
+        width: 100%;
+        height: auto;
+        max-height: min(82dvh, 720px);
+        overflow-y: auto;
+        padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+        border-radius: 12px 12px 0 0;
+        background: var(--white);
+        color: var(--ink);
+        box-shadow: 0 -12px 36px rgba(20, 34, 52, .2);
+      }
+
+      body.mobile-filter-open aside > * {
+        display: none;
+      }
+
+      body.mobile-filter-open aside > .mobile-sheet-header,
+      body.mobile-filter-open aside > .mobile-filter-control,
+      body.mobile-filter-open aside > .mobile-filter-apply {
+        display: block;
+      }
+
+      body.mobile-filter-open aside > .mobile-sheet-header {
+        position: sticky;
+        z-index: 2;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 0 -16px;
+        padding: 14px 16px 12px;
+        border-bottom: 1px solid var(--line);
+        background: var(--white);
+      }
+
+      .mobile-sheet-header strong,
+      .mobile-sheet-header span {
+        display: block;
+      }
+
+      .mobile-sheet-header strong {
+        font-size: 16px;
+      }
+
+      .mobile-sheet-header span {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .mobile-sheet-header button,
+      .mobile-detail-bar button {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--white);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 24px;
+      }
+
+      aside .control-group {
+        margin-top: 0;
+        padding: 14px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      aside .mobile-sheet-header + .brand + .control-group,
+      aside .mobile-filter-control:first-of-type {
+        border-top: 0;
+      }
+
+      aside .control-title,
+      aside label {
+        color: var(--muted);
+      }
+
+      aside select {
+        border-color: var(--line);
+        background: #f7f9fb;
+        color: var(--ink);
+      }
+
+      aside .segmented button {
+        border-color: var(--line);
+        background: #f7f9fb;
+        color: var(--ink);
+      }
+
+      aside .segmented button.active {
+        border-color: #8ee0c2;
+        background: #8ee0c2;
+        color: #102235;
+      }
+
+      .mobile-filter-apply {
+        width: 100%;
+        margin-top: 2px;
+      }
+
+      .mobile-sheet-backdrop {
+        position: fixed;
+        z-index: 90;
+        inset: 0;
+        background: rgba(13, 24, 39, .46);
+      }
+
+      body.mobile-filter-open .mobile-sheet-backdrop {
+        display: block;
+      }
+
+      .topbar {
+        position: sticky;
+        z-index: 30;
+        top: 0;
+        align-items: center;
+        flex-direction: row;
+        min-height: 58px;
+        margin: -10px -10px 10px;
+        padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+        border-bottom: 1px solid rgba(220, 227, 234, .9);
+        background: rgba(243, 246, 248, .96);
+        backdrop-filter: blur(12px);
+      }
+
+      .page-title {
+        font-size: 19px;
+      }
+
+      .topbar .updated {
+        max-width: 220px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 10px;
+      }
+
+      .topbar .actions {
+        flex: 0 0 auto;
+      }
+
+      .topbar .actions .secondary {
+        display: none;
+      }
+
+      .topbar #refreshBtn {
+        min-width: 70px;
+        min-height: 36px;
+        padding: 0 10px;
+      }
+
+      .mobile-candidate-controls,
+      .mobile-section-tabs {
+        margin-bottom: 10px;
+      }
+
+      body[data-mobile-page="candidates"] .mobile-candidate-controls,
+      body[data-mobile-page="watch"] .mobile-candidate-controls,
+      body[data-mobile-page="market"] .mobile-section-tabs,
+      body[data-mobile-page="more"] .mobile-more-menu {
+        display: block;
+      }
+
+      body[data-mobile-page="watch"] #mobileRankingTabs {
+        display: none;
+      }
+
+      .mobile-search-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 70px;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      .mobile-search-row .search {
+        min-height: 42px;
+        border-color: var(--line);
+        background: var(--white);
+        color: var(--ink);
+        box-shadow: 0 2px 8px rgba(26, 42, 63, .04);
+      }
+
+      .mobile-search-row .search-suggestions {
+        z-index: 50;
+        border-color: var(--line);
+        background: var(--white);
+        box-shadow: var(--shadow);
+      }
+
+      .mobile-search-row .suggestion-button {
+        color: var(--ink);
+      }
+
+      .mobile-search-row .suggestion-button.active,
+      .mobile-search-row .suggestion-button:hover {
+        background: #edf6f2;
+      }
+
+      .mobile-search-row .suggestion-meta,
+      .mobile-search-row .suggestion-main span:last-child {
+        color: var(--muted);
+      }
+
+      .mobile-filter-button {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        min-height: 42px;
+        padding: 0 8px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--white);
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .mobile-filter-button svg,
+      .mobile-bottom-nav svg,
+      .mobile-detail-bar svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.8;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .mobile-filter-count {
+        position: absolute;
+        top: -5px;
+        right: -4px;
+        display: grid;
+        place-items: center;
+        min-width: 19px;
+        height: 19px;
+        padding: 0 4px;
+        border-radius: 999px;
+        background: var(--green);
+        color: white;
+        font-size: 10px;
+      }
+
+      .mobile-filter-count[hidden] {
+        display: none;
+      }
+
+      .mobile-scroll-tabs {
+        display: flex;
+        gap: 7px;
+        overflow-x: auto;
+        padding: 1px 1px 5px;
+        scrollbar-width: none;
+      }
+
+      .mobile-scroll-tabs::-webkit-scrollbar {
+        display: none;
+      }
+
+      .mobile-scroll-tabs button {
+        flex: 0 0 auto;
+        min-height: 36px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--white);
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .mobile-scroll-tabs button.active {
+        border-color: #8ee0c2;
+        background: #8ee0c2;
+        color: #102235;
+      }
+
+      .mobile-scroll-tabs.compact {
+        margin-top: 3px;
+      }
+
+      #mobileStatTabs {
+        display: none;
+      }
+
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #mobileStatTabs {
+        display: flex;
+      }
+
+      .mobile-more-menu {
+        margin-bottom: 10px;
+        padding: 12px;
+      }
+
+      .mobile-more-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .mobile-more-grid button {
+        min-height: 72px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fbfcfe;
+        color: var(--ink);
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .mobile-more-grid button.active {
+        border-color: #79d4b5;
+        background: #ebf8f3;
+      }
+
+      .mobile-more-grid strong,
+      .mobile-more-grid span {
+        display: block;
+      }
+
+      .mobile-more-grid strong {
+        font-size: 13px;
+      }
+
+      .mobile-more-grid span {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .mobile-data-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      #guideSection,
+      #marketPanel,
+      #nikkeiAnalysisPanel,
+      #backtestPanel,
+      #candidateSummary,
+      .layout,
+      #comparePanel,
+      #sourceStrip,
+      #qualityPanel,
+      #footerNote {
+        display: none;
+      }
+
+      body[data-mobile-page="candidates"] #candidateSummary,
+      body[data-mobile-page="watch"] #candidateSummary {
+        display: flex;
+      }
+
+      body[data-mobile-page="candidates"] .layout,
+      body[data-mobile-page="watch"] .layout {
+        display: block;
+        margin: 0;
+      }
+
+      body[data-mobile-page="candidates"] #rankingPanel,
+      body[data-mobile-page="watch"] #rankingPanel,
+      body[data-mobile-page="compare"] #comparePanel,
+      body[data-mobile-page="market"][data-mobile-market-view="summary"] #marketPanel,
+      body[data-mobile-page="market"][data-mobile-market-view="technical"] #nikkeiAnalysisPanel,
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel,
+      body[data-mobile-page="more"][data-mobile-more-view="backtest"] #backtestPanel,
+      body[data-mobile-page="more"][data-mobile-more-view="quality"] #sourceStrip,
+      body[data-mobile-page="more"][data-mobile-more-view="quality"] #qualityPanel,
+      body[data-mobile-page="more"][data-mobile-more-view="quality"] #footerNote {
+        display: block;
+      }
+
+      body[data-mobile-page="more"][data-mobile-more-view="usage"] #guideSection,
+      body[data-mobile-page="more"][data-mobile-more-view="score"] #guideSection {
+        display: grid;
+      }
+
+      #guideSection > .panel {
+        display: none;
+      }
+
+      body[data-mobile-page="more"][data-mobile-more-view="usage"] #usageGuidePanel,
+      body[data-mobile-page="more"][data-mobile-more-view="score"] #scoreGuidePanel {
+        display: block;
+      }
+
+      .side-stack {
+        display: block;
+      }
+
+      #stockDetailPanel,
+      #themePanel {
+        display: none;
+      }
+
+      #candidateSummary {
+        gap: 8px;
+        margin-bottom: 10px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+      }
+
+      #candidateSummary::-webkit-scrollbar {
+        display: none;
+      }
+
+      #candidateSummary .metric {
+        flex: 0 0 128px;
+        min-height: 76px;
+        padding: 11px;
+      }
+
+      #candidateSummary .metric-value {
+        margin-top: 5px;
+        font-size: 20px;
+      }
+
+      #rankingPanel .panel-header {
+        align-items: flex-start;
+        padding: 12px;
+      }
+
+      #rankingPanel .panel-header .updated {
+        max-width: 52%;
+        margin: 0;
+        text-align: right;
+        font-size: 10px;
+        line-height: 1.4;
+      }
+
+      #rankingPanel .ranking-tools,
+      #rankingPanel .watch-alerts {
+        padding: 10px 12px;
+      }
+
+      #rankingPanel .table-wrap {
+        display: none;
+      }
+
+      .mobile-candidate-cards {
+        display: grid;
+        gap: 9px;
+        padding: 10px;
+      }
+
+      .mobile-empty:not([hidden]) {
+        display: block;
+      }
+
+      .mobile-stock-card {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--white);
+        box-shadow: 0 3px 12px rgba(26, 42, 63, .05);
+      }
+
+      .mobile-stock-main {
+        display: block;
+        width: 100%;
+        padding: 12px;
+        border: 0;
+        background: transparent;
+        color: var(--ink);
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .mobile-stock-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: start;
+      }
+
+      .mobile-stock-rank {
+        display: block;
+        color: var(--blue);
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .mobile-stock-name {
+        display: block;
+        margin-top: 2px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .mobile-stock-meta {
+        display: block;
+        margin-top: 3px;
+        overflow: hidden;
+        color: var(--muted);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 10px;
+      }
+
+      .mobile-score-block {
+        text-align: center;
+      }
+
+      .mobile-score-block .score {
+        min-width: 48px;
+        height: 34px;
+        font-size: 16px;
+      }
+
+      .mobile-score-block .status {
+        display: block;
+        margin-top: 3px;
+        font-size: 10px;
+      }
+
+      .mobile-stock-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        margin-top: 11px;
+      }
+
+      .mobile-stock-metric {
+        min-width: 0;
+        padding: 7px;
+        border-radius: 7px;
+        background: #f7f9fb;
+      }
+
+      .mobile-stock-metric span,
+      .mobile-stock-metric strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .mobile-stock-metric span {
+        color: var(--muted);
+        font-size: 9px;
+      }
+
+      .mobile-stock-metric strong {
+        margin-top: 3px;
+        font-size: 12px;
+      }
+
+      .mobile-stock-changes {
+        display: flex;
+        gap: 5px;
+        margin-top: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .mobile-stock-changes::-webkit-scrollbar {
+        display: none;
+      }
+
+      .mobile-stock-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .mobile-stock-actions button {
+        min-height: 38px;
+        border: 0;
+        background: #fbfcfe;
+        color: var(--muted);
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .mobile-stock-actions button + button {
+        border-left: 1px solid var(--line);
+      }
+
+      .mobile-stock-actions button.active {
+        background: #e9f8f3;
+        color: var(--green);
+      }
+
+      .mobile-stock-actions button:disabled {
+        opacity: .55;
+      }
+
+      body[data-mobile-page="market"] #marketPanel,
+      body[data-mobile-page="market"] #nikkeiAnalysisPanel,
+      body[data-mobile-page="compare"] #comparePanel,
+      body[data-mobile-page="more"] #backtestPanel,
+      body[data-mobile-page="more"] #qualityPanel,
+      body[data-mobile-page="more"] #usageGuidePanel,
+      body[data-mobile-page="more"] #scoreGuidePanel {
+        margin-bottom: 10px;
+      }
+
+      #marketPanel .panel-header,
+      #nikkeiAnalysisPanel .panel-header {
+        gap: 8px;
+        padding: 12px;
+      }
+
+      #marketPanel .market-overview {
+        grid-template-columns: 112px minmax(0, 1fr);
+        gap: 10px;
+        padding: 12px;
+      }
+
+      #marketPanel .market-score {
+        padding: 10px;
+      }
+
+      #marketPanel .market-summary {
+        font-size: 11px;
+      }
+
+      #marketPanel .market-score-chart-wrap {
+        height: 130px;
+      }
+
+      #marketPanel .market-grid {
+        display: flex;
+        gap: 9px;
+        overflow-x: auto;
+        padding: 0 12px 12px;
+        scroll-snap-type: x mandatory;
+      }
+
+      #marketPanel .market-card {
+        flex: 0 0 min(82vw, 320px);
+        scroll-snap-align: start;
+      }
+
+      body[data-mobile-page="market"][data-mobile-market-view="technical"] #nikkeiAnalysisPanel .analysis-detail-grid,
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-toolbar,
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-kpis,
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-chart-wrap,
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel > .panel-header .market-card-meta,
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-body > .chart-legend,
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-body > .analysis-source-note {
+        display: none;
+      }
+
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .analysis-detail-grid {
+        display: block;
+      }
+
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .analysis-detail-card {
+        display: none;
+      }
+
+      body[data-mobile-page="market"][data-mobile-market-view="stats"][data-mobile-stat-view="margin"] #nikkeiAnalysisPanel .analysis-detail-card:nth-child(1),
+      body[data-mobile-page="market"][data-mobile-market-view="stats"][data-mobile-stat-view="investor"] #nikkeiAnalysisPanel .analysis-detail-card:nth-child(2),
+      body[data-mobile-page="market"][data-mobile-market-view="stats"][data-mobile-stat-view="breadth"] #nikkeiAnalysisPanel .analysis-detail-card:nth-child(3) {
+        display: block;
+      }
+
+      #nikkeiAnalysisPanel .nikkei-analysis-chart-wrap {
+        height: min(64dvh, 520px);
+      }
+
+      #nikkeiAnalysisPanel .nikkei-analysis-kpis {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      #nikkeiAnalysisPanel .nikkei-analysis-kpis::-webkit-scrollbar {
+        display: none;
+      }
+
+      #nikkeiAnalysisPanel .nikkei-analysis-kpi {
+        flex: 0 0 170px;
+      }
+
+      #nikkeiAnalysisPanel .indicator-toggles {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+      }
+
+      #comparePanel .compare-body {
+        overflow: hidden;
+        padding: 10px;
+      }
+
+      #comparePanel .compare-grid {
+        display: flex;
+        gap: 9px;
+        min-width: 0;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scroll-snap-type: x mandatory;
+      }
+
+      #comparePanel .compare-grid[hidden] {
+        display: none;
+      }
+
+      #comparePanel .compare-card {
+        flex: 0 0 min(84vw, 330px);
+        scroll-snap-align: start;
+      }
+
+      #sourceStrip {
+        grid-template-columns: 1fr;
+      }
+
+      body[data-mobile-page="more"][data-mobile-more-view="quality"] #sourceStrip {
+        display: grid;
+      }
+
+      #qualityPanel .quality-list {
+        grid-template-columns: 1fr;
+      }
+
+      body.mobile-detail-open #stockDetailPanel {
+        position: fixed;
+        z-index: 110;
+        inset: 0;
+        display: block;
+        height: 100dvh;
+        margin: 0;
+        overflow-y: auto;
+        padding-bottom: calc(24px + env(safe-area-inset-bottom));
+        border: 0;
+        border-radius: 0;
+        background: var(--white);
+      }
+
+      body.mobile-detail-open #stockDetailPanel .mobile-detail-bar {
+        position: sticky;
+        z-index: 3;
+        top: 0;
+        display: grid;
+        grid-template-columns: 40px 1fr 40px;
+        align-items: center;
+        min-height: 56px;
+        padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255,255,255,.96);
+        backdrop-filter: blur(12px);
+      }
+
+      .mobile-detail-bar strong {
+        text-align: center;
+        font-size: 15px;
+      }
+
+      body.mobile-detail-open #stockDetailPanel > .panel-header {
+        justify-content: flex-end;
+        padding: 8px 14px;
+      }
+
+      body.mobile-detail-open #stockDetailPanel > .panel-header h2 {
+        display: none;
+      }
+
+      body.mobile-detail-open #stockDetailPanel .technical-body {
+        padding: 12px;
+      }
+
+      body.mobile-detail-open #stockDetailPanel .chart-wrap {
+        height: min(66dvh, 520px);
+      }
+
+      body.mobile-detail-open #stockDetailPanel .decision-support,
+      body.mobile-detail-open #stockDetailPanel .detail-quality-grid {
+        grid-template-columns: 1fr;
+      }
+
+      body.mobile-detail-open .mobile-bottom-nav {
+        display: none;
+      }
+
+      .mobile-bottom-nav {
+        position: fixed;
+        z-index: 80;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+        padding: 6px 6px env(safe-area-inset-bottom);
+        border-top: 1px solid rgba(220, 227, 234, .95);
+        background: rgba(255,255,255,.97);
+        box-shadow: 0 -6px 20px rgba(26, 42, 63, .08);
+        backdrop-filter: blur(14px);
+      }
+
+      .mobile-bottom-nav button {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        min-width: 0;
+        min-height: 54px;
+        padding: 3px;
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #758296;
+        cursor: pointer;
+        font-size: 10px;
+        font-weight: 800;
+      }
+
+      .mobile-bottom-nav button.active {
+        background: #eaf7f2;
+        color: var(--green);
+      }
+
+      .mobile-bottom-nav svg {
+        width: 22px;
+        height: 22px;
+      }
+    }
   </style>
 </head>
-<body>
+<body data-mobile-page="candidates" data-mobile-market-view="summary" data-mobile-stat-view="margin" data-mobile-more-view="usage">
   <div class="app">
-    <aside>
+    <aside id="mobileFilterSheet">
+      <div class="mobile-sheet-header">
+        <div>
+          <strong>ランキングを絞り込む</strong>
+          <span id="mobileFilterSummary">条件なし</span>
+        </div>
+        <button id="mobileFilterClose" type="button" aria-label="絞り込みを閉じる">×</button>
+      </div>
       <div class="brand">
         <div class="mark">CG</div>
         <div>
@@ -1887,7 +2780,7 @@
         </div>
       </div>
 
-      <div class="control-group">
+      <div class="control-group mobile-filter-control">
         <div class="control-title">
           <strong>表示数</strong>
         </div>
@@ -1897,7 +2790,7 @@
         </div>
       </div>
 
-      <div class="control-group">
+      <div class="control-group mobile-filter-control">
         <div class="field">
           <label for="sortBy"><span>並び順</span></label>
           <select id="sortBy">
@@ -1916,7 +2809,7 @@
         </div>
       </div>
 
-      <div class="control-group">
+      <div class="control-group mobile-filter-control">
         <div class="control-title">
           <strong>保存フィルター</strong>
         </div>
@@ -1951,6 +2844,8 @@
         </div>
       </div>
 
+      <button class="primary mobile-filter-apply" id="mobileFilterApply" type="button">この条件で表示</button>
+
       <div class="control-group">
         <div class="field">
           <label for="searchBox"><span>銘柄検索</span></label>
@@ -1965,7 +2860,7 @@
     <main>
       <div class="topbar">
         <div>
-          <p class="page-title">今日の高スコアランキング</p>
+          <p class="page-title" id="pageTitle">今日の高スコアランキング</p>
           <div class="updated">実データ未接続: 候補は表示していません</div>
         </div>
         <div class="actions">
@@ -1976,8 +2871,55 @@
         </div>
       </div>
 
-      <section class="guide-grid" aria-label="アプリ説明">
-        <div class="panel">
+      <section class="mobile-candidate-controls" id="mobileCandidateControls" aria-label="候補銘柄の検索と表示切り替え">
+        <div class="mobile-search-row">
+          <div class="search-field">
+            <input id="mobileSearchBox" class="search" type="search" placeholder="コード・銘柄名・テーマ・業種" autocomplete="off" aria-label="銘柄検索" aria-autocomplete="list" aria-controls="mobileSearchSuggestions">
+            <div id="mobileSearchSuggestions" class="search-suggestions" role="listbox" hidden></div>
+          </div>
+          <button class="mobile-filter-button" id="mobileFilterOpen" type="button" aria-expanded="false" aria-controls="mobileFilterSheet">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            <span>絞込</span>
+            <span class="mobile-filter-count" id="mobileFilterCount" hidden>0</span>
+          </button>
+        </div>
+        <div class="mobile-scroll-tabs" id="mobileRankingTabs" role="tablist" aria-label="ランキング種別">
+          <button class="active" type="button" data-mobile-ranking-view="overall" role="tab">総合</button>
+          <button type="button" data-mobile-ranking-view="weekly" role="tab">週5%</button>
+          <button type="button" data-mobile-ranking-view="breakout" role="tab">新高値</button>
+          <button type="button" data-mobile-ranking-view="theme" role="tab">テーマ</button>
+          <button type="button" data-mobile-ranking-view="industry" role="tab">業種</button>
+        </div>
+      </section>
+
+      <section class="mobile-section-tabs" id="mobileMarketTabs" aria-label="相場環境の表示切り替え">
+        <div class="mobile-scroll-tabs" role="tablist">
+          <button class="active" type="button" data-mobile-market-view="summary" role="tab">相場サマリー</button>
+          <button type="button" data-mobile-market-view="technical" role="tab">日経チャート</button>
+          <button type="button" data-mobile-market-view="stats" role="tab">需給統計</button>
+        </div>
+        <div class="mobile-scroll-tabs compact" id="mobileStatTabs" role="tablist" aria-label="需給統計の表示切り替え">
+          <button class="active" type="button" data-mobile-stat-view="margin" role="tab">信用残高</button>
+          <button type="button" data-mobile-stat-view="investor" role="tab">投資主体</button>
+          <button type="button" data-mobile-stat-view="breadth" role="tab">騰落レシオ</button>
+        </div>
+      </section>
+
+      <section class="mobile-more-menu panel" id="mobileMoreMenu" aria-label="その他の機能">
+        <div class="mobile-more-grid" role="tablist">
+          <button class="active" type="button" data-mobile-more-view="usage" role="tab"><strong>アプリの使い方</strong><span>候補の探し方と操作</span></button>
+          <button type="button" data-mobile-more-view="score" role="tab"><strong>スコアの見方</strong><span>評価項目と割合</span></button>
+          <button type="button" data-mobile-more-view="backtest" role="tab"><strong>検証結果</strong><span>前提条件と実績</span></button>
+          <button type="button" data-mobile-more-view="quality" role="tab"><strong>データ品質</strong><span>取得状況と警告</span></button>
+        </div>
+        <div class="mobile-data-actions">
+          <button class="secondary" id="mobileExportBtn" type="button">CSV出力</button>
+          <button class="secondary" id="mobileImportBtn" type="button">JSON取込</button>
+        </div>
+      </section>
+
+      <section class="guide-grid" id="guideSection" aria-label="アプリ説明">
+        <div class="panel" id="usageGuidePanel">
           <div class="panel-header">
             <h2>アプリの使い方</h2>
           </div>
@@ -1996,7 +2938,7 @@
             </ol>
           </div>
         </div>
-        <div class="panel">
+        <div class="panel" id="scoreGuidePanel">
           <div class="panel-header">
             <h2>スコアの見方</h2>
           </div>
@@ -2042,7 +2984,7 @@
         </div>
       </section>
 
-      <section class="panel market-panel" aria-label="今日の相場環境">
+      <section class="panel market-panel" id="marketPanel" aria-label="今日の相場環境">
         <div class="panel-header">
           <h2>今日の相場環境</h2>
           <div class="market-header-tools">
@@ -2078,10 +3020,10 @@
         </div>
       </section>
 
-      <section class="panel nikkei-analysis-panel" aria-label="日経225テクニカル分析">
+      <section class="panel nikkei-analysis-panel" id="nikkeiAnalysisPanel" aria-label="日経225テクニカル分析">
         <div class="panel-header">
           <div>
-            <h2>日経225テクニカル分析</h2>
+            <h2 id="nikkeiAnalysisTitle">日経225テクニカル分析</h2>
             <div class="market-card-meta">日足の価格、トレンド、モメンタムと市場内部の動きをまとめて確認します。</div>
           </div>
           <span class="updated" id="nikkeiAnalysisStatus">JSON読込待ち</span>
@@ -2163,7 +3105,7 @@
         </div>
       </section>
 
-      <section class="panel" aria-label="バックテスト検証結果">
+      <section class="panel" id="backtestPanel" aria-label="バックテスト検証結果">
         <div class="panel-header">
           <h2>バックテスト検証結果</h2>
           <span class="updated" id="backtestStatus">JSON読込待ち</span>
@@ -2190,7 +3132,7 @@
         </div>
       </section>
 
-      <section class="summary-grid" aria-label="サマリー">
+      <section class="summary-grid" id="candidateSummary" aria-label="サマリー">
         <div class="metric">
           <div class="metric-label">表示銘柄</div>
           <div class="metric-value" id="metricCandidates">0</div>
@@ -2210,7 +3152,7 @@
       </section>
 
       <div class="layout">
-        <section class="panel" aria-label="候補銘柄一覧">
+        <section class="panel" id="rankingPanel" aria-label="候補銘柄一覧">
           <div class="panel-header">
             <h2 id="rankingTitle">総合ランキング</h2>
             <span class="updated" id="rankingNote">スコア上位を毎日更新します</span>
@@ -2263,10 +3205,19 @@
             </table>
             <div id="emptyState" class="empty" hidden>実データの取得・検証が完了していないため、候補を表示していません。</div>
           </div>
+          <div id="mobileCandidateCards" class="mobile-candidate-cards"></div>
+          <div id="mobileEmptyState" class="empty mobile-empty" hidden>表示できる銘柄がありません。</div>
         </section>
 
         <div class="side-stack">
-          <section class="panel" aria-label="銘柄詳細">
+          <section class="panel" id="stockDetailPanel" aria-label="銘柄詳細">
+            <div class="mobile-detail-bar">
+              <button id="mobileDetailBack" type="button" aria-label="ランキングへ戻る">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <strong>銘柄詳細</strong>
+              <span></span>
+            </div>
             <div class="panel-header">
               <h2>銘柄詳細</h2>
               <span class="updated" id="technicalAsOf">銘柄未選択</span>
@@ -2345,7 +3296,7 @@
             </div>
           </section>
 
-          <section class="panel" aria-label="テーマ一覧">
+          <section class="panel" id="themePanel" aria-label="テーマ一覧">
             <div class="panel-header">
               <h2>注目テーマ</h2>
             </div>
@@ -2354,7 +3305,7 @@
         </div>
       </div>
 
-      <section class="panel compare-panel" aria-label="銘柄比較">
+      <section class="panel compare-panel" id="comparePanel" aria-label="銘柄比較">
         <div class="panel-header">
           <h2>銘柄比較</h2>
           <span class="updated" id="compareSummary">0/5銘柄</span>
@@ -2365,7 +3316,7 @@
         </div>
       </section>
 
-      <section class="source-strip" aria-label="データ取得状況">
+      <section class="source-strip" id="sourceStrip" aria-label="データ取得状況">
         <div class="source-card">
           <div class="source-label">TOPIX構成・市場・業種</div>
           <div class="source-value" id="topixStatus">未読込</div>
@@ -2388,7 +3339,7 @@
         </div>
       </section>
 
-      <section class="panel quality-panel" aria-label="データ品質チェック">
+      <section class="panel quality-panel" id="qualityPanel" aria-label="データ品質チェック">
         <div class="panel-header">
           <h2>データ品質チェック</h2>
           <span class="updated" id="qualitySummary">候補表示前の必須確認</span>
@@ -2396,11 +3347,35 @@
         <div class="quality-list" id="qualityList"></div>
       </section>
 
-      <p class="note">
+      <p class="note" id="footerNote">
         この画面では、JPX公式一覧で確認したTOPIX構成銘柄だけを表示します。構成判定、価格、ニュース、信用取引残高、決算情報を取得し、取得元リンクと更新日時を候補ごとに保存します。最終的な売買判断はご自身の確認が必要です。
       </p>
     </main>
   </div>
+
+  <div class="mobile-sheet-backdrop" id="mobileSheetBackdrop"></div>
+  <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="主要機能">
+    <button class="active" type="button" data-mobile-page="candidates" aria-current="page">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V3"/></svg>
+      <span>候補</span>
+    </button>
+    <button type="button" data-mobile-page="market">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 9 11l4 4 8-9M16 6h5v5"/></svg>
+      <span>相場</span>
+    </button>
+    <button type="button" data-mobile-page="watch">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/></svg>
+      <span>監視</span>
+    </button>
+    <button type="button" data-mobile-page="compare">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H4v18h4M16 3h4v18h-4M12 6v12"/></svg>
+      <span>比較</span>
+    </button>
+    <button type="button" data-mobile-page="more">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+      <span>その他</span>
+    </button>
+  </nav>
 
   <script>
     let candidates = [];
@@ -2419,6 +3394,14 @@
     let nikkeiAnalysis = null;
     let scoreHistoryByCode = new Map();
     let watchedCodes = new Set();
+    let mobileDetailHistoryActive = false;
+    const mobileScrollPositions = {
+      candidates: 0,
+      market: 0,
+      watch: 0,
+      compare: 0,
+      more: 0,
+    };
     const WATCHLIST_STORAGE_KEY = "capitalGainRadar.watchlist.v1";
     const FILTER_STORAGE_KEY = "capitalGainRadar.filters.v1";
     const SCORE_BUY_LINE = 75;
@@ -2443,6 +3426,13 @@
       scoreHistoryRange: "1w",
       marketHistoryRange: "1m",
       nikkeiAnalysisRange: "6m",
+      mobilePage: "candidates",
+      mobileCandidateView: "overall",
+      mobileMarketView: "summary",
+      mobileStatView: "margin",
+      mobileMoreView: "usage",
+      mobileDetailOpen: false,
+      mobileFilterOpen: false,
       nikkeiIndicators: {
         ma: true,
         psar: true,
@@ -2503,6 +3493,8 @@
     };
 
     const el = {
+      sidebar: document.querySelector("#mobileFilterSheet"),
+      pageTitle: document.querySelector("#pageTitle"),
       overallView: document.querySelector("#overallView"),
       weeklyTargetView: document.querySelector("#weeklyTargetView"),
       breakoutView: document.querySelector("#breakoutView"),
@@ -2519,6 +3511,24 @@
       topixUniverse: document.querySelector("#topixUniverse"),
       searchBox: document.querySelector("#searchBox"),
       searchSuggestions: document.querySelector("#searchSuggestions"),
+      mobileSearchBox: document.querySelector("#mobileSearchBox"),
+      mobileSearchSuggestions: document.querySelector("#mobileSearchSuggestions"),
+      mobileRankingButtons: document.querySelectorAll("[data-mobile-ranking-view]"),
+      mobileMarketButtons: document.querySelectorAll("[data-mobile-market-view]"),
+      mobileStatButtons: document.querySelectorAll("[data-mobile-stat-view]"),
+      mobileMoreButtons: document.querySelectorAll("[data-mobile-more-view]"),
+      mobilePageButtons: document.querySelectorAll("#mobileBottomNav [data-mobile-page]"),
+      mobileCandidateCards: document.querySelector("#mobileCandidateCards"),
+      mobileEmpty: document.querySelector("#mobileEmptyState"),
+      mobileFilterOpen: document.querySelector("#mobileFilterOpen"),
+      mobileFilterClose: document.querySelector("#mobileFilterClose"),
+      mobileFilterApply: document.querySelector("#mobileFilterApply"),
+      mobileFilterCount: document.querySelector("#mobileFilterCount"),
+      mobileFilterSummary: document.querySelector("#mobileFilterSummary"),
+      mobileSheetBackdrop: document.querySelector("#mobileSheetBackdrop"),
+      mobileDetailBack: document.querySelector("#mobileDetailBack"),
+      mobileExportBtn: document.querySelector("#mobileExportBtn"),
+      mobileImportBtn: document.querySelector("#mobileImportBtn"),
       rows: document.querySelector("#candidateRows"),
       empty: document.querySelector("#emptyState"),
       resultCount: document.querySelector("#resultCount"),
@@ -2570,6 +3580,7 @@
         "3m": document.querySelector("#marketRange3m"),
       },
       nikkeiAnalysisStatus: document.querySelector("#nikkeiAnalysisStatus"),
+      nikkeiAnalysisTitle: document.querySelector("#nikkeiAnalysisTitle"),
       nikkeiLocalPrivateNotice: document.querySelector("#nikkeiLocalPrivateNotice"),
       nikkeiAnalysisKpis: document.querySelector("#nikkeiAnalysisKpis"),
       nikkeiAnalysisChart: document.querySelector("#nikkeiAnalysisChart"),
@@ -2652,6 +3663,199 @@
         '"': "&quot;",
         "'": "&#039;",
       }[char]));
+    }
+
+    function isMobileLayout() {
+      return window.matchMedia("(max-width: 720px)").matches;
+    }
+
+    function syncSearchInputs() {
+      el.searchBox.value = state.query;
+      el.mobileSearchBox.value = state.query;
+    }
+
+    function activeFilterDetails() {
+      const details = [];
+      if (state.industryFilter !== "all") details.push(`業種: ${state.industryFilter}`);
+      if (state.marketCapFilter !== "all") {
+        details.push(`時価総額: ${el.marketCapFilter.selectedOptions[0]?.textContent || state.marketCapFilter}`);
+      }
+      if (state.liquidityFilter !== "all") {
+        details.push(`売買代金: ${el.liquidityFilter.selectedOptions[0]?.textContent || state.liquidityFilter}`);
+      }
+      if (state.sortBy !== "score") details.push(`並び順: ${el.sortBy.selectedOptions[0]?.textContent || state.sortBy}`);
+      if (state.limit !== 10) details.push(`表示数: ${state.limit}銘柄`);
+      return details;
+    }
+
+    function requestVisibleMobileCharts() {
+      if (!isMobileLayout()) return;
+      requestAnimationFrame(() => {
+        if (state.mobilePage === "market" && state.mobileMarketView === "summary") {
+          renderMarketEnvironment(marketEnvironment);
+        }
+        if (state.mobilePage === "market" && state.mobileMarketView !== "summary") {
+          renderNikkeiAnalysis(nikkeiAnalysis);
+        }
+        if (state.mobileDetailOpen) renderTechnical(currentRows());
+      });
+    }
+
+    function syncMobileShell() {
+      const mobile = isMobileLayout();
+      document.body.dataset.mobilePage = state.mobilePage;
+      document.body.dataset.mobileMarketView = state.mobileMarketView;
+      document.body.dataset.mobileStatView = state.mobileStatView;
+      document.body.dataset.mobileMoreView = state.mobileMoreView;
+      document.body.classList.toggle("mobile-detail-open", mobile && state.mobileDetailOpen);
+      document.body.classList.toggle("mobile-filter-open", mobile && state.mobileFilterOpen);
+
+      const pageTitles = {
+        candidates: "候補ランキング",
+        market: "相場環境",
+        watch: "ウォッチリスト",
+        compare: "銘柄比較",
+        more: "その他",
+      };
+      el.pageTitle.textContent = mobile ? pageTitles[state.mobilePage] || pageTitles.candidates : "今日の高スコアランキング";
+      el.nikkeiAnalysisTitle.textContent = mobile && state.mobileMarketView === "stats"
+        ? "日経225 需給統計"
+        : "日経225テクニカル分析";
+      el.sidebar.setAttribute("aria-hidden", mobile && !state.mobileFilterOpen ? "true" : "false");
+      el.mobileFilterOpen.setAttribute("aria-expanded", String(mobile && state.mobileFilterOpen));
+
+      el.mobilePageButtons.forEach(button => {
+        const active = button.dataset.mobilePage === state.mobilePage;
+        button.classList.toggle("active", active);
+        if (active) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      });
+      el.mobileRankingButtons.forEach(button => {
+        const active = button.dataset.mobileRankingView === state.view;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", String(active));
+      });
+      el.mobileMarketButtons.forEach(button => {
+        const active = button.dataset.mobileMarketView === state.mobileMarketView;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", String(active));
+      });
+      el.mobileStatButtons.forEach(button => {
+        const active = button.dataset.mobileStatView === state.mobileStatView;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", String(active));
+      });
+      el.mobileMoreButtons.forEach(button => {
+        const active = button.dataset.mobileMoreView === state.mobileMoreView;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", String(active));
+      });
+
+      const filterDetails = activeFilterDetails();
+      el.mobileFilterCount.hidden = filterDetails.length === 0;
+      el.mobileFilterCount.textContent = String(filterDetails.length);
+      el.mobileFilterSummary.textContent = filterDetails.length ? filterDetails.join(" / ") : "条件なし";
+      syncSearchInputs();
+    }
+
+    function setMobileFilterOpen(open) {
+      state.mobileFilterOpen = Boolean(open) && isMobileLayout();
+      syncMobileShell();
+      if (state.mobileFilterOpen) {
+        requestAnimationFrame(() => el.mobileFilterClose.focus());
+      } else if (isMobileLayout()) {
+        el.mobileFilterOpen.focus({ preventScroll: true });
+      }
+    }
+
+    function setMobilePage(page) {
+      if (!Object.hasOwn(mobileScrollPositions, page)) return;
+      if (isMobileLayout()) mobileScrollPositions[state.mobilePage] = window.scrollY;
+      state.mobilePage = page;
+      state.mobileFilterOpen = false;
+      state.searchOpen = false;
+      if (page === "watch") {
+        state.view = "watchlist";
+      } else if (page === "candidates") {
+        state.view = state.mobileCandidateView;
+      }
+      render();
+      if (isMobileLayout()) {
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: mobileScrollPositions[page] || 0, behavior: "auto" });
+          requestVisibleMobileCharts();
+        });
+      }
+    }
+
+    function setMobileRankingView(view) {
+      if (!["overall", "weekly", "breakout", "theme", "industry"].includes(view)) return;
+      state.mobileCandidateView = view;
+      state.view = view;
+      state.mobilePage = "candidates";
+      state.searchOpen = false;
+      mobileScrollPositions.candidates = 0;
+      render();
+      if (isMobileLayout()) window.scrollTo({ top: 0, behavior: "auto" });
+    }
+
+    function setMobileMarketView(view) {
+      if (!["summary", "technical", "stats"].includes(view)) return;
+      state.mobileMarketView = view;
+      syncMobileShell();
+      requestVisibleMobileCharts();
+    }
+
+    function setMobileStatView(view) {
+      if (!["margin", "investor", "breadth"].includes(view)) return;
+      state.mobileStatView = view;
+      syncMobileShell();
+      requestVisibleMobileCharts();
+    }
+
+    function setMobileMoreView(view) {
+      if (!["usage", "score", "backtest", "quality"].includes(view)) return;
+      state.mobileMoreView = view;
+      syncMobileShell();
+      if (isMobileLayout()) window.scrollTo({ top: 0, behavior: "auto" });
+    }
+
+    function openMobileDetail(code) {
+      state.selectedCode = String(code || "");
+      state.searchOpen = false;
+      if (!isMobileLayout()) {
+        render();
+        return;
+      }
+      mobileScrollPositions[state.mobilePage] = window.scrollY;
+      state.mobileDetailOpen = true;
+      state.mobileFilterOpen = false;
+      if (!mobileDetailHistoryActive) {
+        history.pushState({ capitalGainRadarDetail: true }, document.title);
+        mobileDetailHistoryActive = true;
+      }
+      render();
+      requestAnimationFrame(() => {
+        document.querySelector("#stockDetailPanel")?.scrollTo({ top: 0, behavior: "auto" });
+        requestVisibleMobileCharts();
+      });
+    }
+
+    function closeMobileDetail(fromHistory = false) {
+      if (!state.mobileDetailOpen) return;
+      if (!fromHistory && mobileDetailHistoryActive) {
+        history.back();
+        return;
+      }
+      state.mobileDetailOpen = false;
+      mobileDetailHistoryActive = false;
+      render();
+      if (isMobileLayout()) {
+        requestAnimationFrame(() => window.scrollTo({
+          top: mobileScrollPositions[state.mobilePage] || 0,
+          behavior: "auto",
+        }));
+      }
     }
 
     function loadWatchlist() {
@@ -4230,6 +5434,7 @@
       if (!dataStatus.liveConnected || !state.searchOpen || query.length < 1) return [];
       return searchUniverse
         .filter(item => item.isTopix === true)
+        .filter(item => !isMobileLayout() || state.mobilePage !== "watch" || watchedCodes.has(String(item.code)))
         .filter(item => searchText(item).includes(query))
         .slice(0, 8);
     }
@@ -4239,31 +5444,37 @@
       state.selectedCode = String(item.code);
       state.searchOpen = false;
       state.activeSuggestionIndex = 0;
-      el.searchBox.value = state.query;
-      render();
+      syncSearchInputs();
+      if (isMobileLayout()) openMobileDetail(item.code);
+      else render();
     }
 
-    function renderSearchSuggestions() {
-      const suggestions = currentSearchSuggestions();
+    function renderSearchSuggestionList(container, input, suggestions, idPrefix) {
       if (!suggestions.length) {
-        el.searchSuggestions.hidden = true;
-        el.searchSuggestions.innerHTML = "";
-        el.searchBox.removeAttribute("aria-activedescendant");
+        container.hidden = true;
+        container.innerHTML = "";
+        input.removeAttribute("aria-activedescendant");
         return;
       }
-      if (state.activeSuggestionIndex >= suggestions.length) state.activeSuggestionIndex = 0;
-      el.searchSuggestions.hidden = false;
-      el.searchSuggestions.innerHTML = suggestions.map((item, index) => {
+      container.hidden = false;
+      container.innerHTML = suggestions.map((item, index) => {
         const activeClass = index === state.activeSuggestionIndex ? " active" : "";
         const market = item.exchangeSection ? `TOPIX / ${item.exchangeSection}` : "TOPIX";
         return `
-          <button id="searchSuggestion${index}" class="suggestion-button${activeClass}" type="button" role="option" aria-selected="${index === state.activeSuggestionIndex}" data-code="${escapeHtml(item.code)}">
+          <button id="${idPrefix}${index}" class="suggestion-button${activeClass}" type="button" role="option" aria-selected="${index === state.activeSuggestionIndex}" data-code="${escapeHtml(item.code)}">
             <span class="suggestion-main"><span>${escapeHtml(item.code)} ${escapeHtml(item.name)}</span><span>${escapeHtml(market)}</span></span>
             <span class="suggestion-meta">${escapeHtml(item.industry || "業種未分類")} / ${escapeHtml((item.themes || []).slice(0, 2).join("・") || "テーマ未分類")}</span>
           </button>
         `;
       }).join("");
-      el.searchBox.setAttribute("aria-activedescendant", `searchSuggestion${state.activeSuggestionIndex}`);
+      input.setAttribute("aria-activedescendant", `${idPrefix}${state.activeSuggestionIndex}`);
+    }
+
+    function renderSearchSuggestions() {
+      const suggestions = currentSearchSuggestions();
+      if (state.activeSuggestionIndex >= suggestions.length) state.activeSuggestionIndex = 0;
+      renderSearchSuggestionList(el.searchSuggestions, el.searchBox, suggestions, "searchSuggestion");
+      renderSearchSuggestionList(el.mobileSearchSuggestions, el.mobileSearchBox, suggestions, "mobileSearchSuggestion");
     }
 
     function statusFor(item) {
@@ -5274,6 +6485,66 @@
       `;
     }
 
+    function emptyMessageForCurrentView() {
+      if (state.view === "watchlist") return "ウォッチリストは空です。ランキングの☆ボタンから銘柄を追加できます。";
+      if (state.view === "weekly") return "この資金配分で100株購入できる銘柄、または週5%候補判定済みのデータがありません。";
+      if (state.view === "breakout") return breakoutProfile().empty;
+      return "表示できる銘柄がありません。検索条件や対象銘柄を確認してください。";
+    }
+
+    function renderMobileRows(rows) {
+      el.mobileCandidateCards.innerHTML = rows.map((item, index) => {
+        const [label, className] = statusFor(item);
+        const code = String(item.code);
+        const isComparing = state.compareCodes.includes(code);
+        const compareLimitReached = state.compareCodes.length >= 5 && !isComparing;
+        const watched = watchedCodes.has(code);
+        const rankLabel = item.groupLabel
+          ? `${item.groupLabel} ${item.groupRank || index + 1}位`
+          : `${index + 1}位`;
+        const quality = dataQualityScore(item);
+        const warnings = dataWarnings(item);
+        const changes = changeBadges(item);
+        const priceMetrics = priceMetricsByCode.get(code) || {};
+        const price = latestPriceInfo(item, chartRowsFor(item), priceMetrics);
+        const highDistance = Number(item.high52wDistance);
+        const weeklyProfile = state.view === "weekly" ? weeklyTargetProfile(item) : null;
+        const primaryTheme = (item.themes || [])[0] || "テーマ未分類";
+        return `
+          <article class="mobile-stock-card${code === state.selectedCode ? " selected" : ""}">
+            <button class="mobile-stock-main" type="button" data-mobile-open-code="${escapeHtml(code)}" aria-label="${escapeHtml(item.name)}の詳細を開く">
+              <span class="mobile-stock-head">
+                <span>
+                  <span class="mobile-stock-rank">${escapeHtml(rankLabel)}</span>
+                  <span class="mobile-stock-name">${escapeHtml(item.name)}</span>
+                  <span class="mobile-stock-meta">${escapeHtml(code)} / ${escapeHtml(item.industry || "業種未分類")} / ${escapeHtml(primaryTheme)}</span>
+                </span>
+                <span class="mobile-score-block">
+                  <span class="score">${escapeHtml(item.score)}</span>
+                  <span class="status ${className}">${escapeHtml(label)}</span>
+                </span>
+              </span>
+              <span class="mobile-stock-metrics">
+                <span class="mobile-stock-metric"><span>株価</span><strong>${escapeHtml(formatPrice(price.close))}</strong></span>
+                <span class="mobile-stock-metric"><span>信用倍率</span><strong>${Number.isFinite(Number(item.margin)) ? `${Number(item.margin).toFixed(1)}倍` : "未取得"}</strong></span>
+                <span class="mobile-stock-metric"><span>${weeklyProfile ? "週次適合度" : "52週高値"}</span><strong>${weeklyProfile ? `${escapeHtml(weeklyProfile.score)}点` : item.isNewHigh52w === true ? "更新" : Number.isFinite(highDistance) ? `${escapeHtml(formatPercent(highDistance))}以内` : "未取得"}</strong></span>
+              </span>
+              <span class="mobile-stock-changes">
+                <span class="change-badge${warnings.length ? " alert" : ""}">信頼度 ${quality}点${warnings.length ? ` / ${escapeHtml(warnings[0])}` : ""}</span>
+                ${changes.map(change => `<span class="change-badge">${escapeHtml(change)}</span>`).join("")}
+              </span>
+            </button>
+            <div class="mobile-stock-actions">
+              <button class="${isComparing ? "active" : ""}" type="button" data-mobile-compare-code="${escapeHtml(code)}" ${compareLimitReached ? "disabled" : ""}>${isComparing ? "比較中" : compareLimitReached ? "比較は5銘柄まで" : "比較に追加"}</button>
+              <button class="${watched ? "active" : ""}" type="button" data-mobile-watch-code="${escapeHtml(code)}">${watched ? "★ 監視中" : "☆ 監視に追加"}</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+      el.mobileEmpty.hidden = rows.length > 0;
+      el.mobileEmpty.textContent = emptyMessageForCurrentView();
+    }
+
     function renderRows(rows) {
       if (rows.length && !rows.some(item => String(item.code) === state.selectedCode)) {
         state.selectedCode = String(rows[0].code);
@@ -5350,15 +6621,10 @@
           </tr>
         `;
       }).join("");
+      renderMobileRows(rows);
       el.empty.hidden = rows.length > 0;
       if (!rows.length) {
-        el.empty.textContent = state.view === "watchlist"
-          ? "ウォッチリストは空です。ランキングの☆ボタンから銘柄を追加できます。"
-          : state.view === "weekly"
-            ? "この資金配分で100株購入できる銘柄、または週5%候補判定済みのデータがありません。"
-          : state.view === "breakout"
-            ? breakoutProfile().empty
-            : "表示できる銘柄がありません。検索条件や対象銘柄を確認してください。";
+        el.empty.textContent = emptyMessageForCurrentView();
       }
     }
 
@@ -5697,6 +6963,7 @@
 
     function render() {
       syncLabels();
+      syncMobileShell();
       pruneCompareCodes();
       renderGroupFilter();
       renderBreakoutFilter();
@@ -5730,26 +6997,17 @@
       URL.revokeObjectURL(url);
     }
 
-    el.overallView.addEventListener("click", () => {
-      state.view = "overall";
+    function selectRankingView(view) {
+      state.view = view;
+      if (view !== "watchlist") state.mobileCandidateView = view;
       render();
-    });
-    el.weeklyTargetView.addEventListener("click", () => {
-      state.view = "weekly";
-      render();
-    });
-    el.breakoutView.addEventListener("click", () => {
-      state.view = "breakout";
-      render();
-    });
-    el.themeView.addEventListener("click", () => {
-      state.view = "theme";
-      render();
-    });
-    el.industryView.addEventListener("click", () => {
-      state.view = "industry";
-      render();
-    });
+    }
+
+    el.overallView.addEventListener("click", () => selectRankingView("overall"));
+    el.weeklyTargetView.addEventListener("click", () => selectRankingView("weekly"));
+    el.breakoutView.addEventListener("click", () => selectRankingView("breakout"));
+    el.themeView.addEventListener("click", () => selectRankingView("theme"));
+    el.industryView.addEventListener("click", () => selectRankingView("industry"));
     el.watchlistView.addEventListener("click", () => {
       state.view = "watchlist";
       render();
@@ -5809,46 +7067,62 @@
       state.universe = "topix";
       render();
     });
-    el.searchBox.addEventListener("input", event => {
-      state.query = event.target.value;
-      state.searchOpen = true;
-      state.activeSuggestionIndex = 0;
-      render();
-    });
-    el.searchBox.addEventListener("focus", () => {
-      state.searchOpen = true;
-      renderSearchSuggestions();
-    });
-    el.searchBox.addEventListener("keydown", event => {
-      const suggestions = currentSearchSuggestions();
-      if (!suggestions.length) return;
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        state.activeSuggestionIndex = (state.activeSuggestionIndex + 1) % suggestions.length;
+
+    function bindSearchInput(input) {
+      input.addEventListener("input", event => {
+        state.query = event.target.value;
+        state.searchOpen = true;
+        state.activeSuggestionIndex = 0;
+        render();
+      });
+      input.addEventListener("focus", () => {
+        state.searchOpen = true;
         renderSearchSuggestions();
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        state.activeSuggestionIndex = (state.activeSuggestionIndex - 1 + suggestions.length) % suggestions.length;
-        renderSearchSuggestions();
-      } else if (event.key === "Enter") {
-        event.preventDefault();
-        selectSearchSuggestion(suggestions[state.activeSuggestionIndex]);
-      } else if (event.key === "Escape") {
-        state.searchOpen = false;
-        renderSearchSuggestions();
-      }
-    });
-    el.searchSuggestions.addEventListener("mousedown", event => {
-      event.preventDefault();
-    });
-    el.searchSuggestions.addEventListener("click", event => {
-      const button = event.target.closest("[data-code]");
-      if (!button) return;
-      const item = searchUniverse.find(row => String(row.code) === String(button.dataset.code));
-      if (item) selectSearchSuggestion(item);
-    });
+      });
+      input.addEventListener("keydown", event => {
+        const suggestions = currentSearchSuggestions();
+        if (event.key === "Escape") {
+          state.searchOpen = false;
+          renderSearchSuggestions();
+          return;
+        }
+        if (!suggestions.length) return;
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          state.activeSuggestionIndex = (state.activeSuggestionIndex + 1) % suggestions.length;
+          renderSearchSuggestions();
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          state.activeSuggestionIndex = (state.activeSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+          renderSearchSuggestions();
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          selectSearchSuggestion(suggestions[state.activeSuggestionIndex]);
+        }
+      });
+    }
+
+    function bindSearchSuggestions(container) {
+      container.addEventListener("mousedown", event => event.preventDefault());
+      container.addEventListener("click", event => {
+        const button = event.target.closest("[data-code]");
+        if (!button) return;
+        const item = searchUniverse.find(row => String(row.code) === String(button.dataset.code));
+        if (item) selectSearchSuggestion(item);
+      });
+    }
+
+    bindSearchInput(el.searchBox);
+    bindSearchInput(el.mobileSearchBox);
+    bindSearchSuggestions(el.searchSuggestions);
+    bindSearchSuggestions(el.mobileSearchSuggestions);
     document.addEventListener("click", event => {
-      if (event.target === el.searchBox || el.searchSuggestions.contains(event.target)) return;
+      if (
+        event.target === el.searchBox ||
+        event.target === el.mobileSearchBox ||
+        el.searchSuggestions.contains(event.target) ||
+        el.mobileSearchSuggestions.contains(event.target)
+      ) return;
       if (!state.searchOpen) return;
       state.searchOpen = false;
       renderSearchSuggestions();
@@ -5918,8 +7192,23 @@
       }
       const row = event.target.closest("tr[data-code]");
       if (!row) return;
-      state.selectedCode = row.dataset.code;
-      render();
+      openMobileDetail(row.dataset.code);
+    });
+    el.mobileCandidateCards.addEventListener("click", event => {
+      const compareButton = event.target.closest("[data-mobile-compare-code]");
+      if (compareButton) {
+        toggleCompare(compareButton.dataset.mobileCompareCode);
+        render();
+        return;
+      }
+      const watchButton = event.target.closest("[data-mobile-watch-code]");
+      if (watchButton) {
+        toggleWatch(watchButton.dataset.mobileWatchCode);
+        render();
+        return;
+      }
+      const openButton = event.target.closest("[data-mobile-open-code]");
+      if (openButton) openMobileDetail(openButton.dataset.mobileOpenCode);
     });
     el.compareGrid.addEventListener("click", event => {
       const removeButton = event.target.closest("[data-compare-remove]");
@@ -5933,18 +7222,55 @@
       const row = event.target.closest("tr[data-code]");
       if (!row) return;
       event.preventDefault();
-      state.selectedCode = row.dataset.code;
-      render();
+      openMobileDetail(row.dataset.code);
     });
+
+    el.mobilePageButtons.forEach(button => {
+      button.addEventListener("click", () => setMobilePage(button.dataset.mobilePage));
+    });
+    el.mobileRankingButtons.forEach(button => {
+      button.addEventListener("click", () => setMobileRankingView(button.dataset.mobileRankingView));
+    });
+    el.mobileMarketButtons.forEach(button => {
+      button.addEventListener("click", () => setMobileMarketView(button.dataset.mobileMarketView));
+    });
+    el.mobileStatButtons.forEach(button => {
+      button.addEventListener("click", () => setMobileStatView(button.dataset.mobileStatView));
+    });
+    el.mobileMoreButtons.forEach(button => {
+      button.addEventListener("click", () => setMobileMoreView(button.dataset.mobileMoreView));
+    });
+    el.mobileFilterOpen.addEventListener("click", () => setMobileFilterOpen(true));
+    el.mobileFilterClose.addEventListener("click", () => setMobileFilterOpen(false));
+    el.mobileFilterApply.addEventListener("click", () => setMobileFilterOpen(false));
+    el.mobileSheetBackdrop.addEventListener("click", () => setMobileFilterOpen(false));
+    el.mobileDetailBack.addEventListener("click", () => closeMobileDetail());
+    window.addEventListener("popstate", () => {
+      if (state.mobileDetailOpen) closeMobileDetail(true);
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      if (state.mobileFilterOpen) setMobileFilterOpen(false);
+      else if (state.mobileDetailOpen) closeMobileDetail();
+    });
+
     el.exportBtn.addEventListener("click", downloadCsv);
+    el.mobileExportBtn.addEventListener("click", downloadCsv);
     el.importBtn.addEventListener("click", () => {
       el.dataFile.click();
     });
+    el.mobileImportBtn.addEventListener("click", () => el.dataFile.click());
     el.dataFile.addEventListener("change", event => {
       loadSelectedFile(event.target.files?.[0]);
     });
     el.refreshBtn.addEventListener("click", loadBundledDataset);
     window.addEventListener("resize", () => {
+      if (!isMobileLayout()) {
+        state.mobileFilterOpen = false;
+        state.mobileDetailOpen = false;
+        mobileDetailHistoryActive = false;
+      }
+      syncMobileShell();
       const rows = currentRows();
       renderTechnical(rows);
       renderMarketHistoryCharts();
