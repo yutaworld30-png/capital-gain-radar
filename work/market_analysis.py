@@ -211,12 +211,18 @@ def _permission_required_source(url: str, note: str) -> dict[str, Any]:
     }
 
 
-def _weekly_recency_status(as_of: object, *, max_age_days: int = 21) -> tuple[str, str | None]:
+def _weekly_recency_status(
+    as_of: object,
+    *,
+    max_age_days: int = 21,
+    today: date | None = None,
+) -> tuple[str, str | None]:
     try:
         source_date = date.fromisoformat(str(as_of))
     except ValueError:
         return "unavailable", "週次データの基準日を確認できません。"
-    age_days = (date.today() - source_date).days
+    current = today or date.today()
+    age_days = (current - source_date).days
     if age_days < -2:
         return "stale-fallback", "週次データの基準日が未来日になっています。"
     if age_days > max_age_days:
@@ -274,6 +280,7 @@ def _weekly_data(
     previous: dict[str, Any],
     *,
     distribution_mode: str = PUBLIC_DISTRIBUTION_MODE,
+    today: date | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     local_private = distribution_mode == LOCAL_PRIVATE_DISTRIBUTION_MODE
     if not local_private and not _env_enabled("JPX_PUBLIC_DATA_USE_CONFIRMED"):
@@ -302,7 +309,7 @@ def _weekly_data(
     try:
         margin_rows, margin_url = fetch_margin_history(previous_margin)
         margin_as_of = margin_rows[-1]["weekEnd"] if margin_rows else None
-        margin_status, margin_note = _weekly_recency_status(margin_as_of)
+        margin_status, margin_note = _weekly_recency_status(margin_as_of, today=today)
         margin = {
             "status": margin_status,
             "url": margin_url,
@@ -324,7 +331,7 @@ def _weekly_data(
     try:
         investor_rows, source_urls = fetch_investor_history(previous_investor)
         investor_as_of = investor_rows[-1]["periodEnd"] if investor_rows else None
-        investor_status, investor_note = _weekly_recency_status(investor_as_of)
+        investor_status, investor_note = _weekly_recency_status(investor_as_of, today=today)
         if not source_urls:
             investor_status = "stale-fallback" if investor_rows else "unavailable"
             investor_note = "直近の投資主体別ファイルを更新できず、前回履歴を維持しています。"

@@ -5,6 +5,8 @@ on:
   schedule:
     # 16:10 JST on weekdays. GitHub Actions schedules use UTC.
     - cron: "10 7 * * 1-5"
+    # 19:10 JST backup. It skips automatically when today's data is already public.
+    - cron: "10 10 * * 1-5"
 
 permissions:
   contents: read
@@ -16,7 +18,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_refresh: ${{ steps.decision.outputs.should_refresh }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Decide whether refresh is required
+        id: decision
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Manual run: force refresh"
+            echo "should_refresh=true" >> "$GITHUB_OUTPUT"
+          elif python3 work/check_published_freshness.py; then
+            echo "Published data is already fresh; skip backup refresh"
+            echo "should_refresh=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Published data is stale or unavailable; run refresh"
+            echo "should_refresh=true" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: freshness
+    if: needs.freshness.outputs.should_refresh == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:

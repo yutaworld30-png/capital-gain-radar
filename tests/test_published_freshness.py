@@ -1,0 +1,80 @@
+from __future__ import annotations
+
+import sys
+import unittest
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+
+ROOT = Path(__file__).resolve().parents[1]
+WORK = ROOT / "work"
+sys.path.insert(0, str(WORK))
+
+from check_published_freshness import freshness_issues  # noqa: E402
+
+
+JST = ZoneInfo("Asia/Tokyo")
+
+
+def sample_payload(generated_at: str = "2026-08-13T07:20:00+00:00") -> dict:
+    return {
+        "generatedAt": generated_at,
+        "sources": {
+            "priceHistory": {
+                "status": "available",
+                "asOf": "2026-08-13",
+            }
+        },
+        "searchUniverse": [{"code": "9433"}],
+    }
+
+
+class PublishedFreshnessTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.now = datetime(2026, 8, 13, 19, 10, tzinfo=JST)
+
+    def test_today_payload_is_fresh(self) -> None:
+        self.assertEqual(freshness_issues(sample_payload(), now=self.now), [])
+
+    def test_utc_timestamp_is_compared_in_jst(self) -> None:
+        payload = sample_payload("2026-08-12T23:30:00+00:00")
+        self.assertEqual(freshness_issues(payload, now=self.now), [])
+
+    def test_previous_day_payload_is_stale(self) -> None:
+        issues = freshness_issues(
+            sample_payload("2026-08-12T07:20:00+00:00"),
+            now=self.now,
+        )
+        self.assertTrue(any("当日ではありません" in issue for issue in issues))
+
+    def test_unavailable_price_source_is_stale(self) -> None:
+        payload = sample_payload()
+        payload["sources"]["priceHistory"]["status"] = "stale-fallback"
+        issues = freshness_issues(payload, now=self.now)
+        self.assertIn("価格履歴がavailableではありません。", issues)
+
+    def test_previous_trading_date_requests_backup_refresh(self) -> None:
+        payload = sample_payload()
+        payload["sources"]["priceHistory"]["asOf"] = "2026-08-12"
+        issues = freshness_issues(payload, now=self.now)
+        self.assertTrue(any("価格履歴の基準日が当日ではありません" in issue for issue in issues))
+
+    def test_empty_ranking_universe_is_stale(self) -> None:
+        payload = sample_payload()
+        payload["searchUniverse"] = []
+        issues = freshness_issues(payload, now=self.now)
+        self.assertIn("ランキング母集団が空です。", issues)
+
+    def test_workflow_has_freshness_gate_and_backup_schedule(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "deploy-pages.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('cron: "10 7 * * 1-5"', workflow)
+        self.assertIn('cron: "10 10 * * 1-5"', workflow)
+        self.assertIn("python3 work/check_published_freshness.py", workflow)
+        self.assertIn("needs.freshness.outputs.should_refresh == 'true'", workflow)
+
+
+if __name__ == "__main__":
+    unittest.main()

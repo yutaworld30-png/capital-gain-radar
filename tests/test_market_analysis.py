@@ -140,6 +140,7 @@ class MarketAnalysisTests(unittest.TestCase):
             margin, investor = _weekly_data(
                 {},
                 distribution_mode=LOCAL_PRIVATE_DISTRIBUTION_MODE,
+                today=date(2026, 7, 20),
             )
         self.assertEqual(per_rows[-1]["weightedPer"], 17.42)
         self.assertEqual(per_source["status"], "available")
@@ -180,9 +181,26 @@ class MarketAnalysisTests(unittest.TestCase):
             )
 
     def test_weekly_recency_does_not_label_old_data_available(self) -> None:
-        status, note = _weekly_recency_status("2025-12-26")
+        status, note = _weekly_recency_status(
+            "2025-12-26",
+            today=date(2026, 1, 30),
+        )
         self.assertEqual(status, "stale-fallback")
         self.assertIn("最新値として扱いません", note or "")
+
+    def test_weekly_recency_boundary_uses_explicit_reference_date(self) -> None:
+        available, _ = _weekly_recency_status(
+            "2026-07-17",
+            max_age_days=21,
+            today=date(2026, 8, 7),
+        )
+        stale, _ = _weekly_recency_status(
+            "2026-07-17",
+            max_age_days=21,
+            today=date(2026, 8, 8),
+        )
+        self.assertEqual(available, "available")
+        self.assertEqual(stale, "stale-fallback")
 
 
 if __name__ == "__main__":
