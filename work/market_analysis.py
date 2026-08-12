@@ -77,13 +77,20 @@ def _unix_seconds(day: date) -> int:
     return int(datetime.combine(day, time.min, tzinfo=timezone.utc).timestamp())
 
 
+def _market_timezone(timezone_name: object):
+    name = str(timezone_name or "UTC")
+    try:
+        return ZoneInfo(name)
+    except ZoneInfoNotFoundError:
+        if name == "Asia/Tokyo":
+            return timezone(timedelta(hours=9))
+        return timezone.utc
+
+
 def _timestamp_date(timestamp: object, timezone_name: object) -> str | None:
     if not isinstance(timestamp, (int, float)):
         return None
-    try:
-        zone = ZoneInfo(str(timezone_name or "UTC"))
-    except ZoneInfoNotFoundError:
-        zone = timezone.utc
+    zone = _market_timezone(timezone_name)
     return datetime.fromtimestamp(float(timestamp), tz=timezone.utc).astimezone(zone).date().isoformat()
 
 
@@ -106,23 +113,51 @@ def fetch_nikkei225_ohlc(*, today: date | None = None) -> tuple[list[dict[str, A
         meta = result.get("meta", {})
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
         raise MarketAnalysisError("日経225 OHLCの応答形式が不正です。") from error
+    timezone_name = meta.get("exchangeTimezoneName") or meta.get("timezone")
+    meta_close_date = None
+    meta_close_price = None
+    try:
+        zone = _market_timezone(timezone_name)
+        meta_close_at = datetime.fromtimestamp(
+            float(meta["regularMarketTime"]),
+            tz=timezone.utc,
+        ).astimezone(zone)
+        candidate_price = float(meta["regularMarketPrice"])
+        if (
+            meta_close_at.time() >= time(15, 30)
+            and math.isfinite(candidate_price)
+            and candidate_price > 0
+        ):
+            meta_close_date = meta_close_at.date().isoformat()
+            meta_close_price = candidate_price
+    except (KeyError, TypeError, ValueError, OSError):
+        pass
     rows: list[dict[str, Any]] = []
     for index, timestamp in enumerate(timestamps):
+        row_date = _timestamp_date(timestamp, timezone_name)
+        if not row_date:
+            continue
         try:
             values = {
                 key: float(quote[key][index])
-                for key in ("open", "high", "low", "close")
+                for key in ("open", "high", "low")
             }
         except (KeyError, IndexError, TypeError, ValueError):
             continue
+        try:
+            close = float(quote["close"][index])
+        except (KeyError, IndexError, TypeError, ValueError):
+            close = math.nan
+        if (
+            (not math.isfinite(close) or close <= 0)
+            and row_date == meta_close_date
+            and meta_close_price is not None
+        ):
+            close = meta_close_price
+        values["close"] = close
         if any(not math.isfinite(value) or value <= 0 for value in values.values()):
             continue
-        row_date = _timestamp_date(
-            timestamp,
-            meta.get("exchangeTimezoneName") or meta.get("timezone"),
-        )
-        if row_date:
-            rows.append({"date": row_date, **values})
+        rows.append({"date": row_date, **values})
     by_date = {str(row["date"]): row for row in rows}
     ordered = [by_date[key] for key in sorted(by_date)]
     if len(ordered) < 100:

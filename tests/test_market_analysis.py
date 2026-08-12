@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import sys
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
+from zoneinfo import ZoneInfoNotFoundError
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,8 +19,10 @@ from market_analysis import (  # noqa: E402
     LOCAL_PRIVATE_DISTRIBUTION_MODE,
     MarketAnalysisError,
     _per_data,
+    _timestamp_date,
     _weekly_data,
     build_analysis_payload,
+    fetch_nikkei225_ohlc,
     parse_weighted_per_html,
     resolve_output_path,
     validate_analysis,
@@ -41,6 +45,67 @@ def sample_rows(count: int = 140) -> list[dict[str, float | str]]:
 
 
 class MarketAnalysisTests(unittest.TestCase):
+    @staticmethod
+    def _yahoo_chart_payload(*, meta_time_offset: int = 16 * 60 * 60) -> bytes:
+        start = int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp())
+        timestamps = [start + index * 86_400 for index in range(101)]
+        opens = [40_000 + index for index in range(101)]
+        closes = [value + 50 for value in opens]
+        closes[-1] = None
+        payload = {
+            "chart": {
+                "result": [
+                    {
+                        "timestamp": timestamps,
+                        "meta": {
+                            "exchangeTimezoneName": "UTC",
+                            "regularMarketTime": timestamps[-1] + meta_time_offset,
+                            "regularMarketPrice": 40_150.0,
+                        },
+                        "indicators": {
+                            "quote": [
+                                {
+                                    "open": opens,
+                                    "high": [value + 100 for value in opens],
+                                    "low": [value - 100 for value in opens],
+                                    "close": closes,
+                                }
+                            ]
+                        },
+                    }
+                ]
+            }
+        }
+        return json.dumps(payload).encode("utf-8")
+
+    def test_latest_missing_close_uses_same_day_post_close_meta_price(self) -> None:
+        with patch(
+            "market_analysis.fetch_bytes",
+            return_value=self._yahoo_chart_payload(),
+        ):
+            rows, _ = fetch_nikkei225_ohlc(today=date(2026, 4, 11))
+        self.assertEqual(len(rows), 101)
+        self.assertEqual(rows[-1]["date"], "2026-04-11")
+        self.assertEqual(rows[-1]["close"], 40_150.0)
+
+    def test_intraday_meta_price_does_not_replace_missing_close(self) -> None:
+        with patch(
+            "market_analysis.fetch_bytes",
+            return_value=self._yahoo_chart_payload(meta_time_offset=14 * 60 * 60),
+        ):
+            rows, _ = fetch_nikkei225_ohlc(today=date(2026, 4, 11))
+        self.assertEqual(len(rows), 100)
+        self.assertEqual(rows[-1]["date"], "2026-04-10")
+
+    def test_tokyo_timestamp_fallback_does_not_require_tzdata(self) -> None:
+        timestamp = int(datetime(2026, 8, 11, 15, 30, tzinfo=timezone.utc).timestamp())
+        with patch(
+            "market_analysis.ZoneInfo",
+            side_effect=ZoneInfoNotFoundError("Asia/Tokyo"),
+        ):
+            result = _timestamp_date(timestamp, "Asia/Tokyo")
+        self.assertEqual(result, "2026-08-12")
+
     def test_parse_weighted_per_html(self) -> None:
         html = """
         <table>
