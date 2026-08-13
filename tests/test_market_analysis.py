@@ -23,6 +23,7 @@ from market_analysis import (  # noqa: E402
     _weekly_data,
     build_analysis_payload,
     fetch_nikkei225_ohlc,
+    merge_price_rows,
     parse_weighted_per_html,
     resolve_output_path,
     validate_analysis,
@@ -46,12 +47,16 @@ def sample_rows(count: int = 140) -> list[dict[str, float | str]]:
 
 class MarketAnalysisTests(unittest.TestCase):
     @staticmethod
-    def _yahoo_chart_payload(*, meta_time_offset: int = 16 * 60 * 60) -> bytes:
+    def _yahoo_chart_payload(
+        *,
+        meta_time_offset: int = 16 * 60 * 60,
+        latest_close: float | None = None,
+    ) -> bytes:
         start = int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp())
         timestamps = [start + index * 86_400 for index in range(101)]
         opens = [40_000 + index for index in range(101)]
         closes = [value + 50 for value in opens]
-        closes[-1] = None
+        closes[-1] = latest_close
         payload = {
             "chart": {
                 "result": [
@@ -97,6 +102,18 @@ class MarketAnalysisTests(unittest.TestCase):
         self.assertEqual(len(rows), 100)
         self.assertEqual(rows[-1]["date"], "2026-04-10")
 
+    def test_intraday_complete_looking_row_is_not_treated_as_daily_close(self) -> None:
+        with patch(
+            "market_analysis.fetch_bytes",
+            return_value=self._yahoo_chart_payload(
+                meta_time_offset=14 * 60 * 60,
+                latest_close=40_150.0,
+            ),
+        ):
+            rows, _ = fetch_nikkei225_ohlc(today=date(2026, 4, 11))
+        self.assertEqual(len(rows), 100)
+        self.assertEqual(rows[-1]["date"], "2026-04-10")
+
     def test_tokyo_timestamp_fallback_does_not_require_tzdata(self) -> None:
         timestamp = int(datetime(2026, 8, 11, 15, 30, tzinfo=timezone.utc).timestamp())
         with patch(
@@ -105,6 +122,30 @@ class MarketAnalysisTests(unittest.TestCase):
         ):
             result = _timestamp_date(timestamp, "Asia/Tokyo")
         self.assertEqual(result, "2026-08-12")
+
+    def test_merge_keeps_prior_confirmed_candle_when_refresh_omits_it(self) -> None:
+        previous = sample_rows(101)
+        refreshed = sample_rows(100)
+        merged = merge_price_rows(previous, refreshed)
+        self.assertEqual(len(merged), 101)
+        self.assertEqual(merged[-1]["date"], previous[-1]["date"])
+        self.assertEqual(merged[-1]["close"], previous[-1]["close"])
+
+    def test_merge_prefers_refreshed_complete_candle_for_same_date(self) -> None:
+        previous = sample_rows(101)
+        refreshed = [dict(previous[-1], close=41_000.0, high=41_100.0)]
+        merged = merge_price_rows(previous, refreshed)
+        self.assertEqual(merged[-1]["close"], 41_000.0)
+
+    def test_merge_ignores_incomplete_or_invalid_prior_candles(self) -> None:
+        rows = sample_rows(100)
+        invalid = [
+            {"date": "2026-08-12", "open": 1, "high": 2, "low": 1},
+            {"date": "2026-08-13", "open": 2, "high": 1, "low": 1, "close": 2},
+        ]
+        merged = merge_price_rows(rows, invalid)
+        self.assertEqual(len(merged), 100)
+        self.assertEqual(merged[-1]["date"], rows[-1]["date"])
 
     def test_parse_weighted_per_html(self) -> None:
         html = """

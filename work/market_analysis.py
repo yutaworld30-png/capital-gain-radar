@@ -38,6 +38,10 @@ PUBLISHED_CANDIDATE_URL = (
     "https://yutaworld30-png.github.io/capital-gain-radar/"
     "data/latest-candidates.json"
 )
+PUBLISHED_ANALYSIS_URL = (
+    "https://yutaworld30-png.github.io/capital-gain-radar/"
+    "data/nikkei225-analysis.json"
+)
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/%5EN225"
 NIKKEI_PER_URL = "https://indexes.nikkei.co.jp/nkave/archives/data?list=per"
 SCHEMA_VERSION = 1
@@ -114,6 +118,8 @@ def fetch_nikkei225_ohlc(*, today: date | None = None) -> tuple[list[dict[str, A
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
         raise MarketAnalysisError("日経225 OHLCの応答形式が不正です。") from error
     timezone_name = meta.get("exchangeTimezoneName") or meta.get("timezone")
+    meta_market_date = None
+    meta_market_closed = False
     meta_close_date = None
     meta_close_price = None
     try:
@@ -122,9 +128,11 @@ def fetch_nikkei225_ohlc(*, today: date | None = None) -> tuple[list[dict[str, A
             float(meta["regularMarketTime"]),
             tz=timezone.utc,
         ).astimezone(zone)
+        meta_market_date = meta_close_at.date().isoformat()
+        meta_market_closed = meta_close_at.time() >= time(15, 30)
         candidate_price = float(meta["regularMarketPrice"])
         if (
-            meta_close_at.time() >= time(15, 30)
+            meta_market_closed
             and math.isfinite(candidate_price)
             and candidate_price > 0
         ):
@@ -136,6 +144,8 @@ def fetch_nikkei225_ohlc(*, today: date | None = None) -> tuple[list[dict[str, A
     for index, timestamp in enumerate(timestamps):
         row_date = _timestamp_date(timestamp, timezone_name)
         if not row_date:
+            continue
+        if row_date == meta_market_date and not meta_market_closed:
             continue
         try:
             values = {
@@ -193,6 +203,51 @@ def _load_previous(path: Path = OUTPUT) -> dict[str, Any]:
         return payload if isinstance(payload, dict) else {}
     except (OSError, json.JSONDecodeError):
         return {}
+
+
+def _load_published_previous() -> dict[str, Any]:
+    try:
+        payload = json.loads(fetch_bytes(PUBLISHED_ANALYSIS_URL).decode("utf-8"))
+        return payload if isinstance(payload, dict) else {}
+    except (MarketAnalysisError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+
+
+def _valid_price_row(row: object) -> dict[str, Any] | None:
+    if not isinstance(row, dict):
+        return None
+    try:
+        row_date = date.fromisoformat(str(row.get("date"))).isoformat()
+        values = {
+            key: float(row[key])
+            for key in ("open", "high", "low", "close")
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+    if any(not math.isfinite(value) or value <= 0 for value in values.values()):
+        return None
+    if values["high"] < max(values["open"], values["close"]):
+        return None
+    if values["low"] > min(values["open"], values["close"]):
+        return None
+    return {"date": row_date, **values}
+
+
+def merge_price_rows(
+    *row_sets: object,
+    max_rows: int = 1_100,
+) -> list[dict[str, Any]]:
+    """Keep prior confirmed candles when the current provider omits a trading day."""
+    by_date: dict[str, dict[str, Any]] = {}
+    for rows in row_sets:
+        if not isinstance(rows, list):
+            continue
+        for row in rows:
+            normalized = _valid_price_row(row)
+            if normalized is not None:
+                by_date[normalized["date"]] = normalized
+    ordered = [by_date[key] for key in sorted(by_date)]
+    return ordered[-max_rows:]
 
 
 def _load_breadth(
@@ -558,12 +613,21 @@ def main(argv: list[str] | None = None) -> int:
         else PUBLIC_DISTRIBUTION_MODE
     )
     generated_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
-    previous = _load_previous(output)
+    local_previous = _load_previous(output)
+    published_previous = (
+        {} if args.local_private else _load_published_previous()
+    )
+    previous = published_previous or local_previous
     try:
-        raw_rows, price_url = fetch_nikkei225_ohlc()
+        refreshed_rows, price_url = fetch_nikkei225_ohlc()
     except MarketAnalysisError as error:
         print(f"ERROR: {error}")
         return 1
+    raw_rows = merge_price_rows(
+        local_previous.get("rows"),
+        published_previous.get("rows"),
+        refreshed_rows,
+    )
     payload = build_analysis_payload(
         raw_rows,
         generated_at=generated_at,

@@ -3,18 +3,25 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 PUBLIC_DATA_URL = (
     "https://yutaworld30-png.github.io/"
     "capital-gain-radar/data/latest-candidates.json"
 )
-JST = ZoneInfo("Asia/Tokyo")
+PUBLIC_ANALYSIS_URL = (
+    "https://yutaworld30-png.github.io/"
+    "capital-gain-radar/data/nikkei225-analysis.json"
+)
+try:
+    JST = ZoneInfo("Asia/Tokyo")
+except ZoneInfoNotFoundError:
+    JST = timezone(timedelta(hours=9), name="JST")
 
 
 def _parse_timestamp(value: object) -> datetime | None:
@@ -79,6 +86,68 @@ def freshness_issues(
     return issues
 
 
+def analysis_freshness_issues(
+    payload: object,
+    *,
+    candidate_payload: object,
+    now: datetime | None = None,
+) -> list[str]:
+    if not isinstance(payload, dict):
+        return ["日経225分析JSONがオブジェクトではありません。"]
+
+    current = (now or datetime.now(tz=JST)).astimezone(JST)
+    issues: list[str] = []
+    generated_at = _parse_timestamp(payload.get("generatedAt"))
+    if generated_at is None:
+        issues.append("日経225分析のgeneratedAtが未設定またはタイムゾーンなしです。")
+    elif generated_at.astimezone(JST).date() != current.date():
+        issues.append(
+            "日経225分析のgeneratedAtが当日ではありません: "
+            f"{generated_at.astimezone(JST).date().isoformat()}"
+        )
+
+    price_source = payload.get("priceSource")
+    analysis_as_of = None
+    if not isinstance(price_source, dict):
+        issues.append("日経225分析の価格取得状態がありません。")
+    else:
+        if price_source.get("status") != "available":
+            issues.append("日経225分析の価格履歴がavailableではありません。")
+        analysis_as_of = _parse_date(price_source.get("asOf"))
+        if analysis_as_of is None:
+            issues.append("日経225分析の基準日がありません。")
+
+    rows = payload.get("rows")
+    latest_row_date = None
+    if not isinstance(rows, list) or not rows:
+        issues.append("日経225分析の価格履歴が空です。")
+    elif isinstance(rows[-1], dict):
+        latest_row_date = _parse_date(rows[-1].get("date"))
+        if latest_row_date is None:
+            issues.append("日経225分析の最終行の日付が不正です。")
+    else:
+        issues.append("日経225分析の最終行が不正です。")
+
+    expected_as_of = None
+    if isinstance(candidate_payload, dict):
+        sources = candidate_payload.get("sources")
+        candidate_price = sources.get("priceHistory") if isinstance(sources, dict) else None
+        if isinstance(candidate_price, dict):
+            expected_as_of = _parse_date(candidate_price.get("asOf"))
+    if expected_as_of is not None:
+        if analysis_as_of != expected_as_of:
+            issues.append(
+                "日経225分析の基準日が候補データと一致しません: "
+                f"analysis={analysis_as_of} candidates={expected_as_of}"
+            )
+        if latest_row_date != expected_as_of:
+            issues.append(
+                "日経225分析の最終足が候補データと一致しません: "
+                f"analysis={latest_row_date} candidates={expected_as_of}"
+            )
+    return issues
+
+
 def fetch_payload(url: str, *, timeout: float = 30.0) -> dict[str, Any]:
     request = Request(
         url,
@@ -100,22 +169,31 @@ def fetch_payload(url: str, *, timeout: float = 30.0) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="公開済み株価データの当日鮮度を確認します。")
     parser.add_argument("--url", default=PUBLIC_DATA_URL)
+    parser.add_argument("--analysis-url", default=PUBLIC_ANALYSIS_URL)
     parser.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args()
     try:
         payload = fetch_payload(args.url, timeout=args.timeout)
+        analysis_payload = fetch_payload(args.analysis_url, timeout=args.timeout)
     except RuntimeError as error:
         print(f"STALE: {error}")
         return 1
 
     issues = freshness_issues(payload)
+    issues.extend(
+        analysis_freshness_issues(
+            analysis_payload,
+            candidate_payload=payload,
+        )
+    )
     if issues:
         print("STALE: " + " / ".join(issues))
         return 1
     print(
         "FRESH: "
         f"generatedAt={payload.get('generatedAt')} "
-        f"priceAsOf={payload.get('sources', {}).get('priceHistory', {}).get('asOf')}"
+        f"priceAsOf={payload.get('sources', {}).get('priceHistory', {}).get('asOf')} "
+        f"analysisAsOf={analysis_payload.get('priceSource', {}).get('asOf')}"
     )
     return 0
 

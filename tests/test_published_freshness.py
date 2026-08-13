@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import sys
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
 sys.path.insert(0, str(WORK))
 
-from check_published_freshness import freshness_issues  # noqa: E402
+from check_published_freshness import (  # noqa: E402
+    analysis_freshness_issues,
+    freshness_issues,
+)
 
 
-JST = ZoneInfo("Asia/Tokyo")
+JST = timezone(timedelta(hours=9), name="JST")
 
 
 def sample_payload(generated_at: str = "2026-08-13T07:20:00+00:00") -> dict:
@@ -27,6 +29,14 @@ def sample_payload(generated_at: str = "2026-08-13T07:20:00+00:00") -> dict:
             }
         },
         "searchUniverse": [{"code": "9433"}],
+    }
+
+
+def sample_analysis(generated_at: str = "2026-08-13T07:30:00+00:00") -> dict:
+    return {
+        "generatedAt": generated_at,
+        "priceSource": {"status": "available", "asOf": "2026-08-13"},
+        "rows": [{"date": "2026-08-13", "close": 67_000}],
     }
 
 
@@ -65,6 +75,35 @@ class PublishedFreshnessTests(unittest.TestCase):
         payload["searchUniverse"] = []
         issues = freshness_issues(payload, now=self.now)
         self.assertIn("ランキング母集団が空です。", issues)
+
+    def test_analysis_matching_candidate_price_date_is_fresh(self) -> None:
+        self.assertEqual(
+            analysis_freshness_issues(
+                sample_analysis(),
+                candidate_payload=sample_payload(),
+                now=self.now,
+            ),
+            [],
+        )
+
+    def test_analysis_older_than_candidate_requests_refresh(self) -> None:
+        analysis = sample_analysis()
+        analysis["priceSource"]["asOf"] = "2026-08-10"
+        analysis["rows"][-1]["date"] = "2026-08-10"
+        issues = analysis_freshness_issues(
+            analysis,
+            candidate_payload=sample_payload(),
+            now=self.now,
+        )
+        self.assertTrue(any("候補データと一致しません" in issue for issue in issues))
+
+    def test_previous_day_analysis_generation_is_stale(self) -> None:
+        issues = analysis_freshness_issues(
+            sample_analysis("2026-08-12T07:30:00+00:00"),
+            candidate_payload=sample_payload(),
+            now=self.now,
+        )
+        self.assertTrue(any("generatedAtが当日ではありません" in issue for issue in issues))
 
     def test_workflow_has_freshness_gate_and_backup_schedule(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "deploy-pages.yml").read_text(
