@@ -10,6 +10,7 @@ from io import StringIO
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from jquants_connector import JQuantsError, calculate_price_metrics
 
@@ -26,6 +27,35 @@ GOOGLE_FINANCE_URL = "https://www.google.com/finance/quote"
 
 class FreeMarketDataError(RuntimeError):
     pass
+
+
+def _market_timezone(timezone_name: object):
+    name = str(timezone_name or "UTC")
+    try:
+        return ZoneInfo(name)
+    except ZoneInfoNotFoundError:
+        if name == "Asia/Tokyo":
+            return timezone(timedelta(hours=9))
+        return timezone.utc
+
+
+def _intraday_quote_date(meta: object) -> str | None:
+    if not isinstance(meta, dict):
+        return None
+    try:
+        market_at = datetime.fromtimestamp(
+            float(meta["regularMarketTime"]),
+            tz=timezone.utc,
+        ).astimezone(
+            _market_timezone(
+                meta.get("exchangeTimezoneName") or meta.get("timezone")
+            )
+        )
+    except (KeyError, TypeError, ValueError, OSError):
+        return None
+    if market_at.time() >= time(15, 30):
+        return None
+    return market_at.date().isoformat()
 
 
 def _fetch(url: str) -> bytes:
@@ -79,11 +109,15 @@ def fetch_yahoo_history(
         timestamps = result["timestamp"]
         quote = result["indicators"]["quote"][0]
         adjusted = result["indicators"].get("adjclose", [{}])[0].get("adjclose", [])
+        intraday_date = _intraday_quote_date(result.get("meta"))
     except (KeyError, IndexError, TypeError, json.JSONDecodeError) as error:
         raise FreeMarketDataError("Yahoo Financeの株価データを解析できません。") from error
 
     rows: list[dict[str, object]] = []
     for index, timestamp in enumerate(timestamps):
+        row_date = datetime.fromtimestamp(timestamp, tz=timezone.utc).date().isoformat()
+        if row_date == intraday_date:
+            continue
         open_price = quote.get("open", [])[index]
         close = quote.get("close", [])[index]
         high = quote.get("high", [])[index]
@@ -94,7 +128,7 @@ def fetch_yahoo_history(
         adjusted_close = adjusted[index] if index < len(adjusted) and adjusted[index] is not None else close
         factor = float(adjusted_close) / float(close)
         rows.append({
-            "Date": datetime.fromtimestamp(timestamp, tz=timezone.utc).date().isoformat(),
+            "Date": row_date,
             "O": float(open_price),
             "H": float(high),
             "L": float(low),
@@ -130,9 +164,13 @@ def fetch_yahoo_mirror_latest(codes: list[str]) -> dict[str, dict[str, object]]:
             response = item["response"][0]
             timestamps = response["timestamp"]
             closes = response["indicators"]["quote"][0]["close"]
+            intraday_date = _intraday_quote_date(response.get("meta"))
             latest_index = next(
                 index for index in range(len(closes) - 1, -1, -1)
                 if closes[index] not in (None, 0)
+                and datetime.fromtimestamp(
+                    timestamps[index], tz=timezone.utc
+                ).date().isoformat() != intraday_date
             )
             validated[code] = {
                 "date": datetime.fromtimestamp(timestamps[latest_index], tz=timezone.utc).date().isoformat(),
@@ -170,17 +208,21 @@ def fetch_yahoo_spark_histories(
             closes = response["indicators"]["quote"][0]["close"]
             meta = response.get("meta", {})
             latest_volume = float(meta.get("regularMarketVolume") or 0)
+            intraday_date = _intraday_quote_date(meta)
         except (KeyError, IndexError, TypeError, ValueError):
             continue
 
         rows: list[dict[str, object]] = []
         for index, timestamp in enumerate(timestamps):
+            row_date = datetime.fromtimestamp(timestamp, tz=timezone.utc).date().isoformat()
+            if row_date == intraday_date:
+                continue
             close = closes[index] if index < len(closes) else None
             if close in (None, 0):
                 continue
             close_value = float(close)
             rows.append({
-                "Date": datetime.fromtimestamp(timestamp, tz=timezone.utc).date().isoformat(),
+                "Date": row_date,
                 "C": close_value,
                 "AdjC": close_value,
                 "Va": close_value * latest_volume,

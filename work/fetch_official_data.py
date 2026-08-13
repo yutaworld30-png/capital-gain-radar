@@ -664,6 +664,10 @@ def collect_free_market_metrics(
                 )
 
     validated.sort(key=lambda item: str(item["code"]))
+    if errors:
+        print("TOPIX OHLCV sample errors:", flush=True)
+        for error in errors[:5]:
+            print(f"- {error}", flush=True)
     nikkei_codes = {
         str(item.get("code", ""))
         for item in dataset.get("nikkei225Components", [])
