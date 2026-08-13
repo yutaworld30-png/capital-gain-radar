@@ -68,7 +68,19 @@ class PublishedFreshnessTests(unittest.TestCase):
         payload = sample_payload()
         payload["sources"]["priceHistory"]["asOf"] = "2026-08-12"
         issues = freshness_issues(payload, now=self.now)
-        self.assertTrue(any("価格履歴の基準日が当日ではありません" in issue for issue in issues))
+        self.assertTrue(any("直近の確定取引日ではありません" in issue for issue in issues))
+
+    def test_morning_accepts_previous_weekday_close(self) -> None:
+        payload = sample_payload()
+        payload["sources"]["priceHistory"]["asOf"] = "2026-08-12"
+        morning = datetime(2026, 8, 13, 10, 0, tzinfo=JST)
+        self.assertEqual(freshness_issues(payload, now=morning), [])
+
+    def test_monday_morning_accepts_previous_friday_close(self) -> None:
+        payload = sample_payload("2026-08-17T00:30:00+00:00")
+        payload["sources"]["priceHistory"]["asOf"] = "2026-08-14"
+        monday_morning = datetime(2026, 8, 17, 10, 0, tzinfo=JST)
+        self.assertEqual(freshness_issues(payload, now=monday_morning), [])
 
     def test_empty_ranking_universe_is_stale(self) -> None:
         payload = sample_payload()

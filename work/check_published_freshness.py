@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -45,6 +45,15 @@ def _parse_date(value: object) -> date | None:
         return None
 
 
+def _expected_price_date(current: datetime) -> date:
+    expected = current.date()
+    if current.weekday() >= 5 or current.time() < time(15, 30):
+        expected -= timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= timedelta(days=1)
+    return expected
+
+
 def freshness_issues(
     payload: object,
     *,
@@ -74,9 +83,9 @@ def freshness_issues(
         price_as_of = _parse_date(price_source.get("asOf"))
         if price_as_of is None:
             issues.append("価格履歴の基準日がありません。")
-        elif current.weekday() < 5 and price_as_of != current.date():
+        elif price_as_of != _expected_price_date(current):
             issues.append(
-                "価格履歴の基準日が当日ではありません: "
+                "価格履歴の基準日が直近の確定取引日ではありません: "
                 f"{price_as_of.isoformat()}"
             )
 
