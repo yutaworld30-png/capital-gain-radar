@@ -18,6 +18,19 @@ Daily TOPIX stock screening app for capital gain candidates.
 - Rank and factor changes are compared only with the previous snapshot using the same `scoreVersion` and `factorVersion`.
 - Industry, market-cap, and liquidity filters are saved locally in the browser. Watchlist alerts are temporary display state derived from generated JSON.
 
+## Portfolio view
+
+- Holdings, share counts, average acquisition prices, optional manual forecast DPS, and notes are stored only in browser `localStorage`; they are not written to published JSON or the repository.
+- Current dividend yield and book-cost dividend yield use the same forecast annual DPS. Yahoo Finance Japan company forecast DPS is preferred, an explicit local manual value can override it, and missing forecasts remain `unavailable` instead of being shown as 0%.
+- The portfolio summary reports dividend-data coverage so partial expected-dividend totals are not presented as complete coverage. A JSON backup/restore control is available for moving the browser-local holdings data.
+
+## Weekly 5% prediction tracking
+
+- `outputs/data/weekly-predictions-v1.json` stores an immutable signal snapshot for each weekly candidate and a limited control sample. Duplicate IDs prevent the same code, profile, date, and scoring version from being registered twice.
+- Outcomes use the next session open as entry and the following five sessions as the horizon. Target-first is +5%, stop-first is -2.5%, and a daily bar touching both levels is kept as ambiguous and excluded from the primary hit rate.
+- `outputs/data/weekly-accuracy-summary-v1.json` contains profile, signal-status, score-band, market-regime, industry, and strict-check summaries. The app treats results as collecting until enough evaluated observations exist and does not feed them back into ranking yet.
+- The workflow refreshes market environment before candidates so the signal snapshot keeps the market regime that was available at prediction time.
+
 ## Nikkei 225 market analysis
 
 - `work/market_analysis.py` generates `outputs/data/nikkei225-analysis.json`.

@@ -52,11 +52,15 @@ from edinet_connector import (
 )
 from market_breadth import build_nikkei225_breadth
 from weekly_target import attach_weekly_targets
+from weekly_prediction import build_accuracy_summary, update_prediction_ledger
 
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "outputs" / "data" / "latest-candidates.json"
 SCORE_HISTORY_OUTPUT = ROOT / "outputs" / "data" / "score-history-v2.json"
+WEEKLY_PREDICTIONS_OUTPUT = ROOT / "outputs" / "data" / "weekly-predictions-v1.json"
+WEEKLY_ACCURACY_OUTPUT = ROOT / "outputs" / "data" / "weekly-accuracy-summary-v1.json"
+MARKET_ENVIRONMENT_OUTPUT = ROOT / "outputs" / "data" / "market-environment.json"
 PRICE_HISTORY_DIR = ROOT / "outputs" / "data" / "price-history"
 PDF_INSPECTION_DIR = ROOT / "work" / "tmp" / "pdfs"
 PAGES_BASE_URL = "https://yutaworld30-png.github.io/capital-gain-radar"
@@ -1274,7 +1278,7 @@ def _metric_basis(item: dict[str, object]) -> dict[str, object]:
         ),
         "dps": (
             "Yahoo Finance会社予想"
-            if item.get("dpsSource") or fundamentals.get("dpsSource")  # type: ignore[union-attr]
+            if item.get("dpsKind") == "forecast" or fundamentals.get("dpsKind") == "forecast"  # type: ignore[union-attr]
             else "EDINET実績DPS"
         ),
         "dividendPayoutRatio": (
@@ -1713,6 +1717,72 @@ def _load_existing_score_history() -> dict[str, object]:
     return {"schemaVersion": SCHEMA_VERSION, "snapshots": []}
 
 
+def _load_existing_weekly_predictions() -> dict[str, object]:
+    if WEEKLY_PREDICTIONS_OUTPUT.exists():
+        try:
+            loaded = json.loads(WEEKLY_PREDICTIONS_OUTPUT.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                return loaded
+        except (OSError, json.JSONDecodeError):
+            pass
+    prediction_url = os.environ.get(
+        "WEEKLY_PREDICTIONS_URL",
+        f"{PAGES_BASE_URL}/data/weekly-predictions-v1.json",
+    )
+    try:
+        loaded = load_json_url(prediction_url)
+        if isinstance(loaded, dict):
+            return loaded
+    except (URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
+        pass
+    return {"schemaVersion": 1, "records": []}
+
+
+def _load_market_environment_snapshot() -> dict[str, object] | None:
+    if not MARKET_ENVIRONMENT_OUTPUT.exists():
+        return None
+    try:
+        loaded = json.loads(MARKET_ENVIRONMENT_OUTPUT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return loaded if isinstance(loaded, dict) else None
+
+
+def update_weekly_prediction_outputs(
+    dataset: dict[str, object],
+    generated_at: str,
+) -> tuple[dict[str, object], dict[str, object]]:
+    ledger = update_prediction_ledger(
+        dataset,
+        generated_at,
+        _load_existing_weekly_predictions(),
+        _load_market_environment_snapshot(),
+    )
+    summary = build_accuracy_summary(ledger, generated_at)
+    for path, payload in (
+        (WEEKLY_PREDICTIONS_OUTPUT, ledger),
+        (WEEKLY_ACCURACY_OUTPUT, summary),
+    ):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            encoding="utf-8",
+        )
+        temporary.replace(path)
+    dataset["weeklyPredictionSummary"] = {
+        "status": summary.get("overall", {}).get("sampleStatus", "collecting"),  # type: ignore[union-attr]
+        "recordCount": ledger.get("recordCount", 0),
+        "pendingCount": ledger.get("stateCounts", {}).get("pending", 0),  # type: ignore[union-attr]
+        "evaluatedCount": ledger.get("stateCounts", {}).get("evaluated", 0),  # type: ignore[union-attr]
+        "predictionsUrl": "data/weekly-predictions-v1.json",
+        "accuracyUrl": "data/weekly-accuracy-summary-v1.json",
+        "predictionVersion": ledger.get("predictionVersion"),
+        "labelVersion": ledger.get("labelVersion"),
+    }
+    return ledger, summary
+
+
 def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[str, object]:
     rows = dataset.get("searchUniverse")
     if not isinstance(rows, list):
@@ -2010,6 +2080,7 @@ def collect_edinet_fundamentals(
                 yahoo_company_data[code] = company_data
             for field in (
                 "dps",
+                "dpsKind",
                 "dpsAsOf",
                 "dpsSource",
                 "dividendYield",
@@ -2069,6 +2140,7 @@ def collect_edinet_fundamentals(
                         "roe",
                         "marketCap",
                         "dps",
+                        "dpsKind",
                         "dpsAsOf",
                         "dpsSource",
                         "dividendYield",
@@ -2564,17 +2636,25 @@ def main() -> None:
         },
     ]
     score_history = update_score_history(dataset, generated_at)
+    weekly_predictions, weekly_accuracy = update_weekly_prediction_outputs(dataset, generated_at)
     dataset["priceHistoryBundle"] = write_price_history_shards(dataset, generated_at)
     compact_dataset_for_output(dataset)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(dataset, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"Wrote {OUTPUT}")
     print(f"Wrote {SCORE_HISTORY_OUTPUT}")
+    print(f"Wrote {WEEKLY_PREDICTIONS_OUTPUT}")
+    print(f"Wrote {WEEKLY_ACCURACY_OUTPUT}")
     print(
         f"Wrote price history shards: "
         f"{len(dataset.get('priceHistoryBundle', {}).get('shards', []))}"  # type: ignore[union-attr]
     )
     print(f"Score history snapshots: {len(score_history.get('snapshots', []))}")
+    print(
+        "Weekly predictions: "
+        f"{weekly_predictions.get('recordCount', 0)} records / "
+        f"{weekly_accuracy.get('overall', {}).get('evaluatedCount', 0)} evaluated"  # type: ignore[union-attr]
+    )
     print(f"Nikkei 225 components: {len(dataset['nikkei225Components'])}")
     print(f"Screening universe: TOPIX ({len(dataset['topixComponents'])})")
     print(f"Margin status: {dataset['sources']['marginWeekly']['status']}")  # type: ignore[index]

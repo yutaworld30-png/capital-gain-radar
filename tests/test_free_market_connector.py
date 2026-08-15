@@ -13,6 +13,7 @@ WORK = ROOT / "work"
 sys.path.insert(0, str(WORK))
 
 from free_market_connector import (  # noqa: E402
+    fetch_yahoo_dividend_forecast,
     fetch_yahoo_history,
     fetch_yahoo_mirror_latest,
     fetch_yahoo_spark_histories,
@@ -108,6 +109,20 @@ class FreeMarketConnectorTests(unittest.TestCase):
             result = fetch_yahoo_spark_histories(["1301"])
         self.assertEqual(len(result["1301"]["rows"]), 252)
         self.assertEqual(result["1301"]["rows"][-1]["Date"], "2025-09-09")
+
+    def test_dividend_forecast_marks_dps_as_forecast(self) -> None:
+        page = """
+        <html><body>
+          配当利回り（会社予想） 用語 3.50 % （08/16）
+          1株配当（会社予想） 用語 120.00 円 （2027/03）
+        </body></html>
+        """.encode("utf-8")
+        with patch("free_market_connector._fetch", return_value=page):
+            result = fetch_yahoo_dividend_forecast("1301")
+        self.assertEqual(result["dps"], 120.0)
+        self.assertEqual(result["dpsKind"], "forecast")
+        self.assertEqual(result["dividendYieldKind"], "forecast")
+        self.assertAlmostEqual(result["dividendYield"], 0.035)
 
 
 if __name__ == "__main__":

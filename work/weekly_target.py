@@ -281,6 +281,7 @@ def _profile_result(
         "score": opportunity_score,
         "status": status,
         "strictMatch": strict_match,
+        "strictChecks": strict_checks,
         "components": components,
         "positives": positives,
         "blockers": blockers[:5],

@@ -632,9 +632,11 @@ def calculate_valuation_metrics(
     shares_outstanding = fundamentals.get("sharesOutstanding")
     provided_dividend_yield = fundamentals.get("dividendYield")
     dividend_yield_kind = fundamentals.get("dividendYieldKind")
+    dps_kind = fundamentals.get("dpsKind")
     dps_source = str(fundamentals.get("dpsSource") or "")
     dps_is_forecast = (
-        dividend_yield_kind == "forecast"
+        dps_kind == "forecast"
+        or dividend_yield_kind == "forecast"
         or "会社予想" in dps_source
         or "forecast" in dps_source.lower()
     )

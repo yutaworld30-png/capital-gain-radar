@@ -371,6 +371,7 @@ def fetch_yahoo_dividend_forecast(code: str) -> dict[str, object]:
             raise FreeMarketDataError("Yahoo Financeの1株配当（会社予想）が許容範囲外です。")
         forecast.update({
             "dps": dps,
+            "dpsKind": "forecast",
             "dpsAsOf": dps_match.group(2),
             "dpsSource": "Yahoo Finance 1株配当（会社予想）",
         })

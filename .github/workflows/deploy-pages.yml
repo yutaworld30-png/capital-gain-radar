@@ -64,15 +64,15 @@ jobs:
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
 
-      - name: Refresh market data
+      - name: Refresh market environment
+        run: python work/market_environment.py
+
+      - name: Refresh market data and weekly predictions
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           EDINET_MAX_DOWNLOADS: "225"
           TOPIX_PRICE_WORKERS: "8"
         run: python work/fetch_official_data.py
-
-      - name: Refresh market environment
-        run: python work/market_environment.py
 
       - name: Refresh Nikkei 225 technical analysis
         env:

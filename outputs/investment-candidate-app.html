@@ -799,6 +799,142 @@
       font-weight: 800;
     }
 
+    .weekly-view-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .weekly-view-tabs button {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+      background: var(--white);
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .weekly-view-tabs button.active {
+      color: #102235;
+      border-color: var(--mint);
+      background: var(--mint);
+    }
+
+    .weekly-accuracy-panel {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .weekly-accuracy-panel[hidden],
+    .candidate-results[hidden],
+    .mobile-candidate-cards[hidden] {
+      display: none;
+    }
+
+    .weekly-accuracy-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .weekly-accuracy-heading strong {
+      display: block;
+      font-size: 15px;
+    }
+
+    .weekly-accuracy-heading span,
+    .weekly-accuracy-note {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .weekly-accuracy-kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .weekly-accuracy-kpi {
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+    }
+
+    .weekly-accuracy-kpi span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.35;
+    }
+
+    .weekly-accuracy-kpi strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .weekly-analysis-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .weekly-analysis-toolbar h3,
+    .weekly-recent-title {
+      margin: 0;
+      font-size: 14px;
+    }
+
+    .weekly-analysis-toolbar select {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 0 9px;
+      color: var(--ink);
+      background: var(--white);
+    }
+
+    .weekly-analysis-table-wrap,
+    .weekly-recent-table-wrap {
+      overflow-x: auto;
+      margin-top: 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+    }
+
+    .weekly-analysis-table,
+    .weekly-recent-table {
+      min-width: 720px;
+    }
+
+    .weekly-analysis-table th,
+    .weekly-analysis-table td,
+    .weekly-recent-table th,
+    .weekly-recent-table td {
+      padding: 9px 10px;
+      font-size: 11px;
+    }
+
+    .weekly-recent-title {
+      margin-top: 16px;
+    }
+
+    .weekly-accuracy-note {
+      margin-top: 10px;
+    }
+
     h2 {
       margin: 0;
       font-size: 16px;
@@ -1699,6 +1835,373 @@
       line-height: 1.5;
     }
 
+    #portfolioPanel {
+      display: none;
+      margin-bottom: 16px;
+    }
+
+    body[data-app-view="portfolio"] #guideSection,
+    body[data-app-view="portfolio"] #marketPanel,
+    body[data-app-view="portfolio"] #nikkeiAnalysisPanel,
+    body[data-app-view="portfolio"] #backtestPanel,
+    body[data-app-view="portfolio"] #candidateSummary,
+    body[data-app-view="portfolio"] .layout,
+    body[data-app-view="portfolio"] #comparePanel,
+    body[data-app-view="portfolio"] #sourceStrip,
+    body[data-app-view="portfolio"] #qualityPanel,
+    body[data-app-view="portfolio"] #footerNote {
+      display: none;
+    }
+
+    body[data-app-view="portfolio"] #portfolioPanel {
+      display: block;
+    }
+
+    .portfolio-header {
+      align-items: flex-start;
+    }
+
+    .portfolio-header-copy {
+      min-width: 0;
+    }
+
+    .portfolio-header-copy p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .portfolio-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 7px;
+    }
+
+    .portfolio-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .portfolio-summary-item {
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+    }
+
+    .portfolio-summary-item.yield-current {
+      border-color: #9fdcc7;
+      background: #effaf6;
+    }
+
+    .portfolio-summary-item.yield-book {
+      border-color: #b9d0f2;
+      background: #f1f6fd;
+    }
+
+    .portfolio-summary-item span,
+    .portfolio-summary-item small {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.4;
+    }
+
+    .portfolio-summary-item strong {
+      display: block;
+      margin: 4px 0 2px;
+      overflow: hidden;
+      color: var(--ink);
+      font-size: 21px;
+      font-variant-numeric: tabular-nums;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .portfolio-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .portfolio-toolbar-note {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .portfolio-sort {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .portfolio-sort select {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+      color: var(--ink);
+      padding: 0 9px;
+    }
+
+    .portfolio-table-wrap {
+      overflow-x: auto;
+    }
+
+    .portfolio-table {
+      min-width: 1120px;
+    }
+
+    .portfolio-table th,
+    .portfolio-table td {
+      vertical-align: middle;
+    }
+
+    .portfolio-stock-name {
+      font-weight: 800;
+    }
+
+    .portfolio-stock-code,
+    .portfolio-cell-note {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.4;
+    }
+
+    .portfolio-yield-pair {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(102px, 1fr));
+      gap: 6px;
+    }
+
+    .portfolio-yield-value {
+      padding: 8px;
+      border-radius: 7px;
+      background: #f5f8fb;
+    }
+
+    .portfolio-yield-value.current {
+      background: #eaf8f3;
+      color: #087a58;
+    }
+
+    .portfolio-yield-value.book {
+      background: #edf4fd;
+      color: #245ea9;
+    }
+
+    .portfolio-yield-value span,
+    .portfolio-yield-value strong {
+      display: block;
+    }
+
+    .portfolio-yield-value span {
+      font-size: 9px;
+    }
+
+    .portfolio-yield-value strong {
+      margin-top: 2px;
+      font-size: 16px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .portfolio-source-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 20px;
+      margin-top: 4px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: #eef2f6;
+      color: var(--muted);
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .portfolio-source-badge.manual {
+      background: #fff3d8;
+      color: #8a5a00;
+    }
+
+    .portfolio-gain.positive {
+      color: #087a58;
+    }
+
+    .portfolio-gain.negative {
+      color: #b33b3b;
+    }
+
+    .portfolio-row-actions {
+      display: flex;
+      gap: 5px;
+    }
+
+    .portfolio-row-actions button {
+      min-height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .portfolio-mobile-list {
+      display: none;
+    }
+
+    .portfolio-mobile-list[hidden],
+    .portfolio-empty[hidden] {
+      display: none !important;
+    }
+
+    .portfolio-empty {
+      padding: 40px 18px;
+      text-align: center;
+    }
+
+    .portfolio-empty strong,
+    .portfolio-empty span {
+      display: block;
+    }
+
+    .portfolio-empty span {
+      margin: 6px 0 14px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .holding-dialog {
+      width: min(560px, calc(100vw - 28px));
+      max-height: calc(100dvh - 28px);
+      margin: auto;
+      padding: 0;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--white);
+      color: var(--ink);
+      box-shadow: 0 24px 70px rgba(20, 34, 52, .28);
+    }
+
+    .holding-dialog::backdrop {
+      background: rgba(12, 24, 39, .55);
+    }
+
+    .holding-dialog-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .holding-dialog-header button {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    .holding-form {
+      padding: 16px;
+    }
+
+    .holding-form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .holding-field {
+      display: grid;
+      gap: 5px;
+    }
+
+    .holding-field.full {
+      grid-column: 1 / -1;
+    }
+
+    .holding-field label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .holding-field input,
+    .holding-field textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--white);
+      color: var(--ink);
+      padding: 9px 10px;
+      font: inherit;
+    }
+
+    .holding-field textarea {
+      min-height: 70px;
+      resize: vertical;
+    }
+
+    .holding-field small,
+    .holding-dialog-note,
+    .holding-form-error {
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .holding-form-error {
+      min-height: 20px;
+      margin-top: 10px;
+      color: #a23535;
+    }
+
+    .holding-dialog-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .holding-dialog-actions > div {
+      display: flex;
+      gap: 8px;
+    }
+
+    .danger-button {
+      min-height: 38px;
+      border: 1px solid #e7baba;
+      border-radius: 7px;
+      background: #fff6f6;
+      color: #a23535;
+      padding: 0 12px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
     .mobile-sheet-header,
     .mobile-filter-apply,
     .mobile-candidate-controls,
@@ -1799,6 +2302,10 @@
 
       .weekly-target-summary {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .weekly-accuracy-kpis {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
       table[data-view="weekly"] {
@@ -2058,9 +2565,13 @@
       }
 
       body[data-mobile-page="candidates"] .mobile-candidate-controls,
-      body[data-mobile-page="watch"] .mobile-candidate-controls,
+      body[data-mobile-page="watch"][data-mobile-portfolio-view="watchlist"] .mobile-candidate-controls,
       body[data-mobile-page="market"] .mobile-section-tabs,
       body[data-mobile-page="more"] .mobile-more-menu {
+        display: block;
+      }
+
+      body[data-mobile-page="watch"] #mobilePortfolioTabs {
         display: block;
       }
 
@@ -2259,18 +2770,18 @@
       }
 
       body[data-mobile-page="candidates"] #candidateSummary,
-      body[data-mobile-page="watch"] #candidateSummary {
+      body[data-mobile-page="watch"][data-mobile-portfolio-view="watchlist"] #candidateSummary {
         display: flex;
       }
 
       body[data-mobile-page="candidates"] .layout,
-      body[data-mobile-page="watch"] .layout {
+      body[data-mobile-page="watch"][data-mobile-portfolio-view="watchlist"] .layout {
         display: block;
         margin: 0;
       }
 
       body[data-mobile-page="candidates"] #rankingPanel,
-      body[data-mobile-page="watch"] #rankingPanel,
+      body[data-mobile-page="watch"][data-mobile-portfolio-view="watchlist"] #rankingPanel,
       body[data-mobile-page="compare"] #comparePanel,
       body[data-mobile-page="market"][data-mobile-market-view="summary"] #marketPanel,
       body[data-mobile-page="market"][data-mobile-market-view="technical"] #nikkeiAnalysisPanel,
@@ -2328,6 +2839,200 @@
         font-size: 20px;
       }
 
+      body[data-mobile-page="watch"][data-mobile-portfolio-view="holdings"] #portfolioPanel {
+        display: block;
+        margin-bottom: 10px;
+      }
+
+      #portfolioPanel .portfolio-header {
+        align-items: stretch;
+        flex-direction: column;
+        padding: 12px;
+      }
+
+      #portfolioPanel .portfolio-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      #portfolioPanel .portfolio-actions button {
+        min-width: 0;
+        padding: 0 6px;
+        font-size: 10px;
+      }
+
+      #portfolioPanel .portfolio-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        padding: 10px;
+      }
+
+      #portfolioPanel .portfolio-summary-item {
+        padding: 10px;
+      }
+
+      #portfolioPanel .portfolio-summary-item strong {
+        font-size: 18px;
+      }
+
+      #portfolioPanel .portfolio-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+        padding: 10px 12px;
+      }
+
+      #portfolioPanel .portfolio-sort {
+        justify-content: space-between;
+      }
+
+      #portfolioPanel .portfolio-sort select {
+        width: min(66%, 240px);
+      }
+
+      #portfolioPanel .portfolio-table-wrap {
+        display: none;
+      }
+
+      #portfolioPanel .portfolio-mobile-list {
+        display: grid;
+        gap: 9px;
+        padding: 10px;
+      }
+
+      .portfolio-mobile-card {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--white);
+        box-shadow: 0 3px 12px rgba(26, 42, 63, .05);
+      }
+
+      .portfolio-mobile-head,
+      .portfolio-mobile-body {
+        padding: 12px;
+      }
+
+      .portfolio-mobile-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: start;
+        padding-bottom: 9px;
+      }
+
+      .portfolio-mobile-head strong,
+      .portfolio-mobile-head span {
+        display: block;
+      }
+
+      .portfolio-mobile-head strong {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 15px;
+      }
+
+      .portfolio-mobile-head span {
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+
+      .portfolio-mobile-price {
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .portfolio-mobile-price strong {
+        font-size: 16px;
+      }
+
+      .portfolio-mobile-card .portfolio-yield-pair {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .portfolio-mobile-card .portfolio-yield-value {
+        padding: 10px;
+      }
+
+      .portfolio-mobile-card .portfolio-yield-value strong {
+        font-size: 20px;
+      }
+
+      .portfolio-mobile-details {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        margin-top: 9px;
+      }
+
+      .portfolio-mobile-detail {
+        min-width: 0;
+        padding: 7px;
+        border-radius: 7px;
+        background: #f7f9fb;
+      }
+
+      .portfolio-mobile-detail span,
+      .portfolio-mobile-detail strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .portfolio-mobile-detail span {
+        color: var(--muted);
+        font-size: 9px;
+      }
+
+      .portfolio-mobile-detail strong {
+        margin-top: 2px;
+        font-size: 12px;
+      }
+
+      .portfolio-mobile-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        border-top: 1px solid var(--line);
+      }
+
+      .portfolio-mobile-actions button {
+        min-height: 40px;
+        border: 0;
+        background: #fbfcfe;
+        color: var(--ink);
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 800;
+      }
+
+      .portfolio-mobile-actions button + button {
+        border-left: 1px solid var(--line);
+      }
+
+      .holding-dialog {
+        width: calc(100vw - 20px);
+        max-height: calc(100dvh - 20px);
+      }
+
+      .holding-form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .holding-field.full {
+        grid-column: auto;
+      }
+
+      .holding-dialog-actions {
+        align-items: stretch;
+        flex-direction: column-reverse;
+      }
+
+      .holding-dialog-actions > div {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       #rankingPanel .panel-header {
         align-items: flex-start;
         padding: 12px;
@@ -2344,6 +3049,20 @@
       #rankingPanel .ranking-tools,
       #rankingPanel .watch-alerts {
         padding: 10px 12px;
+      }
+
+      .weekly-accuracy-panel {
+        padding: 12px;
+      }
+
+      .weekly-accuracy-heading,
+      .weekly-analysis-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .weekly-accuracy-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       #rankingPanel .table-wrap {
@@ -2738,7 +3457,7 @@
     }
   </style>
 </head>
-<body data-mobile-page="candidates" data-mobile-market-view="summary" data-mobile-stat-view="margin" data-mobile-more-view="usage">
+<body data-app-view="overall" data-mobile-page="candidates" data-mobile-market-view="summary" data-mobile-stat-view="margin" data-mobile-more-view="usage" data-mobile-portfolio-view="holdings">
   <div class="app">
     <aside id="mobileFilterSheet">
       <div class="mobile-sheet-header">
@@ -2776,6 +3495,7 @@
           <button id="breakoutView" type="button">新高値ブレイク</button>
           <button id="themeView" type="button">テーマ別ランキング</button>
           <button id="industryView" type="button">業種別ランキング</button>
+          <button id="portfolioView" type="button">保有株</button>
           <button id="watchlistView" type="button">ウォッチリスト</button>
         </div>
       </div>
@@ -2905,6 +3625,13 @@
         </div>
       </section>
 
+      <section class="mobile-section-tabs" id="mobilePortfolioTabs" aria-label="保有・監視の表示切り替え">
+        <div class="mobile-scroll-tabs" role="tablist">
+          <button class="active" type="button" data-mobile-portfolio-view="holdings" role="tab">保有株</button>
+          <button type="button" data-mobile-portfolio-view="watchlist" role="tab">ウォッチリスト</button>
+        </div>
+      </section>
+
       <section class="mobile-more-menu panel" id="mobileMoreMenu" aria-label="その他の機能">
         <div class="mobile-more-grid" role="tablist">
           <button class="active" type="button" data-mobile-more-view="usage" role="tab"><strong>アプリの使い方</strong><span>候補の探し方と操作</span></button>
@@ -2926,7 +3653,7 @@
           <div class="guide-body">
             <ol class="guide-list">
               <li>対象はTOPIX構成銘柄です。JPX公式一覧の基準日時点の構成銘柄からランキング候補を確認します。</li>
-              <li>総合、週5%候補、新高値ブレイク、テーマ別ランキング、業種別ランキング、ウォッチリストを切り替えて候補を確認します。</li>
+              <li>総合、週5%候補、新高値ブレイク、テーマ別ランキング、業種別ランキング、保有株、ウォッチリストを切り替えて確認します。</li>
               <li>週5%候補では、20万円を元手に100株単位で買える銘柄を、1銘柄運用・2銘柄運用ごとに確認できます。条件一致がなければ無理に買わず、未達理由を確認します。</li>
               <li>新高値ブレイクは、厳選・標準・予備軍の3段階で条件を切り替えて確認できます。</li>
               <li>テーマ別・業種別では、選択したテーマ/業種のスコア上位5銘柄を表示します。</li>
@@ -2934,6 +3661,7 @@
               <li>比較ボタンで最大5銘柄を横並び比較し、ランキング行を選ぶと基本情報とチャートを確認できます。</li>
               <li>基本情報は無料データとEDINET財務指標を使い、未取得項目は「未取得」と表示します。</li>
               <li>銘柄詳細では、加点・減点・データ品質、イベント接近日数、ATRと参考損切り幅を確認できます。</li>
+              <li>保有株では、数量と平均取得単価を端末内に保存し、同じ予想年間DPSを使った現在利回り・簿価利回りを一覧できます。予想DPSが未取得なら手入力できます。</li>
               <li>業種・時価総額・平均売買代金フィルターは端末内に保存され、ウォッチリストでは前日からの急変を確認できます。</li>
             </ol>
           </div>
@@ -3132,6 +3860,56 @@
         </div>
       </section>
 
+      <section class="panel" id="portfolioPanel" aria-label="保有株一覧">
+        <div class="panel-header portfolio-header">
+          <div class="portfolio-header-copy">
+            <h2>保有株</h2>
+            <p>数量・平均取得単価・手入力DPSはこの端末内だけに保存します。現在利回りと簿価利回りは、同じ予想年間DPSを基準に計算します。</p>
+          </div>
+          <div class="portfolio-actions">
+            <button class="primary" id="portfolioAddButton" type="button">銘柄を追加</button>
+            <button class="secondary" id="portfolioBackupButton" type="button">バックアップ</button>
+            <button class="secondary" id="portfolioRestoreButton" type="button">復元</button>
+            <input id="portfolioRestoreInput" type="file" accept="application/json,.json" hidden>
+          </div>
+        </div>
+        <div class="portfolio-summary-grid" id="portfolioSummary"></div>
+        <div class="portfolio-toolbar">
+          <div class="portfolio-toolbar-note" id="portfolioStatus">端末内の保有情報を読み込んでいます。</div>
+          <label class="portfolio-sort" for="portfolioSort">並び順
+            <select id="portfolioSort">
+              <option value="bookYield">簿価利回り</option>
+              <option value="currentYield">現在利回り</option>
+              <option value="gainPct">含み損益率</option>
+              <option value="score">総合スコア</option>
+              <option value="code">銘柄コード</option>
+            </select>
+          </label>
+        </div>
+        <div class="portfolio-table-wrap">
+          <table class="portfolio-table">
+            <thead>
+              <tr>
+                <th>銘柄</th>
+                <th>保有数量・平均取得単価</th>
+                <th>現在株価・含み損益</th>
+                <th>現在利回り / 簿価利回り</th>
+                <th>予想年間DPS・年間配当</th>
+                <th>総合スコア・基準日</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="portfolioRows"></tbody>
+          </table>
+        </div>
+        <div class="portfolio-mobile-list" id="portfolioMobileList"></div>
+        <div class="portfolio-empty" id="portfolioEmpty" hidden>
+          <strong>保有株はまだ登録されていません</strong>
+          <span>銘柄コード、数量、平均取得単価を登録すると、2種類の配当利回りを一覧できます。</span>
+          <button class="primary" id="portfolioEmptyAddButton" type="button">最初の銘柄を追加</button>
+        </div>
+      </section>
+
       <section class="summary-grid" id="candidateSummary" aria-label="サマリー">
         <div class="metric">
           <div class="metric-label">表示銘柄</div>
@@ -3181,10 +3959,57 @@
               </div>
               <div class="breakout-description" id="weeklyTargetDescription"></div>
               <div class="weekly-target-summary" id="weeklyTargetSummary"></div>
+              <div class="weekly-view-tabs" role="group" aria-label="週5%候補の表示内容">
+                <button id="weeklyCandidatesTab" type="button" data-weekly-section="candidates">今日の候補</button>
+                <button id="weeklyAccuracyTab" type="button" data-weekly-section="accuracy">予測実績</button>
+              </div>
             </div>
           </div>
           <div class="watch-alerts" id="watchAlerts" hidden></div>
-          <div class="table-wrap">
+          <div class="weekly-accuracy-panel" id="weeklyAccuracyPanel" hidden>
+            <div class="weekly-accuracy-heading">
+              <div>
+                <strong>週5%候補の予測実績</strong>
+                <span id="weeklyAccuracyMeta">予測データを読み込んでいます</span>
+              </div>
+              <span class="badge warn" id="weeklyAccuracyStatus">学習中</span>
+            </div>
+            <div class="weekly-accuracy-kpis" id="weeklyAccuracyKpis"></div>
+            <div class="weekly-analysis-toolbar">
+              <h3>条件別の成績</h3>
+              <select id="weeklyAccuracyCondition" aria-label="分析条件">
+                <option value="status">候補判定別</option>
+                <option value="scoreBands">週次適合度別</option>
+                <option value="marketRegimes">相場環境別</option>
+                <option value="industries">業種別</option>
+                <option value="strictChecks">必須条件別</option>
+              </select>
+            </div>
+            <div class="weekly-analysis-table-wrap">
+              <table class="weekly-analysis-table">
+                <thead id="weeklyAccuracyConditionHead"></thead>
+                <tbody id="weeklyAccuracyConditionRows"></tbody>
+              </table>
+            </div>
+            <h3 class="weekly-recent-title">直近の判定結果</h3>
+            <div class="weekly-recent-table-wrap">
+              <table class="weekly-recent-table">
+                <thead>
+                  <tr>
+                    <th>予測日</th>
+                    <th>銘柄</th>
+                    <th>判定時</th>
+                    <th>結果</th>
+                    <th>5日リターン</th>
+                    <th>MFE / MAE</th>
+                  </tr>
+                </thead>
+                <tbody id="weeklyAccuracyRecentRows"></tbody>
+              </table>
+            </div>
+            <div class="weekly-accuracy-note" id="weeklyAccuracyNote"></div>
+          </div>
+          <div class="table-wrap candidate-results" id="candidateTableWrap">
             <table>
               <thead>
                 <tr>
@@ -3205,7 +4030,7 @@
             </table>
             <div id="emptyState" class="empty" hidden>実データの取得・検証が完了していないため、候補を表示していません。</div>
           </div>
-          <div id="mobileCandidateCards" class="mobile-candidate-cards"></div>
+          <div id="mobileCandidateCards" class="mobile-candidate-cards candidate-results"></div>
           <div id="mobileEmptyState" class="empty mobile-empty" hidden>表示できる銘柄がありません。</div>
         </section>
 
@@ -3365,7 +4190,7 @@
     </button>
     <button type="button" data-mobile-page="watch">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/></svg>
-      <span>監視</span>
+      <span>保有</span>
     </button>
     <button type="button" data-mobile-page="compare">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H4v18h4M16 3h4v18h-4M12 6v12"/></svg>
@@ -3376,6 +4201,51 @@
       <span>その他</span>
     </button>
   </nav>
+
+  <dialog class="holding-dialog" id="holdingDialog">
+    <div class="holding-dialog-header">
+      <div>
+        <strong id="holdingDialogTitle">保有株を追加</strong>
+        <div class="holding-dialog-note" id="holdingDialogStockName">コードを入力してください。</div>
+      </div>
+      <button id="holdingDialogClose" type="button" aria-label="閉じる">×</button>
+    </div>
+    <form class="holding-form" id="holdingForm" novalidate>
+      <input id="holdingOriginalCode" type="hidden">
+      <div class="holding-form-grid">
+        <div class="holding-field">
+          <label for="holdingCode">銘柄コード</label>
+          <input id="holdingCode" name="code" type="text" inputmode="text" maxlength="4" list="holdingCodeOptions" placeholder="例: 9433" required>
+          <datalist id="holdingCodeOptions"></datalist>
+        </div>
+        <div class="holding-field">
+          <label for="holdingShares">保有数量（株）</label>
+          <input id="holdingShares" name="shares" type="number" inputmode="numeric" min="1" step="1" placeholder="例: 100" required>
+        </div>
+        <div class="holding-field">
+          <label for="holdingAverageCost">平均取得単価（円）</label>
+          <input id="holdingAverageCost" name="averageCost" type="number" inputmode="decimal" min="0.01" step="0.01" placeholder="例: 4200" required>
+        </div>
+        <div class="holding-field">
+          <label for="holdingManualDps">予想年間DPS（円・任意）</label>
+          <input id="holdingManualDps" name="manualForecastDps" type="number" inputmode="decimal" min="0" max="10000" step="0.01" placeholder="例: 160">
+          <small>入力した場合は、取得済みの会社予想DPSより優先して利回りを計算します。</small>
+        </div>
+        <div class="holding-field full">
+          <label for="holdingMemo">メモ（任意）</label>
+          <textarea id="holdingMemo" name="memo" maxlength="200" placeholder="保有理由、決算予定など"></textarea>
+        </div>
+      </div>
+      <div class="holding-form-error" id="holdingFormError" role="alert"></div>
+      <div class="holding-dialog-actions">
+        <button class="danger-button" id="holdingDeleteButton" type="button" hidden>この銘柄を削除</button>
+        <div>
+          <button class="secondary" id="holdingCancelButton" type="button">キャンセル</button>
+          <button class="primary" type="submit">保存</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
 
   <script>
     let candidates = [];
@@ -3392,8 +4262,11 @@
     let marketEnvironment = null;
     let marketHistory = null;
     let nikkeiAnalysis = null;
+    let weeklyAccuracySummary = null;
+    let weeklyAccuracyLoadStatus = "not-loaded";
     let scoreHistoryByCode = new Map();
     let watchedCodes = new Set();
+    let portfolioHoldings = [];
     let mobileDetailHistoryActive = false;
     const mobileScrollPositions = {
       candidates: 0,
@@ -3403,6 +4276,7 @@
       more: 0,
     };
     const WATCHLIST_STORAGE_KEY = "capitalGainRadar.watchlist.v1";
+    const PORTFOLIO_STORAGE_KEY = "capitalGainRadar.portfolio.v1";
     const FILTER_STORAGE_KEY = "capitalGainRadar.filters.v1";
     const SCORE_BUY_LINE = 75;
     const SCORE_SELL_LINE = 65;
@@ -3419,6 +4293,8 @@
       selectedIndustry: "",
       breakoutMode: "strict",
       weeklyTargetMode: "single",
+      weeklyTargetSection: "candidates",
+      weeklyAccuracyCondition: "status",
       searchOpen: false,
       activeSuggestionIndex: 0,
       detailTab: "fundamental",
@@ -3428,6 +4304,7 @@
       nikkeiAnalysisRange: "6m",
       mobilePage: "candidates",
       mobileCandidateView: "overall",
+      mobilePortfolioView: "holdings",
       mobileMarketView: "summary",
       mobileStatView: "margin",
       mobileMoreView: "usage",
@@ -3443,6 +4320,7 @@
       industryFilter: "all",
       marketCapFilter: "all",
       liquidityFilter: "all",
+      portfolioSort: "bookYield",
     };
 
     const BREAKOUT_PROFILES = {
@@ -3500,6 +4378,7 @@
       breakoutView: document.querySelector("#breakoutView"),
       themeView: document.querySelector("#themeView"),
       industryView: document.querySelector("#industryView"),
+      portfolioView: document.querySelector("#portfolioView"),
       watchlistView: document.querySelector("#watchlistView"),
       limit10: document.querySelector("#limit10"),
       limit20: document.querySelector("#limit20"),
@@ -3517,6 +4396,7 @@
       mobileMarketButtons: document.querySelectorAll("[data-mobile-market-view]"),
       mobileStatButtons: document.querySelectorAll("[data-mobile-stat-view]"),
       mobileMoreButtons: document.querySelectorAll("[data-mobile-more-view]"),
+      mobilePortfolioButtons: document.querySelectorAll("[data-mobile-portfolio-view]"),
       mobilePageButtons: document.querySelectorAll("#mobileBottomNav [data-mobile-page]"),
       mobileCandidateCards: document.querySelector("#mobileCandidateCards"),
       mobileEmpty: document.querySelector("#mobileEmptyState"),
@@ -3547,9 +4427,47 @@
       weeklyTargetFilter: document.querySelector("#weeklyTargetFilter"),
       weeklyTargetDescription: document.querySelector("#weeklyTargetDescription"),
       weeklyTargetSummary: document.querySelector("#weeklyTargetSummary"),
+      weeklyAccuracyPanel: document.querySelector("#weeklyAccuracyPanel"),
+      weeklyAccuracyMeta: document.querySelector("#weeklyAccuracyMeta"),
+      weeklyAccuracyStatus: document.querySelector("#weeklyAccuracyStatus"),
+      weeklyAccuracyKpis: document.querySelector("#weeklyAccuracyKpis"),
+      weeklyAccuracyCondition: document.querySelector("#weeklyAccuracyCondition"),
+      weeklyAccuracyConditionHead: document.querySelector("#weeklyAccuracyConditionHead"),
+      weeklyAccuracyConditionRows: document.querySelector("#weeklyAccuracyConditionRows"),
+      weeklyAccuracyRecentRows: document.querySelector("#weeklyAccuracyRecentRows"),
+      weeklyAccuracyNote: document.querySelector("#weeklyAccuracyNote"),
+      portfolioPanel: document.querySelector("#portfolioPanel"),
+      portfolioSummary: document.querySelector("#portfolioSummary"),
+      portfolioStatus: document.querySelector("#portfolioStatus"),
+      portfolioSort: document.querySelector("#portfolioSort"),
+      portfolioRows: document.querySelector("#portfolioRows"),
+      portfolioMobileList: document.querySelector("#portfolioMobileList"),
+      portfolioEmpty: document.querySelector("#portfolioEmpty"),
+      portfolioAddButton: document.querySelector("#portfolioAddButton"),
+      portfolioEmptyAddButton: document.querySelector("#portfolioEmptyAddButton"),
+      portfolioBackupButton: document.querySelector("#portfolioBackupButton"),
+      portfolioRestoreButton: document.querySelector("#portfolioRestoreButton"),
+      portfolioRestoreInput: document.querySelector("#portfolioRestoreInput"),
+      holdingDialog: document.querySelector("#holdingDialog"),
+      holdingDialogTitle: document.querySelector("#holdingDialogTitle"),
+      holdingDialogStockName: document.querySelector("#holdingDialogStockName"),
+      holdingDialogClose: document.querySelector("#holdingDialogClose"),
+      holdingForm: document.querySelector("#holdingForm"),
+      holdingOriginalCode: document.querySelector("#holdingOriginalCode"),
+      holdingCode: document.querySelector("#holdingCode"),
+      holdingCodeOptions: document.querySelector("#holdingCodeOptions"),
+      holdingShares: document.querySelector("#holdingShares"),
+      holdingAverageCost: document.querySelector("#holdingAverageCost"),
+      holdingManualDps: document.querySelector("#holdingManualDps"),
+      holdingMemo: document.querySelector("#holdingMemo"),
+      holdingFormError: document.querySelector("#holdingFormError"),
+      holdingDeleteButton: document.querySelector("#holdingDeleteButton"),
+      holdingCancelButton: document.querySelector("#holdingCancelButton"),
+      candidateTableWrap: document.querySelector("#candidateTableWrap"),
       watchAlerts: document.querySelector("#watchAlerts"),
       breakoutButtons: document.querySelectorAll("[data-breakout-mode]"),
       weeklyTargetButtons: document.querySelectorAll("[data-weekly-target-mode]"),
+      weeklySectionButtons: document.querySelectorAll("[data-weekly-section]"),
       themeList: document.querySelector("#themeList"),
       exportBtn: document.querySelector("#exportBtn"),
       importBtn: document.querySelector("#importBtn"),
@@ -3703,21 +4621,25 @@
 
     function syncMobileShell() {
       const mobile = isMobileLayout();
+      document.body.dataset.appView = state.view;
       document.body.dataset.mobilePage = state.mobilePage;
       document.body.dataset.mobileMarketView = state.mobileMarketView;
       document.body.dataset.mobileStatView = state.mobileStatView;
       document.body.dataset.mobileMoreView = state.mobileMoreView;
+      document.body.dataset.mobilePortfolioView = state.mobilePortfolioView;
       document.body.classList.toggle("mobile-detail-open", mobile && state.mobileDetailOpen);
       document.body.classList.toggle("mobile-filter-open", mobile && state.mobileFilterOpen);
 
       const pageTitles = {
         candidates: "候補ランキング",
         market: "相場環境",
-        watch: "ウォッチリスト",
+        watch: state.mobilePortfolioView === "holdings" ? "保有株" : "ウォッチリスト",
         compare: "銘柄比較",
         more: "その他",
       };
-      el.pageTitle.textContent = mobile ? pageTitles[state.mobilePage] || pageTitles.candidates : "今日の高スコアランキング";
+      el.pageTitle.textContent = mobile
+        ? pageTitles[state.mobilePage] || pageTitles.candidates
+        : state.view === "portfolio" ? "保有株ポートフォリオ" : "今日の高スコアランキング";
       el.nikkeiAnalysisTitle.textContent = mobile && state.mobileMarketView === "stats"
         ? "日経225 需給統計"
         : "日経225テクニカル分析";
@@ -3750,6 +4672,11 @@
         button.classList.toggle("active", active);
         button.setAttribute("aria-selected", String(active));
       });
+      el.mobilePortfolioButtons.forEach(button => {
+        const active = button.dataset.mobilePortfolioView === state.mobilePortfolioView;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-selected", String(active));
+      });
 
       const filterDetails = activeFilterDetails();
       el.mobileFilterCount.hidden = filterDetails.length === 0;
@@ -3775,7 +4702,7 @@
       state.mobileFilterOpen = false;
       state.searchOpen = false;
       if (page === "watch") {
-        state.view = "watchlist";
+        state.view = state.mobilePortfolioView === "holdings" ? "portfolio" : "watchlist";
       } else if (page === "candidates") {
         state.view = state.mobileCandidateView;
       }
@@ -3795,6 +4722,17 @@
       state.mobilePage = "candidates";
       state.searchOpen = false;
       mobileScrollPositions.candidates = 0;
+      render();
+      if (isMobileLayout()) window.scrollTo({ top: 0, behavior: "auto" });
+    }
+
+    function setMobilePortfolioView(view) {
+      if (!["holdings", "watchlist"].includes(view)) return;
+      state.mobilePortfolioView = view;
+      state.mobilePage = "watch";
+      state.view = view === "holdings" ? "portfolio" : "watchlist";
+      state.searchOpen = false;
+      mobileScrollPositions.watch = 0;
       render();
       if (isMobileLayout()) window.scrollTo({ top: 0, behavior: "auto" });
     }
@@ -3869,6 +4807,62 @@
 
     function saveWatchlist() {
       localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify([...watchedCodes]));
+    }
+
+    function normalizeHolding(raw) {
+      if (!raw || typeof raw !== "object") return null;
+      const code = String(raw.code || "").trim().toUpperCase();
+      const shares = Number(raw.shares);
+      const averageCost = Number(raw.averageCost);
+      const manualRaw = raw.manualForecastDps;
+      const manualForecastDps = manualRaw === null || manualRaw === undefined || manualRaw === ""
+        ? null
+        : Number(manualRaw);
+      if (!/^[0-9A-Z]{4}$/.test(code)) return null;
+      if (!Number.isInteger(shares) || shares <= 0 || shares > 100_000_000) return null;
+      if (!Number.isFinite(averageCost) || averageCost <= 0 || averageCost > 100_000_000) return null;
+      if (manualForecastDps !== null && (!Number.isFinite(manualForecastDps) || manualForecastDps < 0 || manualForecastDps > 10_000)) return null;
+      return {
+        code,
+        shares,
+        averageCost,
+        manualForecastDps,
+        memo: String(raw.memo || "").slice(0, 200),
+        updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString(),
+      };
+    }
+
+    function portfolioStoragePayload() {
+      return {
+        schemaVersion: "portfolio-v1",
+        updatedAt: new Date().toISOString(),
+        holdings: portfolioHoldings,
+      };
+    }
+
+    function loadPortfolio() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(PORTFOLIO_STORAGE_KEY) || "{}");
+        const rows = Array.isArray(parsed) ? parsed : parsed.holdings;
+        const deduplicated = new Map();
+        (Array.isArray(rows) ? rows : []).forEach(raw => {
+          const holding = normalizeHolding(raw);
+          if (holding) deduplicated.set(holding.code, holding);
+        });
+        portfolioHoldings = [...deduplicated.values()];
+      } catch (error) {
+        portfolioHoldings = [];
+      }
+    }
+
+    function savePortfolio() {
+      try {
+        localStorage.setItem(PORTFOLIO_STORAGE_KEY, JSON.stringify(portfolioStoragePayload()));
+        return true;
+      } catch (error) {
+        if (el.portfolioStatus) el.portfolioStatus.textContent = "端末内へ保存できませんでした。ブラウザの保存設定を確認してください。";
+        return false;
+      }
     }
 
     function loadSavedFilters() {
@@ -5275,6 +6269,23 @@
       renderNikkeiAnalysis(nikkeiAnalysis);
     }
 
+    async function loadWeeklyAccuracy() {
+      weeklyAccuracyLoadStatus = "loading";
+      try {
+        const response = await fetch("data/weekly-accuracy-summary-v1.json", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        if (!payload || Number(payload.schemaVersion) !== 1 || !payload.profiles) {
+          throw new Error("週5%予測実績の形式が不正です");
+        }
+        weeklyAccuracySummary = payload;
+        weeklyAccuracyLoadStatus = "available";
+      } catch (error) {
+        weeklyAccuracySummary = null;
+        weeklyAccuracyLoadStatus = "unavailable";
+      }
+    }
+
     function applyDataset(dataset, sourceLabel) {
       officialDataset = dataset;
       priceHistoryShardPromises = new Map();
@@ -5386,6 +6397,7 @@
           loadMarketHistory(),
           loadMarketEnvironment(),
           loadNikkeiAnalysis(),
+          loadWeeklyAccuracy(),
         ]);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         applyDataset(await response.json(), "公式データ読込");
@@ -5644,6 +6656,334 @@
       const kind = item.dividendYieldKind || item.fundamentals?.dividendYieldKind;
       const suffix = kind === "forecast" ? "（会社予想）" : "";
       return `${formatFundamentalPercent(value)}${suffix}`;
+    }
+
+    function portfolioStock(code) {
+      return searchUniverse.find(item => String(item.code) === String(code)) || null;
+    }
+
+    function portfolioLatestPrice(item) {
+      if (!item) return null;
+      for (const raw of [item.latestClose, item.close, item.price, item.fundamentals?.latestClose]) {
+        const value = Number(raw);
+        if (Number.isFinite(value) && value > 0) return value;
+      }
+      return null;
+    }
+
+    function officialForecastDps(item) {
+      if (!item) return null;
+      const sources = [item, item.fundamentals].filter(source => source && typeof source === "object");
+      for (const source of sources) {
+        const dps = Number(source.dps);
+        const kind = String(source.dpsKind || "").toLowerCase();
+        const sourceName = String(source.dpsSource || "");
+        const isForecast = kind === "forecast" || sourceName.includes("会社予想") || sourceName.toLowerCase().includes("forecast");
+        if (isForecast && Number.isFinite(dps) && dps >= 0 && dps <= 10_000) {
+          return {
+            value: dps,
+            source: "会社予想",
+            detail: sourceName || "Yahoo Finance 1株配当（会社予想）",
+            asOf: source.dpsAsOf || item.priceAsOf || null,
+            kind: "forecast",
+          };
+        }
+      }
+
+      const dividendYield = Number(valueFrom(item, ["dividendYield"]));
+      const dividendYieldKind = item.dividendYieldKind || item.fundamentals?.dividendYieldKind;
+      const price = portfolioLatestPrice(item);
+      if (dividendYieldKind === "forecast" && Number.isFinite(dividendYield) && dividendYield >= 0 && dividendYield <= 0.25 && Number.isFinite(price)) {
+        return {
+          value: dividendYield * price,
+          source: "会社予想利回り換算",
+          detail: "Yahoo Financeの会社予想利回りと現在株価から換算",
+          asOf: item.dividendYieldAsOf || item.fundamentals?.dividendYieldAsOf || item.priceAsOf || null,
+          kind: "forecast-derived",
+        };
+      }
+      return null;
+    }
+
+    function effectiveForecastDps(item, holding) {
+      const manual = holding?.manualForecastDps;
+      if (manual !== null && manual !== undefined && manual !== "" && Number.isFinite(Number(manual))) {
+        return {
+          value: Number(manual),
+          source: "手入力",
+          detail: "この端末で入力した予想年間DPS",
+          asOf: holding.updatedAt || null,
+          kind: "manual",
+        };
+      }
+      return officialForecastDps(item);
+    }
+
+    function holdingMetrics(holding) {
+      const stock = portfolioStock(holding.code);
+      const latestPrice = portfolioLatestPrice(stock);
+      const forecastDps = effectiveForecastDps(stock, holding);
+      const acquisitionValue = holding.averageCost * holding.shares;
+      const marketValue = Number.isFinite(latestPrice) ? latestPrice * holding.shares : null;
+      const gain = Number.isFinite(marketValue) ? marketValue - acquisitionValue : null;
+      const gainPct = Number.isFinite(latestPrice) ? (latestPrice - holding.averageCost) / holding.averageCost : null;
+      const annualDividend = forecastDps ? forecastDps.value * holding.shares : null;
+      const currentYield = forecastDps && Number.isFinite(latestPrice) ? forecastDps.value / latestPrice : null;
+      const bookYield = forecastDps ? forecastDps.value / holding.averageCost : null;
+      return {
+        holding,
+        stock,
+        latestPrice,
+        acquisitionValue,
+        marketValue,
+        gain,
+        gainPct,
+        forecastDps,
+        annualDividend,
+        currentYield,
+        bookYield,
+        score: stock && Number.isFinite(Number(stock.score)) ? Number(stock.score) : null,
+      };
+    }
+
+    function formatPortfolioYen(value) {
+      return Number.isFinite(value) ? `${Math.round(value).toLocaleString("ja-JP")}円` : "未取得";
+    }
+
+    function formatPortfolioYield(value) {
+      return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "未取得";
+    }
+
+    function formatPortfolioNumber(value, digits = 1) {
+      return Number.isFinite(value) ? Number(value).toLocaleString("ja-JP", { maximumFractionDigits: digits }) : "未取得";
+    }
+
+    function portfolioGainClass(value) {
+      if (!Number.isFinite(value) || value === 0) return "";
+      return value > 0 ? "positive" : "negative";
+    }
+
+    function sortPortfolioRows(rows) {
+      const key = state.portfolioSort;
+      if (key === "code") return rows.sort((a, b) => a.holding.code.localeCompare(b.holding.code));
+      return rows.sort((a, b) => {
+        const aValue = Number(a[key]);
+        const bValue = Number(b[key]);
+        const aValid = Number.isFinite(aValue);
+        const bValid = Number.isFinite(bValue);
+        if (aValid && !bValid) return -1;
+        if (!aValid && bValid) return 1;
+        if (!aValid && !bValid) return a.holding.code.localeCompare(b.holding.code);
+        return bValue - aValue || a.holding.code.localeCompare(b.holding.code);
+      });
+    }
+
+    function portfolioSummaryHtml(rows) {
+      const totalAcquisition = rows.reduce((sum, row) => sum + row.acquisitionValue, 0);
+      const marketRows = rows.filter(row => Number.isFinite(row.marketValue));
+      const totalMarket = marketRows.reduce((sum, row) => sum + row.marketValue, 0);
+      const totalGain = marketRows.length === rows.length && rows.length ? totalMarket - totalAcquisition : null;
+      const dividendRows = rows.filter(row => row.forecastDps && Number.isFinite(row.annualDividend));
+      const totalDividend = dividendRows.reduce((sum, row) => sum + row.annualDividend, 0);
+      const currentCovered = dividendRows.filter(row => Number.isFinite(row.marketValue));
+      const currentDenominator = currentCovered.reduce((sum, row) => sum + row.marketValue, 0);
+      const currentDividend = currentCovered.reduce((sum, row) => sum + row.annualDividend, 0);
+      const bookDenominator = dividendRows.reduce((sum, row) => sum + row.acquisitionValue, 0);
+      const currentYield = currentDenominator > 0 ? currentDividend / currentDenominator : null;
+      const bookYield = bookDenominator > 0 ? totalDividend / bookDenominator : null;
+      const coverage = `${dividendRows.length}/${rows.length}銘柄`;
+      const gainClass = portfolioGainClass(totalGain);
+      const items = [
+        ["現在評価額", !rows.length ? "-" : marketRows.length === rows.length ? formatPortfolioYen(totalMarket) : "一部未取得", `${marketRows.length}/${rows.length}銘柄の株価取得`],
+        ["取得総額", rows.length ? formatPortfolioYen(totalAcquisition) : "-", "平均取得単価 × 保有数量"],
+        ["含み損益", Number.isFinite(totalGain) ? `${totalGain >= 0 ? "+" : ""}${formatPortfolioYen(totalGain)}` : "未算出", "全銘柄の株価取得時のみ", gainClass],
+        ["予想年間配当", dividendRows.length ? formatPortfolioYen(totalDividend) : "未取得", `予想DPS算出 ${coverage}`],
+        ["現在利回り", formatPortfolioYield(currentYield), `現在株価基準 / ${coverage}`, "yield-current"],
+        ["簿価利回り", formatPortfolioYield(bookYield), `平均取得単価基準 / ${coverage}`, "yield-book"],
+      ];
+      return items.map(([label, value, note, className = ""]) => `
+        <div class="portfolio-summary-item ${escapeHtml(className)}">
+          <span>${escapeHtml(label)}</span>
+          <strong class="portfolio-gain ${escapeHtml(gainClass && label === "含み損益" ? gainClass : "")}">${escapeHtml(value)}</strong>
+          <small>${escapeHtml(note)}</small>
+        </div>
+      `).join("");
+    }
+
+    function portfolioYieldHtml(row) {
+      return `
+        <div class="portfolio-yield-pair">
+          <div class="portfolio-yield-value current"><span>現在利回り</span><strong>${escapeHtml(formatPortfolioYield(row.currentYield))}</strong></div>
+          <div class="portfolio-yield-value book"><span>簿価利回り</span><strong>${escapeHtml(formatPortfolioYield(row.bookYield))}</strong></div>
+        </div>
+        <span class="portfolio-source-badge ${row.forecastDps?.kind === "manual" ? "manual" : ""}">${escapeHtml(row.forecastDps?.source || "予想DPS未取得")}</span>
+      `;
+    }
+
+    function renderPortfolio() {
+      const rows = sortPortfolioRows(portfolioHoldings.map(holdingMetrics));
+      el.portfolioSort.value = state.portfolioSort;
+      el.portfolioSummary.innerHTML = portfolioSummaryHtml(rows);
+      el.portfolioEmpty.hidden = rows.length > 0;
+      el.portfolioRows.closest("table").hidden = rows.length === 0;
+      el.portfolioMobileList.hidden = rows.length === 0;
+      const generatedAt = officialDataset?.generatedAt ? formatDate(officialDataset.generatedAt) : "未確認";
+      const dividendCoverage = rows.filter(row => row.forecastDps).length;
+      el.portfolioStatus.textContent = `${rows.length}銘柄 / 配当算出 ${dividendCoverage}/${rows.length}銘柄 / 株価データ更新 ${generatedAt} / 保有情報は端末内保存`;
+      el.holdingCodeOptions.innerHTML = searchUniverse.map(item => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
+
+      el.portfolioRows.innerHTML = rows.map(row => {
+        const holding = row.holding;
+        const stockName = row.stock?.name || "対象データ未取得";
+        const gainClass = portfolioGainClass(row.gain);
+        const score = Number.isFinite(row.score) ? `${row.score}点` : "未評価";
+        const priceAsOf = row.stock?.priceAsOf ? formatDate(row.stock.priceAsOf) : "未確認";
+        return `
+          <tr>
+            <td><div class="portfolio-stock-name">${escapeHtml(stockName)}</div><div class="portfolio-stock-code">${escapeHtml(holding.code)} / ${escapeHtml(row.stock?.industry || "対象外・未分類")}</div>${holding.memo ? `<div class="portfolio-cell-note">${escapeHtml(holding.memo)}</div>` : ""}</td>
+            <td><strong>${holding.shares.toLocaleString("ja-JP")}株</strong><div class="portfolio-cell-note">平均 ${escapeHtml(formatPortfolioYen(holding.averageCost))}<br>取得額 ${escapeHtml(formatPortfolioYen(row.acquisitionValue))}</div></td>
+            <td><strong>${escapeHtml(formatPortfolioYen(row.latestPrice))}</strong><div class="portfolio-cell-note portfolio-gain ${gainClass}">${Number.isFinite(row.gain) ? `${row.gain >= 0 ? "+" : ""}${formatPortfolioYen(row.gain)} / ${row.gainPct >= 0 ? "+" : ""}${formatPortfolioYield(row.gainPct)}` : "含み損益 未算出"}</div></td>
+            <td>${portfolioYieldHtml(row)}</td>
+            <td><strong>${row.forecastDps ? `${formatPortfolioNumber(row.forecastDps.value, 2)}円` : "未取得"}</strong><div class="portfolio-cell-note">年間配当 ${escapeHtml(formatPortfolioYen(row.annualDividend))}<br>${escapeHtml(row.forecastDps?.detail || "会社予想DPSまたは手入力が必要です")}</div></td>
+            <td><strong>${escapeHtml(score)}</strong><div class="portfolio-cell-note">株価基準 ${escapeHtml(priceAsOf)}<br>信頼度 ${row.stock ? dataQualityScore(row.stock) + "点" : "未評価"}</div></td>
+            <td><div class="portfolio-row-actions"><button type="button" data-portfolio-detail="${escapeHtml(holding.code)}" ${row.stock ? "" : "disabled"}>詳細</button><button type="button" data-portfolio-edit="${escapeHtml(holding.code)}">編集</button></div></td>
+          </tr>
+        `;
+      }).join("");
+
+      el.portfolioMobileList.innerHTML = rows.map(row => {
+        const holding = row.holding;
+        const stockName = row.stock?.name || "対象データ未取得";
+        const gainClass = portfolioGainClass(row.gain);
+        return `
+          <article class="portfolio-mobile-card">
+            <div class="portfolio-mobile-head">
+              <div><strong>${escapeHtml(stockName)}</strong><span>${escapeHtml(holding.code)} / ${holding.shares.toLocaleString("ja-JP")}株</span></div>
+              <div class="portfolio-mobile-price"><strong>${escapeHtml(formatPortfolioYen(row.latestPrice))}</strong><span class="portfolio-gain ${gainClass}">${Number.isFinite(row.gainPct) ? `${row.gainPct >= 0 ? "+" : ""}${formatPortfolioYield(row.gainPct)}` : "未算出"}</span></div>
+            </div>
+            <div class="portfolio-mobile-body">
+              ${portfolioYieldHtml(row)}
+              <div class="portfolio-mobile-details">
+                <div class="portfolio-mobile-detail"><span>平均取得単価</span><strong>${escapeHtml(formatPortfolioYen(holding.averageCost))}</strong></div>
+                <div class="portfolio-mobile-detail"><span>予想年間DPS</span><strong>${row.forecastDps ? `${formatPortfolioNumber(row.forecastDps.value, 2)}円` : "未取得"}</strong></div>
+                <div class="portfolio-mobile-detail"><span>予想年間配当</span><strong>${escapeHtml(formatPortfolioYen(row.annualDividend))}</strong></div>
+                <div class="portfolio-mobile-detail"><span>総合スコア</span><strong>${Number.isFinite(row.score) ? `${row.score}点` : "未評価"}</strong></div>
+              </div>
+            </div>
+            <div class="portfolio-mobile-actions"><button type="button" data-portfolio-detail="${escapeHtml(holding.code)}" ${row.stock ? "" : "disabled"}>銘柄詳細</button><button type="button" data-portfolio-edit="${escapeHtml(holding.code)}">保有情報を編集</button></div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function updateHoldingDialogStockName() {
+      const code = String(el.holdingCode.value || "").trim().toUpperCase();
+      const stock = portfolioStock(code);
+      el.holdingDialogStockName.textContent = stock
+        ? `${stock.name} / ${stock.industry || "業種未分類"}`
+        : code.length === 4 ? "現在の対象データにない銘柄です。株価とスコアは未取得になります。" : "コードを入力してください。";
+    }
+
+    function openHoldingDialog(code = "") {
+      const holding = portfolioHoldings.find(item => item.code === String(code));
+      el.holdingForm.reset();
+      el.holdingOriginalCode.value = holding?.code || "";
+      el.holdingCode.value = holding?.code || "";
+      el.holdingCode.readOnly = Boolean(holding);
+      el.holdingShares.value = holding?.shares ?? "";
+      el.holdingAverageCost.value = holding?.averageCost ?? "";
+      el.holdingManualDps.value = holding?.manualForecastDps ?? "";
+      el.holdingMemo.value = holding?.memo || "";
+      el.holdingFormError.textContent = "";
+      el.holdingDeleteButton.hidden = !holding;
+      el.holdingDialogTitle.textContent = holding ? "保有情報を編集" : "保有株を追加";
+      updateHoldingDialogStockName();
+      if (typeof el.holdingDialog.showModal === "function") el.holdingDialog.showModal();
+      else el.holdingDialog.setAttribute("open", "");
+      requestAnimationFrame(() => (holding ? el.holdingShares : el.holdingCode).focus());
+    }
+
+    function closeHoldingDialog() {
+      if (typeof el.holdingDialog.close === "function") el.holdingDialog.close();
+      else el.holdingDialog.removeAttribute("open");
+    }
+
+    function saveHoldingFromForm(event) {
+      event.preventDefault();
+      const code = String(el.holdingCode.value || "").trim().toUpperCase();
+      const originalCode = String(el.holdingOriginalCode.value || "");
+      const holding = normalizeHolding({
+        code,
+        shares: el.holdingShares.value,
+        averageCost: el.holdingAverageCost.value,
+        manualForecastDps: el.holdingManualDps.value,
+        memo: el.holdingMemo.value,
+        updatedAt: new Date().toISOString(),
+      });
+      if (!holding) {
+        el.holdingFormError.textContent = "コード4桁、1株以上の数量、0円より大きい平均取得単価を確認してください。";
+        return;
+      }
+      if (!originalCode && portfolioHoldings.some(item => item.code === code)) {
+        el.holdingFormError.textContent = "この銘柄は登録済みです。一覧の編集ボタンから更新してください。";
+        return;
+      }
+      portfolioHoldings = portfolioHoldings.filter(item => item.code !== (originalCode || code));
+      portfolioHoldings.push(holding);
+      if (!savePortfolio()) return;
+      closeHoldingDialog();
+      renderPortfolio();
+    }
+
+    function deleteHoldingFromDialog() {
+      const code = String(el.holdingOriginalCode.value || "");
+      if (!code || !window.confirm(`${code} の保有情報を端末から削除しますか？`)) return;
+      portfolioHoldings = portfolioHoldings.filter(item => item.code !== code);
+      if (!savePortfolio()) return;
+      closeHoldingDialog();
+      renderPortfolio();
+    }
+
+    function backupPortfolio() {
+      const blob = new Blob([JSON.stringify(portfolioStoragePayload(), null, 2)], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `capital-gain-radar-portfolio-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function restorePortfolio(file) {
+      if (!file) return;
+      try {
+        const parsed = JSON.parse(await file.text());
+        const rawRows = Array.isArray(parsed) ? parsed : parsed.holdings;
+        if (!Array.isArray(rawRows)) throw new Error("保有株配列がありません");
+        const normalized = rawRows.map(normalizeHolding);
+        if (normalized.some(item => !item)) throw new Error("形式が正しくない保有情報があります");
+        if (!window.confirm(`現在の保有情報を、バックアップの${normalized.length}銘柄で置き換えますか？`)) return;
+        portfolioHoldings = [...new Map(normalized.map(item => [item.code, item])).values()];
+        if (!savePortfolio()) return;
+        renderPortfolio();
+      } catch (error) {
+        window.alert(`復元できませんでした: ${error.message || error}`);
+      } finally {
+        el.portfolioRestoreInput.value = "";
+      }
+    }
+
+    function openPortfolioDetail(code) {
+      if (isMobileLayout()) {
+        openMobileDetail(code);
+        return;
+      }
+      state.query = String(code);
+      state.view = "overall";
+      state.selectedCode = String(code);
+      syncSearchInputs();
+      render();
+      document.querySelector("#stockDetailPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     function qualityBadgeClass(status) {
@@ -6948,6 +8288,146 @@
       el.weeklyTargetButtons.forEach(button => {
         button.classList.toggle("active", button.dataset.weeklyTargetMode === state.weeklyTargetMode);
       });
+      el.weeklySectionButtons.forEach(button => {
+        button.classList.toggle("active", button.dataset.weeklySection === state.weeklyTargetSection);
+      });
+    }
+
+    function weeklyAccuracyProfile() {
+      return weeklyAccuracySummary?.profiles?.[state.weeklyTargetMode] || null;
+    }
+
+    function weeklyAccuracyStatusLabel(status) {
+      return {
+        available: "検証データあり",
+        limited: "参考値",
+        collecting: "学習中",
+      }[status] || "未取得";
+    }
+
+    function weeklyOutcomeLabel(label) {
+      return {
+        "target-first": "目標先着",
+        "stop-first": "損切り先着",
+        expired: "5日で未達",
+        ambiguous: "同日到達・順序不明",
+      }[label] || label || "未判定";
+    }
+
+    function weeklyMetricRate(metrics, key) {
+      const raw = metrics?.[key];
+      if (raw === null || raw === undefined || raw === "") return "-";
+      const value = Number(raw);
+      return Number.isFinite(value) ? formatPercent(value) : "-";
+    }
+
+    function renderWeeklyAccuracyConditions(profile) {
+      const conditions = profile?.conditions || {};
+      const conditionKey = state.weeklyAccuracyCondition;
+      const rows = Array.isArray(conditions[conditionKey]) ? conditions[conditionKey] : [];
+      el.weeklyAccuracyCondition.value = conditionKey;
+      if (conditionKey === "strictChecks") {
+        el.weeklyAccuracyConditionHead.innerHTML = `
+          <tr><th>必須条件</th><th>通過件数</th><th>通過時の的中率</th><th>未通過件数</th><th>未通過時の的中率</th><th>差</th></tr>
+        `;
+        el.weeklyAccuracyConditionRows.innerHTML = rows.map(item => {
+          const passedRate = item.passed?.targetFirstRate === null || item.passed?.targetFirstRate === undefined ? null : Number(item.passed.targetFirstRate);
+          const failedRate = item.failed?.targetFirstRate === null || item.failed?.targetFirstRate === undefined ? null : Number(item.failed.targetFirstRate);
+          const difference = Number.isFinite(passedRate) && Number.isFinite(failedRate)
+            ? passedRate - failedRate
+            : null;
+          return `
+            <tr>
+              <td><strong>${escapeHtml(item.label || item.key)}</strong></td>
+              <td>${Number(item.passed?.primaryEvaluatedCount || 0)}</td>
+              <td>${escapeHtml(weeklyMetricRate(item.passed, "targetFirstRate"))}</td>
+              <td>${Number(item.failed?.primaryEvaluatedCount || 0)}</td>
+              <td>${escapeHtml(weeklyMetricRate(item.failed, "targetFirstRate"))}</td>
+              <td>${Number.isFinite(difference) ? escapeHtml(`${difference >= 0 ? "+" : ""}${formatPercent(difference)}`) : "-"}</td>
+            </tr>
+          `;
+        }).join("") || `<tr><td colspan="6">評価データの蓄積待ちです。</td></tr>`;
+        return;
+      }
+      el.weeklyAccuracyConditionHead.innerHTML = `
+        <tr><th>区分</th><th>評価件数</th><th>目標先着率</th><th>損切り先着率</th><th>中央値リターン</th><th>平均MFE</th><th>平均MAE</th></tr>
+      `;
+      el.weeklyAccuracyConditionRows.innerHTML = rows.slice(0, conditionKey === "industries" ? 15 : 30).map(item => {
+        const metrics = item.metrics || {};
+        return `
+          <tr>
+            <td><strong>${escapeHtml(item.label || item.key)}</strong></td>
+            <td>${Number(metrics.primaryEvaluatedCount || 0)}</td>
+            <td>${escapeHtml(weeklyMetricRate(metrics, "targetFirstRate"))}</td>
+            <td>${escapeHtml(weeklyMetricRate(metrics, "stopFirstRate"))}</td>
+            <td>${escapeHtml(weeklyMetricRate(metrics, "medianNetReturn"))}</td>
+            <td>${escapeHtml(weeklyMetricRate(metrics, "averageMfe"))}</td>
+            <td>${escapeHtml(weeklyMetricRate(metrics, "averageMae"))}</td>
+          </tr>
+        `;
+      }).join("") || `<tr><td colspan="7">評価データの蓄積待ちです。</td></tr>`;
+    }
+
+    function renderWeeklyAccuracy() {
+      const showAccuracy = state.view === "weekly" && state.weeklyTargetSection === "accuracy";
+      el.weeklyAccuracyPanel.hidden = !showAccuracy;
+      el.candidateTableWrap.hidden = showAccuracy;
+      el.mobileCandidateCards.hidden = showAccuracy;
+      if (showAccuracy) el.mobileEmpty.hidden = true;
+      if (!showAccuracy) return;
+
+      const profile = weeklyAccuracyProfile();
+      if (weeklyAccuracyLoadStatus !== "available" || !profile) {
+        el.weeklyAccuracyStatus.className = "badge warn";
+        el.weeklyAccuracyStatus.textContent = "未取得";
+        el.weeklyAccuracyMeta.textContent = "予測実績JSONを読み込めませんでした。次回の日次更新後に再確認します。";
+        el.weeklyAccuracyKpis.innerHTML = `<div class="weekly-accuracy-kpi"><span>状態</span><strong>データ待ち</strong></div>`;
+        el.weeklyAccuracyConditionHead.innerHTML = "";
+        el.weeklyAccuracyConditionRows.innerHTML = "";
+        el.weeklyAccuracyRecentRows.innerHTML = `<tr><td colspan="6">予測結果はまだありません。</td></tr>`;
+        el.weeklyAccuracyNote.textContent = "予測実績は候補順位へまだ反映しません。";
+        return;
+      }
+
+      const period = weeklyAccuracySummary.dataPeriod || {};
+      const execution = weeklyAccuracySummary.execution || {};
+      const status = profile.sampleStatus || "collecting";
+      el.weeklyAccuracyStatus.className = `badge ${status === "available" ? "ok" : "warn"}`;
+      el.weeklyAccuracyStatus.textContent = weeklyAccuracyStatusLabel(status);
+      el.weeklyAccuracyMeta.textContent = `${state.weeklyTargetMode === "double" ? "2銘柄運用" : "1銘柄運用"} / 期間 ${formatDate(period.from)}〜${formatDate(period.to)} / 評価版 ${weeklyAccuracySummary.labelVersion || "未確認"}`;
+      const lift = profile.targetRateLift === null || profile.targetRateLift === undefined
+        ? null
+        : Number(profile.targetRateLift);
+      el.weeklyAccuracyKpis.innerHTML = [
+        ["評価済み", `${Number(profile.primaryEvaluatedCount || 0)}件`],
+        ["目標先着率", weeklyMetricRate(profile, "targetFirstRate")],
+        ["損切り先着率", weeklyMetricRate(profile, "stopFirstRate")],
+        ["中央値リターン", weeklyMetricRate(profile, "medianNetReturn")],
+        ["対照銘柄との差", Number.isFinite(lift) ? `${lift >= 0 ? "+" : ""}${formatPercent(lift)}` : "-"],
+        ["判定待ち", `${Number(profile.pendingCount || 0)}件`],
+      ].map(([label, value]) => `
+        <div class="weekly-accuracy-kpi"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>
+      `).join("");
+      renderWeeklyAccuracyConditions(profile);
+
+      const recent = Array.isArray(weeklyAccuracySummary.recentRecords)
+        ? weeklyAccuracySummary.recentRecords.filter(record => record.profile === state.weeklyTargetMode).slice(0, 20)
+        : [];
+      el.weeklyAccuracyRecentRows.innerHTML = recent.map(record => {
+        const outcome = record.outcome || {};
+        return `
+          <tr>
+            <td>${escapeHtml(formatDate(record.signalDate))}</td>
+            <td><strong>${escapeHtml(record.code)} ${escapeHtml(record.name)}</strong><br><span class="theme-meta">${escapeHtml(record.industry || "業種未分類")}</span></td>
+            <td>${escapeHtml(record.statusAtSignal || "-")} / ${Number(record.weeklyScore || 0)}点</td>
+            <td>${escapeHtml(weeklyOutcomeLabel(outcome.label))}${outcome.daysToOutcome ? `<br><span class="theme-meta">${Number(outcome.daysToOutcome)}営業日目</span>` : ""}</td>
+            <td>${escapeHtml(weeklyMetricRate(outcome, "netReturn"))}</td>
+            <td>${escapeHtml(weeklyMetricRate(outcome, "mfe"))} / ${escapeHtml(weeklyMetricRate(outcome, "mae"))}</td>
+          </tr>
+        `;
+      }).join("") || `<tr><td colspan="6">5営業日の判定が完了した予測はまだありません。</td></tr>`;
+      const costRate = Number(execution.costBps || 0) / 10_000;
+      el.weeklyAccuracyNote.textContent = `翌営業日始値から5営業日を評価。目標+${Math.round(Number(execution.targetReturn || 0.05) * 100)}%、損切り-${(Number(execution.stopLimit || 0.025) * 100).toFixed(1)}%、往復コスト${formatPercent(costRate)}を仮定。同日に両方へ到達した記録は主的中率から除外します。`;
     }
 
     function syncLabels() {
@@ -6958,6 +8438,7 @@
         breakout: [`新高値ブレイク（${profile.label}）`, profile.note],
         theme: ["テーマ別ランキング", "選択したテーマのスコア上位5銘柄を表示します"],
         industry: ["業種別ランキング", "選択した業種のスコア上位5銘柄を表示します"],
+        portfolio: ["保有株", "現在利回りと簿価利回りを同じ予想年間DPSで比較します"],
         watchlist: ["ウォッチリスト", "気になる銘柄を端末内に保存して監視します"],
       };
       const [title, note] = viewLabels[state.view] || viewLabels.overall;
@@ -6970,6 +8451,7 @@
       el.breakoutView.classList.toggle("active", state.view === "breakout");
       el.themeView.classList.toggle("active", state.view === "theme");
       el.industryView.classList.toggle("active", state.view === "industry");
+      el.portfolioView.classList.toggle("active", state.view === "portfolio");
       el.watchlistView.classList.toggle("active", state.view === "watchlist");
       el.limit10.classList.toggle("active", state.limit === 10);
       el.limit20.classList.toggle("active", state.limit === 20);
@@ -6982,11 +8464,17 @@
       syncLabels();
       syncMobileShell();
       pruneCompareCodes();
+      if (state.view === "portfolio") {
+        renderPortfolio();
+        renderSearchSuggestions();
+        return;
+      }
       renderGroupFilter();
       renderBreakoutFilter();
       renderWeeklyTargetFilter();
       const rows = currentRows();
       renderRows(rows);
+      renderWeeklyAccuracy();
       renderWatchAlerts();
       renderCompare();
       renderTechnical(rows);
@@ -7016,7 +8504,10 @@
 
     function selectRankingView(view) {
       state.view = view;
-      if (view !== "watchlist") state.mobileCandidateView = view;
+      if (view !== "watchlist") {
+        state.mobileCandidateView = view;
+        state.mobilePage = "candidates";
+      }
       render();
     }
 
@@ -7025,8 +8516,16 @@
     el.breakoutView.addEventListener("click", () => selectRankingView("breakout"));
     el.themeView.addEventListener("click", () => selectRankingView("theme"));
     el.industryView.addEventListener("click", () => selectRankingView("industry"));
+    el.portfolioView.addEventListener("click", () => {
+      state.view = "portfolio";
+      state.mobilePage = "watch";
+      state.mobilePortfolioView = "holdings";
+      render();
+    });
     el.watchlistView.addEventListener("click", () => {
       state.view = "watchlist";
+      state.mobilePage = "watch";
+      state.mobilePortfolioView = "watchlist";
       render();
     });
     el.limit10.addEventListener("click", () => {
@@ -7079,6 +8578,16 @@
         state.weeklyTargetMode = button.dataset.weeklyTargetMode || "single";
         render();
       });
+    });
+    el.weeklySectionButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        state.weeklyTargetSection = button.dataset.weeklySection || "candidates";
+        render();
+      });
+    });
+    el.weeklyAccuracyCondition.addEventListener("change", event => {
+      state.weeklyAccuracyCondition = event.target.value || "status";
+      renderWeeklyAccuracy();
     });
     el.topixUniverse.addEventListener("click", () => {
       state.universe = "topix";
@@ -7233,6 +8742,29 @@
       toggleCompare(removeButton.dataset.compareRemove);
       render();
     });
+    el.portfolioPanel.addEventListener("click", event => {
+      const editButton = event.target.closest("[data-portfolio-edit]");
+      if (editButton) {
+        openHoldingDialog(editButton.dataset.portfolioEdit);
+        return;
+      }
+      const detailButton = event.target.closest("[data-portfolio-detail]");
+      if (detailButton && !detailButton.disabled) openPortfolioDetail(detailButton.dataset.portfolioDetail);
+    });
+    el.portfolioAddButton.addEventListener("click", () => openHoldingDialog());
+    el.portfolioEmptyAddButton.addEventListener("click", () => openHoldingDialog());
+    el.portfolioBackupButton.addEventListener("click", backupPortfolio);
+    el.portfolioRestoreButton.addEventListener("click", () => el.portfolioRestoreInput.click());
+    el.portfolioRestoreInput.addEventListener("change", event => void restorePortfolio(event.target.files?.[0]));
+    el.portfolioSort.addEventListener("change", event => {
+      state.portfolioSort = event.target.value || "bookYield";
+      renderPortfolio();
+    });
+    el.holdingCode.addEventListener("input", updateHoldingDialogStockName);
+    el.holdingForm.addEventListener("submit", saveHoldingFromForm);
+    el.holdingDeleteButton.addEventListener("click", deleteHoldingFromDialog);
+    el.holdingDialogClose.addEventListener("click", closeHoldingDialog);
+    el.holdingCancelButton.addEventListener("click", closeHoldingDialog);
     el.rows.addEventListener("keydown", event => {
       if (event.key !== "Enter" && event.key !== " ") return;
       if (event.target.closest("button")) return;
@@ -7256,6 +8788,9 @@
     });
     el.mobileMoreButtons.forEach(button => {
       button.addEventListener("click", () => setMobileMoreView(button.dataset.mobileMoreView));
+    });
+    el.mobilePortfolioButtons.forEach(button => {
+      button.addEventListener("click", () => setMobilePortfolioView(button.dataset.mobilePortfolioView));
     });
     el.mobileFilterOpen.addEventListener("click", () => setMobileFilterOpen(true));
     el.mobileFilterClose.addEventListener("click", () => setMobileFilterOpen(false));
@@ -7296,6 +8831,7 @@
 
     loadSavedFilters();
     loadWatchlist();
+    loadPortfolio();
     loadBundledDataset();
   </script>
 </body>

@@ -7,12 +7,15 @@ from datetime import date
 from pathlib import Path
 
 from market_analysis import validate_analysis
+from weekly_prediction import validate_accuracy_summary, validate_prediction_ledger
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = ROOT / "outputs" / "data" / "latest-candidates.json"
 DEFAULT_HISTORY = ROOT / "outputs" / "data" / "score-history-v2.json"
 DEFAULT_ANALYSIS = ROOT / "outputs" / "data" / "nikkei225-analysis.json"
+DEFAULT_WEEKLY_PREDICTIONS = ROOT / "outputs" / "data" / "weekly-predictions-v1.json"
+DEFAULT_WEEKLY_ACCURACY = ROOT / "outputs" / "data" / "weekly-accuracy-summary-v1.json"
 REQUIRED_SOURCES = ("topix", "marginWeekly", "priceHistory", "themeNews", "fundamentals")
 TOPIX_MIN_COMPONENTS = 1500
 TOPIX_MAX_COMPONENTS = 2000
@@ -196,6 +199,8 @@ def main() -> int:
     parser.add_argument("dataset", nargs="?", type=Path, default=DEFAULT_DATASET)
     parser.add_argument("--history", type=Path, default=DEFAULT_HISTORY)
     parser.add_argument("--analysis", type=Path, default=DEFAULT_ANALYSIS)
+    parser.add_argument("--weekly-predictions", type=Path, default=DEFAULT_WEEKLY_PREDICTIONS)
+    parser.add_argument("--weekly-accuracy", type=Path, default=DEFAULT_WEEKLY_ACCURACY)
     args = parser.parse_args()
     try:
         dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
@@ -217,11 +222,23 @@ def main() -> int:
         )
     except (OSError, json.JSONDecodeError) as error:
         errors.append(f"日経225分析JSONを読み込めません: {error}")
+    try:
+        weekly_predictions = json.loads(args.weekly_predictions.read_text(encoding="utf-8"))
+        errors.extend(validate_prediction_ledger(weekly_predictions, dataset))
+    except (OSError, json.JSONDecodeError) as error:
+        errors.append(f"週5%予測台帳JSONを読み込めません: {error}")
+        weekly_predictions = None
+    try:
+        weekly_accuracy = json.loads(args.weekly_accuracy.read_text(encoding="utf-8"))
+        if isinstance(weekly_predictions, dict):
+            errors.extend(validate_accuracy_summary(weekly_accuracy, weekly_predictions))
+    except (OSError, json.JSONDecodeError) as error:
+        errors.append(f"週5%予測実績JSONを読み込めません: {error}")
     if errors:
         for error in errors:
             print(f"ERROR: {error}")
         return 1
-    print("OK: TOPIX候補・スコア履歴・日経225分析JSONの品質チェックに合格しました。")
+    print("OK: TOPIX候補・スコア履歴・週5%予測・日経225分析JSONの品質チェックに合格しました。")
     return 0
 
 
