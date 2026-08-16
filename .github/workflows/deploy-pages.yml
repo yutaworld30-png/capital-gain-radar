@@ -72,6 +72,8 @@ jobs:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           EDINET_MAX_DOWNLOADS: "225"
           TOPIX_PRICE_WORKERS: "8"
+          SCORE_HISTORY_URL: "https://yutaworld30-png.github.io/capital-gain-radar/data/score-history-v2.json"
+          SCORE_HISTORY_REQUIRE_REMOTE: "true"
         run: python work/fetch_official_data.py
 
       - name: Refresh Nikkei 225 technical analysis

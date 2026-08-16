@@ -184,13 +184,67 @@ def validate_history(payload: object, dataset: dict[str, object]) -> list[str]:
     snapshots = payload.get("snapshots")
     if not isinstance(snapshots, list):
         errors.append("スコア履歴のsnapshotsが配列ではありません。")
-    elif any(
+        return errors
+    if any(
         not isinstance(item, dict)
         or item.get("scoreVersion") != dataset.get("scoreVersion")
         or item.get("factorVersion") != dataset.get("factorVersion")
         for item in snapshots
     ):
         errors.append("スコア履歴に異なる計算版のスナップショットが混在しています。")
+    if not snapshots:
+        errors.append("スコア履歴のスナップショットが空です。")
+        return errors
+
+    dates = [str(item.get("date") or "") for item in snapshots if isinstance(item, dict)]
+    if not all(_as_date(item) for item in dates):
+        errors.append("スコア履歴に不正な日付があります。")
+    if dates != sorted(dates):
+        errors.append("スコア履歴の日付が昇順ではありません。")
+    if len(dates) != len(set(dates)):
+        errors.append("スコア履歴に同一日付が重複しています。")
+
+    if payload.get("snapshotCount") != len(snapshots):
+        errors.append("スコア履歴のsnapshotCountが実データ件数と一致しません。")
+    restored_count = payload.get("restoredSnapshotCount")
+    if isinstance(restored_count, int) and len(snapshots) < restored_count:
+        errors.append("スコア履歴が復元時より減少しています。")
+
+    latest = snapshots[-1] if isinstance(snapshots[-1], dict) else {}
+    latest_date = dates[-1] if dates else ""
+    if payload.get("latestDate") != latest_date:
+        errors.append("スコア履歴のlatestDateが最終スナップショットと一致しません。")
+    sources = dataset.get("sources")
+    price_source = sources.get("priceHistory") if isinstance(sources, dict) else None
+    expected_date = price_source.get("asOf") if isinstance(price_source, dict) else None
+    if expected_date and latest_date != expected_date:
+        errors.append(
+            "スコア履歴の最新日が候補データの株価基準日と一致しません: "
+            f"history={latest_date} candidates={expected_date}"
+        )
+
+    current_rows = dataset.get("searchUniverse")
+    current_count = len(current_rows) if isinstance(current_rows, list) else 0
+    latest_count = latest.get("rowCount") if isinstance(latest, dict) else None
+    if not isinstance(latest_count, int) or latest_count <= 0:
+        errors.append("スコア履歴の最新スナップショットが空です。")
+    elif current_count and latest_count < int(current_count * 0.9):
+        errors.append("スコア履歴の最新銘柄数が現在母集団の90%未満です。")
+
+    coverage = payload.get("coverage")
+    if not isinstance(coverage, dict):
+        errors.append("スコア履歴の取得率メタデータがありません。")
+    else:
+        available_count = coverage.get("availableCount")
+        expected_count = coverage.get("expectedCount")
+        if (
+            not isinstance(available_count, int)
+            or not isinstance(expected_count, int)
+            or available_count < 0
+            or expected_count < 0
+            or available_count > expected_count
+        ):
+            errors.append("スコア履歴の取得率メタデータが不正です。")
     return errors
 
 

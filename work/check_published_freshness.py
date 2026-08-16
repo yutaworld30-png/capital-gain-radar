@@ -18,6 +18,10 @@ PUBLIC_ANALYSIS_URL = (
     "https://yutaworld30-png.github.io/"
     "capital-gain-radar/data/nikkei225-analysis.json"
 )
+PUBLIC_SCORE_HISTORY_URL = (
+    "https://yutaworld30-png.github.io/"
+    "capital-gain-radar/data/score-history-v2.json"
+)
 try:
     JST = ZoneInfo("Asia/Tokyo")
 except ZoneInfoNotFoundError:
@@ -157,6 +161,51 @@ def analysis_freshness_issues(
     return issues
 
 
+def history_freshness_issues(
+    payload: object,
+    *,
+    candidate_payload: object,
+) -> list[str]:
+    if not isinstance(payload, dict):
+        return ["スコア履歴JSONがオブジェクトではありません。"]
+    if not isinstance(candidate_payload, dict):
+        return ["候補JSONがないためスコア履歴を照合できません。"]
+
+    issues: list[str] = []
+    if payload.get("scoreVersion") != candidate_payload.get("scoreVersion"):
+        issues.append("スコア履歴のscoreVersionが候補データと一致しません。")
+    if payload.get("factorVersion") != candidate_payload.get("factorVersion"):
+        issues.append("スコア履歴のfactorVersionが候補データと一致しません。")
+
+    snapshots = payload.get("snapshots")
+    if not isinstance(snapshots, list) or not snapshots:
+        issues.append("スコア履歴が空です。")
+        return issues
+    latest = snapshots[-1] if isinstance(snapshots[-1], dict) else None
+    if latest is None:
+        issues.append("スコア履歴の最終スナップショットが不正です。")
+        return issues
+
+    sources = candidate_payload.get("sources")
+    price_source = sources.get("priceHistory") if isinstance(sources, dict) else None
+    expected_date = _parse_date(price_source.get("asOf")) if isinstance(price_source, dict) else None
+    history_date = _parse_date(latest.get("date"))
+    if expected_date is not None and history_date != expected_date:
+        issues.append(
+            "スコア履歴の最新日が株価基準日と一致しません: "
+            f"history={history_date} candidates={expected_date}"
+        )
+
+    current_rows = candidate_payload.get("searchUniverse")
+    current_count = len(current_rows) if isinstance(current_rows, list) else 0
+    history_count = latest.get("rowCount")
+    if not isinstance(history_count, int) or history_count <= 0:
+        issues.append("スコア履歴の最新スナップショットが空です。")
+    elif current_count and history_count < int(current_count * 0.9):
+        issues.append("スコア履歴の最新銘柄数が候補母集団の90%未満です。")
+    return issues
+
+
 def fetch_payload(url: str, *, timeout: float = 30.0) -> dict[str, Any]:
     request = Request(
         url,
@@ -179,11 +228,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="公開済み株価データの当日鮮度を確認します。")
     parser.add_argument("--url", default=PUBLIC_DATA_URL)
     parser.add_argument("--analysis-url", default=PUBLIC_ANALYSIS_URL)
+    parser.add_argument("--history-url", default=PUBLIC_SCORE_HISTORY_URL)
     parser.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args()
     try:
         payload = fetch_payload(args.url, timeout=args.timeout)
         analysis_payload = fetch_payload(args.analysis_url, timeout=args.timeout)
+        history_payload = fetch_payload(args.history_url, timeout=args.timeout)
     except RuntimeError as error:
         print(f"STALE: {error}")
         return 1
@@ -195,6 +246,7 @@ def main() -> int:
             candidate_payload=payload,
         )
     )
+    issues.extend(history_freshness_issues(history_payload, candidate_payload=payload))
     if issues:
         print("STALE: " + " / ".join(issues))
         return 1
@@ -203,6 +255,7 @@ def main() -> int:
         f"generatedAt={payload.get('generatedAt')} "
         f"priceAsOf={payload.get('sources', {}).get('priceHistory', {}).get('asOf')} "
         f"analysisAsOf={analysis_payload.get('priceSource', {}).get('asOf')}"
+        f" historyLatest={history_payload.get('latestDate')}"
     )
     return 0
 

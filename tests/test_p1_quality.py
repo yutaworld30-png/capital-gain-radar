@@ -88,16 +88,115 @@ class P1QualityTest(unittest.TestCase):
                         "date": "2026-07-02",
                         "scoreVersion": pipeline.SCORE_VERSION,
                         "factorVersion": pipeline.FACTOR_VERSION,
-                        "rows": [],
+                        "rows": [{"code": "TEST", "score": 48, "priceAsOf": "2026-07-02"}],
                     },
                 ],
             }), encoding="utf-8")
-            dataset = {"searchUniverse": [{"code": "TEST", "name": "fixture", "score": 50}]}
+            dataset = {
+                "sources": {"priceHistory": {"asOf": "2026-07-14"}},
+                "searchUniverse": [{"code": "TEST", "name": "fixture", "score": 50, "priceAsOf": "2026-07-14"}],
+                "topixPrices": [{"chartHistory": [
+                    {"date": "2026-07-02"},
+                    {"date": "2026-07-14"},
+                ]}],
+            }
             with patch.object(pipeline, "SCORE_HISTORY_OUTPUT", output):
                 updated = pipeline.update_score_history(dataset, "2026-07-14T16:10:00+09:00")
 
         self.assertEqual([item["date"] for item in updated["snapshots"]], ["2026-07-02", "2026-07-14"])
         self.assertTrue(all(item["scoreVersion"] == pipeline.SCORE_VERSION for item in updated["snapshots"]))
+
+    def test_score_history_merges_public_and_local_history_by_price_date(self) -> None:
+        local_history = {
+            "schemaVersion": 2,
+            "snapshots": [{
+                "date": "2026-07-28",
+                "generatedAt": "2026-07-28T07:53:00+09:00",
+                "scoreVersion": pipeline.SCORE_VERSION,
+                "factorVersion": pipeline.FACTOR_VERSION,
+                "rows": [{"code": "6098", "score": 73, "priceAsOf": "2026-07-27"}],
+            }],
+        }
+        public_history = {
+            "schemaVersion": 2,
+            "snapshots": [{
+                "date": "2026-08-13",
+                "generatedAt": "2026-08-13T18:00:00+09:00",
+                "scoreVersion": pipeline.SCORE_VERSION,
+                "factorVersion": pipeline.FACTOR_VERSION,
+                "rows": [{"code": "6098", "score": 78, "priceAsOf": "2026-08-13"}],
+            }],
+        }
+        dataset = {
+            "sources": {"priceHistory": {"asOf": "2026-08-14"}},
+            "searchUniverse": [{"code": "6098", "name": "fixture", "score": 82, "priceAsOf": "2026-08-14"}],
+            "topixPrices": [{"chartHistory": [
+                {"date": "2026-07-27"},
+                {"date": "2026-08-13"},
+                {"date": "2026-08-14"},
+            ]}],
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "score-history-v2.json"
+            output.write_text(json.dumps(local_history), encoding="utf-8")
+            with (
+                patch.object(pipeline, "SCORE_HISTORY_OUTPUT", output),
+                patch.object(pipeline, "load_json_url", return_value=public_history),
+                patch.dict(pipeline.os.environ, {
+                    "SCORE_HISTORY_URL": "https://example.test/score-history-v2.json",
+                    "SCORE_HISTORY_REQUIRE_REMOTE": "true",
+                }),
+            ):
+                updated = pipeline.update_score_history(dataset, "2026-08-16T10:51:31+09:00")
+
+        self.assertEqual([item["date"] for item in updated["snapshots"]], ["2026-07-27", "2026-08-13", "2026-08-14"])
+        self.assertEqual(updated["latestDate"], "2026-08-14")
+        self.assertEqual(updated["restoreStatus"], "remote-and-local")
+        self.assertEqual(updated["restoredSnapshotCount"], 2)
+        self.assertEqual(updated["coverage"]["coverageRate"], 100.0)
+
+    def test_score_history_stops_when_required_public_history_is_unavailable(self) -> None:
+        dataset = {
+            "sources": {"priceHistory": {"asOf": "2026-08-14"}},
+            "searchUniverse": [{"code": "6098", "score": 82, "priceAsOf": "2026-08-14"}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "score-history-v2.json"
+            with (
+                patch.object(pipeline, "SCORE_HISTORY_OUTPUT", output),
+                patch.object(pipeline, "load_json_url", side_effect=OSError("offline")),
+                patch.dict(pipeline.os.environ, {
+                    "SCORE_HISTORY_URL": "https://example.test/score-history-v2.json",
+                    "SCORE_HISTORY_REQUIRE_REMOTE": "true",
+                }),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "公開スコア履歴を復元できない"):
+                    pipeline.update_score_history(dataset, "2026-08-16T10:51:31+09:00")
+
+    def test_score_history_rejects_empty_current_public_history(self) -> None:
+        public_history = {
+            "schemaVersion": 2,
+            "scoreVersion": pipeline.SCORE_VERSION,
+            "factorVersion": pipeline.FACTOR_VERSION,
+            "snapshots": [],
+        }
+        dataset = {
+            "sources": {"priceHistory": {"asOf": "2026-08-14"}},
+            "searchUniverse": [{"code": "6098", "score": 82, "priceAsOf": "2026-08-14"}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "score-history-v2.json"
+            with (
+                patch.object(pipeline, "SCORE_HISTORY_OUTPUT", output),
+                patch.object(pipeline, "load_json_url", return_value=public_history),
+                patch.dict(pipeline.os.environ, {
+                    "SCORE_HISTORY_URL": "https://example.test/score-history-v2.json",
+                    "SCORE_HISTORY_REQUIRE_REMOTE": "true",
+                }),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "有効なスナップショットがありません"):
+                    pipeline.update_score_history(dataset, "2026-08-16T10:51:31+09:00")
 
     def test_frontend_loads_versioned_history_only_on_demand(self) -> None:
         html = (ROOT / "outputs" / "investment-candidate-app.html").read_text(encoding="utf-8")
@@ -106,6 +205,15 @@ class P1QualityTest(unittest.TestCase):
         self.assertIn('fetch("data/score-history-v2.json"', html)
         self.assertIn("void ensureScoreHistoryLoaded()", html)
         self.assertNotIn("loadScoreHistory(),", loader)
+
+    def test_frontend_marks_sparse_score_history_as_incomplete(self) -> None:
+        html = (ROOT / "outputs" / "investment-candidate-app.html").read_text(encoding="utf-8")
+
+        self.assertIn("function scoreBaselineNearDays", html)
+        self.assertIn("function scoreHistoryCoverageForRange", html)
+        self.assertIn("履歴取得率", html)
+        self.assertIn("欠損期間があるため変化量は参考値", html)
+        self.assertNotIn('["直近7日", signedPoints(stats.change7)]', html)
 
 
 if __name__ == "__main__":

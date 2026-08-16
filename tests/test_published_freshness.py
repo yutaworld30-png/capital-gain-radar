@@ -13,6 +13,7 @@ sys.path.insert(0, str(WORK))
 from check_published_freshness import (  # noqa: E402
     analysis_freshness_issues,
     freshness_issues,
+    history_freshness_issues,
 )
 
 
@@ -22,6 +23,8 @@ JST = timezone(timedelta(hours=9), name="JST")
 def sample_payload(generated_at: str = "2026-08-13T07:20:00+00:00") -> dict:
     return {
         "generatedAt": generated_at,
+        "scoreVersion": "3.0.0",
+        "factorVersion": "topix-capital-gain-v3.0",
         "sources": {
             "priceHistory": {
                 "status": "available",
@@ -29,6 +32,19 @@ def sample_payload(generated_at: str = "2026-08-13T07:20:00+00:00") -> dict:
             }
         },
         "searchUniverse": [{"code": "9433"}],
+    }
+
+
+def sample_history() -> dict:
+    return {
+        "schemaVersion": 2,
+        "scoreVersion": "3.0.0",
+        "factorVersion": "topix-capital-gain-v3.0",
+        "snapshots": [{
+            "date": "2026-08-13",
+            "rowCount": 1,
+            "rows": [{"code": "9433", "score": 75}],
+        }],
     }
 
 
@@ -117,6 +133,20 @@ class PublishedFreshnessTests(unittest.TestCase):
         )
         self.assertTrue(any("generatedAtが当日ではありません" in issue for issue in issues))
 
+    def test_history_matching_candidate_price_date_is_fresh(self) -> None:
+        self.assertEqual(
+            history_freshness_issues(sample_history(), candidate_payload=sample_payload()),
+            [],
+        )
+
+    def test_history_older_than_candidate_requests_refresh(self) -> None:
+        history = sample_history()
+        history["snapshots"][-1]["date"] = "2026-08-12"
+
+        issues = history_freshness_issues(history, candidate_payload=sample_payload())
+
+        self.assertTrue(any("株価基準日と一致しません" in issue for issue in issues))
+
     def test_workflow_has_freshness_gate_and_backup_schedule(self) -> None:
         workflow = (ROOT / ".github" / "workflows" / "deploy-pages.yml").read_text(
             encoding="utf-8"
@@ -125,6 +155,7 @@ class PublishedFreshnessTests(unittest.TestCase):
         self.assertIn('cron: "10 10 * * 1-5"', workflow)
         self.assertIn("python3 work/check_published_freshness.py", workflow)
         self.assertIn("needs.freshness.outputs.should_refresh == 'true'", workflow)
+        self.assertIn('SCORE_HISTORY_REQUIRE_REMOTE: "true"', workflow)
 
 
 if __name__ == "__main__":

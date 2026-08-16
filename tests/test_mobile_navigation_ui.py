@@ -66,6 +66,28 @@ class MobileNavigationUiTests(unittest.TestCase):
         self.assertIn("function closeMobileDetail(fromHistory = false)", self.html)
         self.assertIn('body.mobile-detail-open #stockDetailPanel', self.html)
 
+    def test_mobile_detail_keeps_bottom_navigation_available(self) -> None:
+        start = self.html.index("body.mobile-detail-open .mobile-bottom-nav")
+        detail_nav_css = self.html[start:start + 180]
+
+        self.assertIn("display: grid", detail_nav_css)
+        self.assertIn("z-index: 120", detail_nav_css)
+        self.assertNotIn("display: none", detail_nav_css)
+
+    def test_mobile_page_change_clears_open_detail_immediately(self) -> None:
+        self.assertIn("function clearMobileDetailState", self.html)
+        set_page = self.html[
+            self.html.index("function setMobilePage(page)"):
+            self.html.index("function setMobileRankingView", self.html.index("function setMobilePage(page)"))
+        ]
+        close_detail = self.html[
+            self.html.index("function closeMobileDetail"):
+            self.html.index("function loadWatchlist", self.html.index("function closeMobileDetail"))
+        ]
+
+        self.assertIn("clearMobileDetailState()", set_page)
+        self.assertIn("clearMobileDetailState({ rewindHistory: !fromHistory })", close_detail)
+
 
 if __name__ == "__main__":
     unittest.main()

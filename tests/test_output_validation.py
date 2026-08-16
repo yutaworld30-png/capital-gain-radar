@@ -65,6 +65,28 @@ class OutputValidationTest(unittest.TestCase):
             }],
         }
 
+    def valid_history(self) -> dict[str, object]:
+        return {
+            "schemaVersion": 2,
+            "scoreVersion": "3.0.0",
+            "factorVersion": "topix-capital-gain-v3.0",
+            "snapshotCount": 1,
+            "restoredSnapshotCount": 0,
+            "latestDate": "2026-07-14",
+            "coverage": {
+                "availableCount": 1,
+                "expectedCount": 1,
+                "coverageRate": 100.0,
+            },
+            "snapshots": [{
+                "date": "2026-07-14",
+                "scoreVersion": "3.0.0",
+                "factorVersion": "topix-capital-gain-v3.0",
+                "rowCount": 1,
+                "rows": [{"code": "1000", "score": 70}],
+            }],
+        }
+
     def test_valid_dataset_passes(self) -> None:
         self.assertEqual(validate_dataset(self.valid_dataset(), today=date(2026, 7, 14)), [])
 
@@ -100,6 +122,26 @@ class OutputValidationTest(unittest.TestCase):
         }
 
         self.assertTrue(validate_history(history, dataset))
+
+    def test_valid_history_passes(self) -> None:
+        self.assertEqual(validate_history(self.valid_history(), self.valid_dataset()), [])
+
+    def test_history_rejects_snapshot_loss(self) -> None:
+        history = self.valid_history()
+        history["restoredSnapshotCount"] = 2
+
+        errors = validate_history(history, self.valid_dataset())
+
+        self.assertTrue(any("復元時より減少" in error for error in errors))
+
+    def test_history_rejects_latest_date_mismatch(self) -> None:
+        history = self.valid_history()
+        history["latestDate"] = "2026-07-13"
+        history["snapshots"][0]["date"] = "2026-07-13"
+
+        errors = validate_history(history, self.valid_dataset())
+
+        self.assertTrue(any("株価基準日と一致しません" in error for error in errors))
 
 
 if __name__ == "__main__":

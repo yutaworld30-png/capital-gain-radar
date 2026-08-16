@@ -76,6 +76,7 @@ PRICE_BASIS = "adjusted-ohlc"
 HIGH_LOOKBACK_DAYS = 252
 CHART_HISTORY_ROWS = 780
 CHART_HISTORY_CALENDAR_DAYS = 1200
+JST = timezone(timedelta(hours=9), name="JST")
 TOPIX_MIN_COMPONENTS = 1500
 TOPIX_MAX_COMPONENTS = 2000
 SOURCE_FRESHNESS_DAYS = {
@@ -1701,22 +1702,119 @@ def _compact_score_row(row: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _valid_iso_date(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value[:10]).isoformat()
+    except ValueError:
+        return None
+
+
+def _normalise_score_snapshot(snapshot: object) -> dict[str, object] | None:
+    if not isinstance(snapshot, dict):
+        return None
+    if snapshot.get("scoreVersion") != SCORE_VERSION or snapshot.get("factorVersion") != FACTOR_VERSION:
+        return None
+    rows = [row for row in snapshot.get("rows", []) if isinstance(row, dict) and row.get("code")]
+    if not rows:
+        return None
+
+    price_dates: dict[str, int] = {}
+    for row in rows:
+        price_date = _valid_iso_date(row.get("priceAsOf"))
+        if price_date:
+            price_dates[price_date] = price_dates.get(price_date, 0) + 1
+    snapshot_date = (
+        max(price_dates, key=lambda key: (price_dates[key], key))
+        if price_dates
+        else _valid_iso_date(snapshot.get("priceAsOf")) or _valid_iso_date(snapshot.get("date"))
+    )
+    if not snapshot_date:
+        return None
+
+    normalised = dict(snapshot)
+    normalised["date"] = snapshot_date
+    normalised["priceAsOf"] = snapshot_date
+    normalised["rowCount"] = len(rows)
+    normalised["rows"] = rows
+    normalised.setdefault("snapshotDateBasis", "row-priceAsOf" if price_dates else "legacy-date")
+    return normalised
+
+
+def _merge_score_histories(histories: list[dict[str, object]]) -> list[dict[str, object]]:
+    merged: dict[str, dict[str, object]] = {}
+    for history in histories:
+        snapshots = history.get("snapshots")
+        if not isinstance(snapshots, list):
+            continue
+        for raw_snapshot in snapshots:
+            snapshot = _normalise_score_snapshot(raw_snapshot)
+            if snapshot is None:
+                continue
+            snapshot_date = str(snapshot["date"])
+            current = merged.get(snapshot_date)
+            candidate_key = (
+                int(snapshot.get("rowCount") or 0),
+                str(snapshot.get("generatedAt") or ""),
+            )
+            current_key = (
+                int(current.get("rowCount") or 0),
+                str(current.get("generatedAt") or ""),
+            ) if current else (-1, "")
+            if current is None or candidate_key >= current_key:
+                merged[snapshot_date] = snapshot
+    return [merged[key] for key in sorted(merged)]
+
+
 def _load_existing_score_history() -> dict[str, object]:
+    histories: list[dict[str, object]] = []
+    local_loaded = False
     if SCORE_HISTORY_OUTPUT.exists():
         try:
             loaded = json.loads(SCORE_HISTORY_OUTPUT.read_text(encoding="utf-8"))
             if isinstance(loaded, dict):
-                return loaded
+                histories.append(loaded)
+                local_loaded = True
         except (OSError, json.JSONDecodeError):
             pass
-    history_url = os.environ.get("SCORE_HISTORY_URL", f"{PAGES_BASE_URL}/data/score-history-v2.json")
-    try:
-        loaded = load_json_url(history_url)
-        if isinstance(loaded, dict):
-            return loaded
-    except (URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
-        pass
-    return {"schemaVersion": SCHEMA_VERSION, "snapshots": []}
+
+    remote_required = os.environ.get("SCORE_HISTORY_REQUIRE_REMOTE", "").strip().lower() in {"1", "true", "yes"}
+    should_load_remote = remote_required or "SCORE_HISTORY_URL" in os.environ
+    remote_loaded = False
+    remote_history: dict[str, object] | None = None
+    remote_error: Exception | None = None
+    if should_load_remote:
+        history_url = os.environ.get("SCORE_HISTORY_URL", f"{PAGES_BASE_URL}/data/score-history-v2.json")
+        separator = "&" if "?" in history_url else "?"
+        try:
+            loaded = load_json_url(f"{history_url}{separator}restore={int(time.time())}")
+            if isinstance(loaded, dict):
+                histories.append(loaded)
+                remote_history = loaded
+                remote_loaded = True
+            else:
+                remote_error = ValueError("公開スコア履歴がJSONオブジェクトではありません。")
+        except (URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError) as error:
+            remote_error = error
+    if remote_required and not remote_loaded:
+        raise RuntimeError(f"公開スコア履歴を復元できないため更新を停止しました: {remote_error}")
+    if (
+        remote_required
+        and remote_history is not None
+        and remote_history.get("scoreVersion") == SCORE_VERSION
+        and remote_history.get("factorVersion") == FACTOR_VERSION
+        and not _merge_score_histories([remote_history])
+    ):
+        raise RuntimeError("公開スコア履歴に現在の計算版の有効なスナップショットがありません。")
+
+    return {
+        "schemaVersion": SCHEMA_VERSION,
+        "scoreVersion": SCORE_VERSION,
+        "factorVersion": FACTOR_VERSION,
+        "restoreStatus": "remote-and-local" if remote_loaded and local_loaded else "remote" if remote_loaded else "local" if local_loaded else "empty",
+        "snapshots": _merge_score_histories(histories),
+    }
 
 
 def _load_existing_weekly_predictions() -> dict[str, object]:
@@ -1785,23 +1883,118 @@ def update_weekly_prediction_outputs(
     return ledger, summary
 
 
+def _score_snapshot_date(
+    dataset: dict[str, object],
+    rows: list[dict[str, object]],
+    generated_at: str,
+) -> tuple[str, str]:
+    sources = dataset.get("sources")
+    price_source = sources.get("priceHistory") if isinstance(sources, dict) else None
+    source_date = _valid_iso_date(price_source.get("asOf")) if isinstance(price_source, dict) else None
+    if source_date:
+        return source_date, "priceHistory.asOf"
+
+    row_dates: dict[str, int] = {}
+    for row in rows:
+        row_date = _valid_iso_date(row.get("priceAsOf"))
+        if row_date:
+            row_dates[row_date] = row_dates.get(row_date, 0) + 1
+    if row_dates:
+        return max(row_dates, key=lambda key: (row_dates[key], key)), "row-priceAsOf"
+
+    generated = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+    if generated.tzinfo is None:
+        generated = generated.replace(tzinfo=JST)
+    return generated.astimezone(JST).date().isoformat(), "generatedAt-fallback"
+
+
+def _chart_row_date(row: object) -> str | None:
+    if isinstance(row, dict):
+        return _valid_iso_date(row.get("date"))
+    if isinstance(row, list) and row:
+        return _valid_iso_date(row[0])
+    return None
+
+
+def _score_history_trading_dates(
+    dataset: dict[str, object],
+    first_date: str,
+    latest_date: str,
+) -> list[str]:
+    price_rows = dataset.get("topixPrices")
+    for price_row in price_rows if isinstance(price_rows, list) else []:
+        if not isinstance(price_row, dict):
+            continue
+        history = price_row.get("chartHistory")
+        if not isinstance(history, list) or len(history) < 2:
+            continue
+        dates = sorted({
+            row_date
+            for row in history
+            if (row_date := _chart_row_date(row)) and first_date <= row_date <= latest_date
+        })
+        if dates:
+            return dates
+    if PRICE_HISTORY_DIR.exists():
+        for path in sorted(PRICE_HISTORY_DIR.glob("topix-*.json")):
+            try:
+                shard = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            prices = shard.get("prices") if isinstance(shard, dict) else None
+            if not isinstance(prices, list):
+                continue
+            for price_row in prices:
+                history = price_row.get("chartHistory") if isinstance(price_row, dict) else None
+                if not isinstance(history, list):
+                    continue
+                dates = sorted({
+                    row_date
+                    for row in history
+                    if (row_date := _chart_row_date(row)) and first_date <= row_date <= latest_date
+                })
+                if dates:
+                    return dates
+    return []
+
+
+def _score_history_coverage(
+    snapshots: list[dict[str, object]],
+    trading_dates: list[str],
+) -> dict[str, object]:
+    if not snapshots:
+        return {
+            "status": "empty",
+            "availableCount": 0,
+            "expectedCount": 0,
+            "coverageRate": 0.0,
+            "missingDateCount": 0,
+            "missingDates": [],
+        }
+    available_dates = {str(snapshot.get("date") or "") for snapshot in snapshots}
+    expected_dates = sorted(set(trading_dates) or available_dates)
+    missing_dates = [item for item in expected_dates if item not in available_dates]
+    available_count = len([item for item in expected_dates if item in available_dates])
+    coverage_rate = round(available_count / len(expected_dates) * 100, 1) if expected_dates else 0.0
+    return {
+        "status": "complete" if coverage_rate >= 90 else "partial",
+        "availableCount": available_count,
+        "expectedCount": len(expected_dates),
+        "coverageRate": coverage_rate,
+        "missingDateCount": len(missing_dates),
+        "missingDates": missing_dates,
+    }
+
+
 def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[str, object]:
     rows = dataset.get("searchUniverse")
     if not isinstance(rows, list):
         rows = dataset.get("candidates")
     history = _load_existing_score_history()
-    snapshots = history.get("snapshots")
-    if not isinstance(snapshots, list):
-        snapshots = []
-    snapshots = [
-        item for item in snapshots
-        if isinstance(item, dict)
-        and item.get("scoreVersion") == SCORE_VERSION
-        and item.get("factorVersion") == FACTOR_VERSION
-    ]
-
-    snapshot_date = generated_at[:10]
     typed_rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    snapshots = [item for item in history.get("snapshots", []) if isinstance(item, dict)]
+    restored_snapshot_count = len(snapshots)
+    snapshot_date, snapshot_date_basis = _score_snapshot_date(dataset, typed_rows, generated_at)
     _attach_history_changes(typed_rows, snapshots, snapshot_date)
     compact_rows = [
         _compact_score_row(row)
@@ -1814,9 +2007,12 @@ def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[
     ]
     snapshots.append({
         "date": snapshot_date,
+        "priceAsOf": snapshot_date,
         "generatedAt": generated_at,
         "scoreVersion": SCORE_VERSION,
         "factorVersion": FACTOR_VERSION,
+        "snapshotDateBasis": snapshot_date_basis,
+        "historySource": "daily-pipeline",
         "rowCount": len(compact_rows),
         "scoreMax": max((int(row["score"]) for row in compact_rows if isinstance(row.get("score"), int)), default=None),
         "scoreMin": min((int(row["score"]) for row in compact_rows if isinstance(row.get("score"), int)), default=None),
@@ -1828,6 +2024,16 @@ def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[
     max_days = max(30, int(os.environ.get("SCORE_HISTORY_MAX_DAYS", "400")))
     snapshots.sort(key=lambda item: str(item.get("date", "")))
     snapshots = snapshots[-max_days:]
+    minimum_retained = min(restored_snapshot_count, max_days)
+    if len(snapshots) < minimum_retained:
+        raise RuntimeError(
+            "スコア履歴が前回より減少するため更新を停止しました: "
+            f"restored={restored_snapshot_count} updated={len(snapshots)}"
+        )
+
+    first_date = str(snapshots[0].get("date") or snapshot_date)
+    trading_dates = _score_history_trading_dates(dataset, first_date, snapshot_date)
+    coverage = _score_history_coverage(snapshots, trading_dates)
 
     updated = {
         "schemaVersion": SCHEMA_VERSION,
@@ -1837,15 +2043,28 @@ def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[
         "priceBasis": PRICE_BASIS,
         "highLookbackDays": HIGH_LOOKBACK_DAYS,
         "retentionDays": max_days,
+        "snapshotDateBasis": "price-as-of",
+        "restoreStatus": history.get("restoreStatus", "unknown"),
+        "restoredSnapshotCount": restored_snapshot_count,
+        "snapshotCount": len(snapshots),
+        "firstDate": first_date,
+        "latestDate": snapshot_date,
+        "tradingDates": trading_dates,
+        "coverage": coverage,
         "snapshots": snapshots,
     }
     SCORE_HISTORY_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    SCORE_HISTORY_OUTPUT.write_text(json.dumps(updated, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    temporary = SCORE_HISTORY_OUTPUT.with_suffix(".tmp")
+    temporary.write_text(json.dumps(updated, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    temporary.replace(SCORE_HISTORY_OUTPUT)
     dataset["scoreHistorySummary"] = {
         "status": "available" if compact_rows else "empty",
         "snapshotCount": len(snapshots),
         "latestDate": snapshot_date,
         "latestRowCount": len(compact_rows),
+        "coverageRate": coverage["coverageRate"],
+        "missingDateCount": coverage["missingDateCount"],
+        "restoreStatus": history.get("restoreStatus", "unknown"),
         "url": "data/score-history-v2.json",
     }
     return updated
@@ -2299,7 +2518,7 @@ def _attach_candidate_source_statuses(dataset: dict[str, object]) -> None:
 
 
 def main() -> None:
-    generated_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    generated_at = datetime.now(JST).isoformat(timespec="seconds")
     previous_dataset: dict[str, object] = {}
     if OUTPUT.exists():
         try:

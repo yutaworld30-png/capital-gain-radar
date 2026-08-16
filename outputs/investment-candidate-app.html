@@ -3462,9 +3462,9 @@
       body.mobile-detail-open #stockDetailPanel {
         position: fixed;
         z-index: 110;
-        inset: 0;
+        inset: 0 0 calc(var(--mobile-nav-height) + env(safe-area-inset-bottom)) 0;
         display: block;
-        height: 100dvh;
+        height: auto;
         margin: 0;
         overflow-y: auto;
         padding-bottom: calc(24px + env(safe-area-inset-bottom));
@@ -3515,7 +3515,8 @@
       }
 
       body.mobile-detail-open .mobile-bottom-nav {
-        display: none;
+        z-index: 120;
+        display: grid;
       }
 
       .mobile-bottom-nav {
@@ -4834,9 +4835,19 @@
       }
     }
 
+    function clearMobileDetailState({ rewindHistory = true } = {}) {
+      if (!state.mobileDetailOpen) return false;
+      const shouldRewind = rewindHistory && mobileDetailHistoryActive;
+      state.mobileDetailOpen = false;
+      mobileDetailHistoryActive = false;
+      if (shouldRewind) history.back();
+      return true;
+    }
+
     function setMobilePage(page) {
       if (!Object.hasOwn(mobileScrollPositions, page)) return;
-      if (isMobileLayout()) mobileScrollPositions[state.mobilePage] = window.scrollY;
+      const detailWasOpen = clearMobileDetailState();
+      if (isMobileLayout() && !detailWasOpen) mobileScrollPositions[state.mobilePage] = window.scrollY;
       state.mobilePage = page;
       state.mobileFilterOpen = false;
       state.searchOpen = false;
@@ -4908,7 +4919,11 @@
       state.mobileDetailOpen = true;
       state.mobileFilterOpen = false;
       if (!mobileDetailHistoryActive) {
-        history.pushState({ capitalGainRadarDetail: true }, document.title);
+        history.pushState({
+          ...(history.state || {}),
+          capitalGainRadarDetail: true,
+          mobilePage: state.mobilePage,
+        }, document.title);
         mobileDetailHistoryActive = true;
       }
       render();
@@ -4920,12 +4935,7 @@
 
     function closeMobileDetail(fromHistory = false) {
       if (!state.mobileDetailOpen) return;
-      if (!fromHistory && mobileDetailHistoryActive) {
-        history.back();
-        return;
-      }
-      state.mobileDetailOpen = false;
-      mobileDetailHistoryActive = false;
+      clearMobileDetailState({ rewindHistory: !fromHistory });
       render();
       if (isMobileLayout()) {
         requestAnimationFrame(() => window.scrollTo({
@@ -7474,13 +7484,57 @@
       return `${value > 0 ? "+" : ""}${Math.round(value)}pt`;
     }
 
+    function scoreDateMillis(value) {
+      const parsed = new Date(`${String(value || "")}T00:00:00`).getTime();
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    function scoreBaselineNearDays(rows, days, toleranceDays = 4) {
+      const latest = rows.at(-1);
+      const latestTime = scoreDateMillis(latest?.date);
+      if (!latest || latestTime === null) return null;
+      const targetTime = latestTime - days * 86400000;
+      const candidates = rows.slice(0, -1)
+        .map(row => ({ row, time: scoreDateMillis(row.date) }))
+        .filter(item => item.time !== null)
+        .sort((a, b) => Math.abs(a.time - targetTime) - Math.abs(b.time - targetTime));
+      const nearest = candidates[0];
+      return nearest && Math.abs(nearest.time - targetTime) <= toleranceDays * 86400000
+        ? nearest.row
+        : null;
+    }
+
+    function scoreHistoryCoverageForRange(rows) {
+      const latest = rows.at(-1);
+      const latestTime = scoreDateMillis(latest?.date);
+      if (!latest || latestTime === null) return { available: rows.length, expected: rows.length, rate: 100 };
+      const threshold = latestTime - scoreHistoryRangeDays() * 86400000;
+      const expectedDates = (Array.isArray(scoreHistory?.tradingDates) ? scoreHistory.tradingDates : [])
+        .filter(value => {
+          const itemTime = scoreDateMillis(value);
+          return itemTime !== null && itemTime >= threshold && itemTime <= latestTime;
+        });
+      const availableDates = new Set(rows.map(row => String(row.date || "")));
+      const expected = expectedDates.length || availableDates.size;
+      const available = expectedDates.length
+        ? expectedDates.filter(value => availableDates.has(String(value))).length
+        : availableDates.size;
+      return {
+        available,
+        expected,
+        rate: expected ? Math.round(available / expected * 100) : 0,
+      };
+    }
+
     function scoreHistoryStats(rows) {
       const latest = rows.at(-1);
       const previous = rows.length >= 2 ? rows.at(-2) : null;
       const first = rows[0];
       const scores = rows.map(row => row.score).filter(Number.isFinite);
-      const last7Start = rows.length >= 7 ? rows.at(-7) : first;
-      const last30Start = rows.length >= 30 ? rows.at(-30) : first;
+      const last7Start = scoreBaselineNearDays(rows, 7);
+      const last30Start = scoreBaselineNearDays(rows, 30, 6);
+      const latestTime = scoreDateMillis(latest?.date);
+      const previousTime = scoreDateMillis(previous?.date);
       return {
         latest,
         previous,
@@ -7490,13 +7544,16 @@
         change1: latest && previous ? latest.score - previous.score : null,
         change7: latest && last7Start ? latest.score - last7Start.score : null,
         change30: latest && last30Start ? latest.score - last30Start.score : null,
+        previousGapDays: latestTime !== null && previousTime !== null
+          ? Math.round((latestTime - previousTime) / 86400000)
+          : null,
       };
     }
 
     function factorChangeText(rows) {
       if (rows.length < 2) return "項目別の変化は、履歴が2日分以上たまると確認できます。";
       const latest = rows.at(-1);
-      const base = rows.length >= 7 ? rows.at(-7) : rows[0];
+      const base = rows.at(-2);
       const factors = [
         ["テーマ性", "theme"],
         ["需給", "supply"],
@@ -7623,6 +7680,7 @@
       const allRows = scoreRowsFor(item);
       const rows = rowsForScoreHistoryRange(allRows);
       const stats = scoreHistoryStats(rows);
+      const coverage = scoreHistoryCoverageForRange(rows);
       const rangeLabel = scoreHistoryRangeLabel();
       Object.entries(el.scoreRangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.scoreHistoryRange === range);
@@ -7642,13 +7700,16 @@
         return;
       }
 
+      const previousLabel = stats.previous && Number.isFinite(stats.previousGapDays) && stats.previousGapDays > 4
+        ? `前回（${formatDate(stats.previous.date).slice(5)}）比`
+        : "前回比";
       el.scoreHistorySummary.innerHTML = [
         ["現在スコア", `${Math.round(stats.latest.score)}点`],
-        ["前回比", signedPoints(stats.change1)],
-        [`${rangeLabel}変化`, signedPoints(stats.latest && stats.first ? stats.latest.score - stats.first.score : null)],
-        ["直近7日", signedPoints(stats.change7)],
+        [previousLabel, signedPoints(stats.change1)],
+        ["期間内変化", signedPoints(stats.latest && stats.first ? stats.latest.score - stats.first.score : null)],
+        ["7日変化", signedPoints(stats.change7)],
         ["最高 / 最低", `${Math.round(stats.max)}点 / ${Math.round(stats.min)}点`],
-        ["表示期間", `${rangeLabel} / ${rows.length}日分`],
+        ["履歴取得率", `${coverage.rate}%（${coverage.available}/${coverage.expected}営業日）`],
       ].map(([labelText, value]) => `
         <div class="indicator">
           <div class="indicator-label">${escapeHtml(labelText)}</div>
@@ -7667,7 +7728,10 @@
       const sourceNote = includesReconstructed
         ? "この期間にはバックテスト入力から復元した参考データを含みます。"
         : "この期間は日次更新で保存された実スナップショットです。";
-      el.scoreHistoryComment.textContent = `${rangeLabel}の総合スコアは${formatDate(stats.latest.date)}時点で${Math.round(latestScore)}点、期間内変化は${signedPoints(rangeChange)}です。${timingText} ${factorChangeText(rows)} ${sourceNote}`;
+      const coverageNote = coverage.rate < 80
+        ? `履歴取得率は${coverage.rate}%（${coverage.available}/${coverage.expected}営業日）です。欠損期間があるため変化量は参考値として確認してください。`
+        : `履歴取得率は${coverage.rate}%（${coverage.available}/${coverage.expected}営業日）です。`;
+      el.scoreHistoryComment.textContent = `${rangeLabel}の総合スコアは${formatDate(stats.latest.date)}時点で${Math.round(latestScore)}点、期間内変化は${signedPoints(rangeChange)}です。${coverageNote}${timingText} ${factorChangeText(rows)} ${sourceNote}`;
       requestAnimationFrame(() => drawScoreHistoryChart(rows));
     }
 
@@ -8997,6 +9061,7 @@
     el.mobileDetailBack.addEventListener("click", () => closeMobileDetail());
     window.addEventListener("popstate", () => {
       if (state.mobileDetailOpen) closeMobileDetail(true);
+      else mobileDetailHistoryActive = false;
     });
     document.addEventListener("keydown", event => {
       if (event.key !== "Escape") return;
