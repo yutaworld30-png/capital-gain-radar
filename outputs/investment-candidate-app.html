@@ -517,6 +517,7 @@
       border-radius: 8px;
       background: #fbfcfe;
       overflow: hidden;
+      position: relative;
     }
 
     #nikkeiAnalysisChart,
@@ -1636,12 +1637,109 @@
       border-radius: 8px;
       background: #fbfcfe;
       overflow: hidden;
+      position: relative;
     }
 
     #priceChart {
       display: block;
       width: 100%;
       height: 100%;
+      position: relative;
+    }
+
+    #nikkeiAnalysisChart {
+      position: relative;
+    }
+
+    .interactive-chart-shell {
+      min-width: 0;
+    }
+
+    .interactive-chart-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .interactive-chart-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 0 0 auto;
+    }
+
+    .interactive-chart-actions button {
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--white);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .interactive-chart-actions button:hover,
+    .interactive-chart-actions button:focus-visible {
+      border-color: var(--blue);
+      color: var(--blue);
+      outline: none;
+    }
+
+    .interactive-chart-readout {
+      min-height: 32px;
+      margin-bottom: 8px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.45;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    .interactive-chart-readout strong {
+      color: var(--ink);
+      margin-right: 8px;
+    }
+
+    .interactive-chart-message {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: var(--muted);
+      text-align: center;
+      font-size: 12px;
+    }
+
+    .interactive-chart-shell.is-expanded {
+      position: fixed;
+      inset: 0;
+      z-index: 3000;
+      display: flex;
+      flex-direction: column;
+      min-height: 100dvh;
+      padding: 12px;
+      background: var(--white);
+    }
+
+    .interactive-chart-shell.is-expanded .chart-wrap,
+    .interactive-chart-shell.is-expanded .nikkei-analysis-chart-wrap {
+      flex: 1 1 auto;
+      height: auto;
+      min-height: 0;
+    }
+
+    body.chart-overlay-open {
+      overflow: hidden;
     }
 
     .score-history-wrap {
@@ -2363,6 +2461,15 @@
 
       .chart-wrap {
         height: 480px;
+      }
+
+      .interactive-chart-controls {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .interactive-chart-actions {
+        justify-content: flex-end;
       }
 
       .page-title {
@@ -3761,24 +3868,6 @@
             <strong>ローカル個人利用モード</strong>
             <span>日経PER・JPX週次統計をローカル環境だけで表示しています。PCと同じWi-Fi内の認証済み端末以外へ、画面やデータを公開・共有・再配布しないでください。</span>
           </div>
-          <div class="nikkei-analysis-toolbar">
-            <div class="range-tabs nikkei-range-tabs" aria-label="日経225分析の表示期間">
-              <button id="nikkeiRange1w" type="button">1週間</button>
-              <button id="nikkeiRange1m" type="button">1ヶ月</button>
-              <button id="nikkeiRange3m" type="button">3ヶ月</button>
-              <button id="nikkeiRange6m" class="active" type="button">6ヶ月</button>
-              <button id="nikkeiRange1y" type="button">1年</button>
-              <button id="nikkeiRange3y" type="button">3年</button>
-            </div>
-            <div class="indicator-toggles" aria-label="価格チャートの表示指標">
-              <button class="active" data-nikkei-indicator="ma" type="button" aria-pressed="true">移動平均</button>
-              <button class="active" data-nikkei-indicator="psar" type="button" aria-pressed="true">パラボリック</button>
-              <button class="active" data-nikkei-indicator="bb" type="button" aria-pressed="true">ボリンジャー</button>
-              <button data-nikkei-indicator="ichimoku" type="button" aria-pressed="false">一目均衡表</button>
-              <button data-nikkei-indicator="per" type="button" aria-pressed="false">PER整数倍</button>
-            </div>
-          </div>
-
           <div class="nikkei-analysis-kpis" id="nikkeiAnalysisKpis">
             <div class="nikkei-analysis-kpi">
               <div class="nikkei-analysis-kpi-label">状態</div>
@@ -3786,10 +3875,37 @@
             </div>
           </div>
 
-          <div class="nikkei-analysis-chart-wrap">
-            <canvas id="nikkeiAnalysisChart" aria-label="日経225ローソク足、MACD、RSIチャート"></canvas>
+          <div class="interactive-chart-shell" id="nikkeiChartShell">
+            <div class="nikkei-analysis-toolbar">
+              <div class="range-tabs nikkei-range-tabs" aria-label="日経225分析の表示期間">
+                <button id="nikkeiRange1w" type="button">1週間</button>
+                <button id="nikkeiRange1m" type="button">1ヶ月</button>
+                <button id="nikkeiRange3m" type="button">3ヶ月</button>
+                <button id="nikkeiRange6m" class="active" type="button">6ヶ月</button>
+                <button id="nikkeiRange1y" type="button">1年</button>
+                <button id="nikkeiRange3y" type="button">3年</button>
+              </div>
+              <div class="indicator-toggles" aria-label="価格チャートの表示指標">
+                <button class="active" data-nikkei-indicator="ma" type="button" aria-pressed="true">移動平均</button>
+                <button class="active" data-nikkei-indicator="psar" type="button" aria-pressed="true">パラボリック</button>
+                <button class="active" data-nikkei-indicator="bb" type="button" aria-pressed="true">ボリンジャー</button>
+                <button data-nikkei-indicator="ichimoku" type="button" aria-pressed="false">一目均衡表</button>
+                <button data-nikkei-indicator="per" type="button" aria-pressed="false">PER整数倍</button>
+              </div>
+            </div>
+            <div class="interactive-chart-controls">
+              <div class="interactive-chart-readout" id="nikkeiChartReadout" aria-live="polite">日経225の価格履歴を読み込み中です。</div>
+              <div class="interactive-chart-actions" aria-label="日経225チャート操作">
+                <button id="nikkeiChartLatest" type="button" title="現在の拡大率のまま最新日に移動">最新へ</button>
+                <button id="nikkeiChartFit" type="button" title="選択期間全体を表示">全体表示</button>
+                <button id="nikkeiChartExpand" type="button" aria-pressed="false" title="チャートを画面いっぱいに表示">拡大表示</button>
+              </div>
+            </div>
+            <div class="nikkei-analysis-chart-wrap">
+              <div id="nikkeiAnalysisChart" role="img" aria-label="日経225ローソク足、MACD、RSIチャート"></div>
+            </div>
+            <div class="chart-legend" id="nikkeiAnalysisLegend"></div>
           </div>
-          <div class="chart-legend" id="nikkeiAnalysisLegend"></div>
           <div class="analysis-source-note" id="nikkeiPerNote">PER整数倍ラインの利用条件とデータ状態を確認しています。</div>
 
           <div class="analysis-detail-grid">
@@ -4089,18 +4205,28 @@
                 <div class="chart-note" id="fundamentalNote">無料データで取得できた項目を表示します。未取得の指標は、取得元を追加できるまで未取得として表示します。</div>
               </div>
               <div id="chartPanel" hidden>
-                <div class="range-tabs" aria-label="チャート期間">
-                  <button id="range1w" type="button">1週間</button>
-                  <button id="range1m" type="button">1ヶ月</button>
-                  <button id="range3m" type="button">3ヶ月</button>
-                  <button id="range6m" class="active" type="button">6ヶ月</button>
-                  <button id="range1y" type="button">1年</button>
-                  <button id="range3y" type="button">3年</button>
+                <div class="interactive-chart-shell" id="priceChartShell">
+                  <div class="interactive-chart-controls">
+                    <div class="range-tabs" aria-label="チャート期間">
+                      <button id="range1w" type="button">1週間</button>
+                      <button id="range1m" type="button">1ヶ月</button>
+                      <button id="range3m" type="button">3ヶ月</button>
+                      <button id="range6m" class="active" type="button">6ヶ月</button>
+                      <button id="range1y" type="button">1年</button>
+                      <button id="range3y" type="button">3年</button>
+                    </div>
+                    <div class="interactive-chart-actions" aria-label="銘柄チャート操作">
+                      <button id="priceChartLatest" type="button" title="現在の拡大率のまま最新日に移動">最新へ</button>
+                      <button id="priceChartFit" type="button" title="選択期間全体を表示">全体表示</button>
+                      <button id="priceChartExpand" type="button" aria-pressed="false" title="チャートを画面いっぱいに表示">拡大表示</button>
+                    </div>
+                  </div>
+                  <div class="interactive-chart-readout" id="priceChartReadout" aria-live="polite">価格履歴を読み込み中です。</div>
+                  <div class="chart-wrap">
+                    <div id="priceChart" role="img" aria-label="ローソク足、出来高、RSI、MACDチャート"></div>
+                  </div>
+                  <div class="chart-legend" id="chartLegend"></div>
                 </div>
-                <div class="chart-wrap">
-                  <canvas id="priceChart" aria-label="終値チャート"></canvas>
-                </div>
-                <div class="chart-legend" id="chartLegend"></div>
                 <div class="indicator-grid" id="indicatorGrid"></div>
                 <div class="signal-list" id="signalList"></div>
                 <div class="chart-note" id="chartNote">候補銘柄はローソク足・出来高つきで表示します。詳細OHLCVがない銘柄は、無料取得できる終値履歴を使ったラインチャートに切り替えます。</div>
@@ -4247,6 +4373,7 @@
     </form>
   </dialog>
 
+  <script src="vendor/lightweight-charts.standalone.production.js"></script>
   <script>
     let candidates = [];
     let searchUniverse = [];
@@ -4268,6 +4395,8 @@
     let watchedCodes = new Set();
     let portfolioHoldings = [];
     let mobileDetailHistoryActive = false;
+    let technicalChartController = null;
+    let nikkeiChartController = null;
     const mobileScrollPositions = {
       candidates: 0,
       market: 0,
@@ -4396,7 +4525,7 @@
       mobileMarketButtons: document.querySelectorAll("[data-mobile-market-view]"),
       mobileStatButtons: document.querySelectorAll("[data-mobile-stat-view]"),
       mobileMoreButtons: document.querySelectorAll("[data-mobile-more-view]"),
-      mobilePortfolioButtons: document.querySelectorAll("[data-mobile-portfolio-view]"),
+      mobilePortfolioButtons: document.querySelectorAll("#mobilePortfolioTabs button[data-mobile-portfolio-view]"),
       mobilePageButtons: document.querySelectorAll("#mobileBottomNav [data-mobile-page]"),
       mobileCandidateCards: document.querySelector("#mobileCandidateCards"),
       mobileEmpty: document.querySelector("#mobileEmptyState"),
@@ -4501,7 +4630,12 @@
       nikkeiAnalysisTitle: document.querySelector("#nikkeiAnalysisTitle"),
       nikkeiLocalPrivateNotice: document.querySelector("#nikkeiLocalPrivateNotice"),
       nikkeiAnalysisKpis: document.querySelector("#nikkeiAnalysisKpis"),
+      nikkeiChartShell: document.querySelector("#nikkeiChartShell"),
       nikkeiAnalysisChart: document.querySelector("#nikkeiAnalysisChart"),
+      nikkeiChartReadout: document.querySelector("#nikkeiChartReadout"),
+      nikkeiChartLatest: document.querySelector("#nikkeiChartLatest"),
+      nikkeiChartFit: document.querySelector("#nikkeiChartFit"),
+      nikkeiChartExpand: document.querySelector("#nikkeiChartExpand"),
       nikkeiAnalysisLegend: document.querySelector("#nikkeiAnalysisLegend"),
       nikkeiPerNote: document.querySelector("#nikkeiPerNote"),
       nikkeiRangeButtons: {
@@ -4557,12 +4691,17 @@
         "1y": document.querySelector("#range1y"),
         "3y": document.querySelector("#range3y"),
       },
+      priceChartShell: document.querySelector("#priceChartShell"),
       scoreRangeButtons: {
         "1w": document.querySelector("#scoreRange1w"),
         "1m": document.querySelector("#scoreRange1m"),
         "3m": document.querySelector("#scoreRange3m"),
       },
       priceChart: document.querySelector("#priceChart"),
+      priceChartReadout: document.querySelector("#priceChartReadout"),
+      priceChartLatest: document.querySelector("#priceChartLatest"),
+      priceChartFit: document.querySelector("#priceChartFit"),
+      priceChartExpand: document.querySelector("#priceChartExpand"),
       chartLegend: document.querySelector("#chartLegend"),
       chartNote: document.querySelector("#chartNote"),
       indicatorGrid: document.querySelector("#indicatorGrid"),
@@ -5642,6 +5781,229 @@
       }
     }
 
+    function lightweightChartsApi() {
+      return window.LightweightCharts && typeof window.LightweightCharts.createChart === "function"
+        ? window.LightweightCharts
+        : null;
+    }
+
+    function disposeInteractiveChart(controller) {
+      if (controller?.chart && typeof controller.chart.remove === "function") {
+        controller.chart.remove();
+      }
+    }
+
+    function showInteractiveChartMessage(container, readout, message) {
+      container.replaceChildren();
+      const messageElement = document.createElement("div");
+      messageElement.className = "interactive-chart-message";
+      messageElement.textContent = message;
+      container.appendChild(messageElement);
+      if (readout) readout.textContent = message;
+    }
+
+    function createInteractiveChart(container) {
+      const api = lightweightChartsApi();
+      if (!api) return null;
+      container.replaceChildren();
+      return api.createChart(container, {
+        autoSize: true,
+        layout: {
+          background: { type: "solid", color: "#fbfcfe" },
+          textColor: "#627083",
+          fontFamily: "Yu Gothic UI, Meiryo, sans-serif",
+          attributionLogo: true,
+          panes: {
+            separatorColor: "#dce3ea",
+            separatorHoverColor: "rgba(36, 107, 206, .18)",
+            enableResize: true,
+          },
+        },
+        grid: {
+          vertLines: { color: "#edf1f5" },
+          horzLines: { color: "#e2e8f0" },
+        },
+        crosshair: {
+          mode: api.CrosshairMode.Normal,
+          vertLine: { color: "#8995a5", labelBackgroundColor: "#334155" },
+          horzLine: { color: "#8995a5", labelBackgroundColor: "#334155" },
+        },
+        rightPriceScale: {
+          borderColor: "#dce3ea",
+          minimumWidth: 62,
+        },
+        timeScale: {
+          borderColor: "#dce3ea",
+          rightOffset: 3,
+          barSpacing: 7,
+          minBarSpacing: 0.8,
+          timeVisible: false,
+          secondsVisible: false,
+        },
+        handleScroll: {
+          mouseWheel: true,
+          pressedMouseMove: true,
+          horzTouchDrag: true,
+          vertTouchDrag: false,
+        },
+        handleScale: {
+          mouseWheel: true,
+          pinch: true,
+          axisPressedMouseMove: true,
+          axisDoubleClickReset: true,
+        },
+        kineticScroll: { mouse: true, touch: true },
+        localization: { locale: "ja-JP" },
+      });
+    }
+
+    function lineDataFor(rows, key) {
+      return rows
+        .filter(row => row.date && Number.isFinite(Number(row[key])))
+        .map(row => ({ time: row.date, value: Number(row[key]) }));
+    }
+
+    function indexedLineData(rows, values) {
+      return rows
+        .map((row, index) => ({ time: row.date, value: Number(values[index]) }))
+        .filter(row => row.time && Number.isFinite(row.value));
+    }
+
+    function addChartLine(chart, rows, key, color, paneIndex = 0, options = {}) {
+      const api = lightweightChartsApi();
+      const data = lineDataFor(rows, key);
+      if (!api || !data.length) return null;
+      const series = chart.addSeries(api.LineSeries, {
+        color,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+        ...options,
+      }, paneIndex);
+      series.setData(data);
+      return series;
+    }
+
+    function addIndexedChartLine(chart, rows, values, color, paneIndex = 0, options = {}) {
+      const api = lightweightChartsApi();
+      const data = indexedLineData(rows, values);
+      if (!api || !data.length) return null;
+      const series = chart.addSeries(api.LineSeries, {
+        color,
+        lineWidth: 1,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+        ...options,
+      }, paneIndex);
+      series.setData(data);
+      return series;
+    }
+
+    function setChartVisibleRows(chart, rows) {
+      const first = rows?.[0]?.date;
+      const last = rows?.at(-1)?.date;
+      if (first && last && first !== last) {
+        chart.timeScale().setVisibleRange({ from: first, to: last });
+      } else {
+        chart.timeScale().fitContent();
+      }
+    }
+
+    function setChartPaneFactors(chart, factors) {
+      const panes = chart.panes();
+      factors.forEach((factor, index) => panes[index]?.setStretchFactor(factor));
+    }
+
+    function chartTimeText(time) {
+      if (typeof time === "string") return formatDate(time);
+      if (time && typeof time === "object" && Number.isInteger(time.year)) {
+        const month = String(time.month).padStart(2, "0");
+        const day = String(time.day).padStart(2, "0");
+        return `${time.year}/${month}/${day}`;
+      }
+      return "日付未取得";
+    }
+
+    function chartNumber(value, digits = 1) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "-";
+      return number.toLocaleString("ja-JP", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits,
+      });
+    }
+
+    function updateOhlcReadout(readout, label, time, bar, volume = null) {
+      if (!readout || !bar) return;
+      const close = Number(bar.close ?? bar.value);
+      const parts = [
+        `<strong>${escapeHtml(label)} ${escapeHtml(chartTimeText(time))}</strong>`,
+        Number.isFinite(Number(bar.open)) ? `始 ${chartNumber(bar.open)}` : "",
+        Number.isFinite(Number(bar.high)) ? `高 ${chartNumber(bar.high)}` : "",
+        Number.isFinite(Number(bar.low)) ? `安 ${chartNumber(bar.low)}` : "",
+        Number.isFinite(close) ? `終 ${chartNumber(close)}` : "",
+        Number.isFinite(Number(volume?.value)) ? `出来高 ${Math.round(Number(volume.value)).toLocaleString("ja-JP")}` : "",
+      ].filter(Boolean);
+      readout.innerHTML = parts.join("　");
+    }
+
+    function bindOhlcReadout(chart, primarySeries, volumeSeries, readout, label, latestRow) {
+      const showLatest = () => updateOhlcReadout(
+        readout,
+        label,
+        latestRow?.date,
+        latestRow,
+        Number.isFinite(Number(latestRow?.volume)) ? { value: Number(latestRow.volume) } : null,
+      );
+      showLatest();
+      chart.subscribeCrosshairMove(param => {
+        if (!param?.time) {
+          showLatest();
+          return;
+        }
+        const bar = param.seriesData.get(primarySeries);
+        if (!bar) return;
+        const volume = volumeSeries ? param.seriesData.get(volumeSeries) : null;
+        updateOhlcReadout(readout, label, param.time, bar, volume);
+      });
+    }
+
+    function toggleChartExpansion(shell, button) {
+      if (!shell || !button) return;
+      const expanding = !shell.classList.contains("is-expanded");
+      [
+        [el.priceChartShell, el.priceChartExpand],
+        [el.nikkeiChartShell, el.nikkeiChartExpand],
+      ].forEach(([candidateShell, candidateButton]) => {
+        if (!candidateShell || !candidateButton || candidateShell === shell) return;
+        candidateShell.classList.remove("is-expanded");
+        candidateButton.textContent = "拡大表示";
+        candidateButton.setAttribute("aria-pressed", "false");
+      });
+      shell.classList.toggle("is-expanded", expanding);
+      button.textContent = expanding ? "縮小表示" : "拡大表示";
+      button.setAttribute("aria-pressed", String(expanding));
+      document.body.classList.toggle("chart-overlay-open", expanding);
+    }
+
+    function closeExpandedCharts() {
+      let closed = false;
+      [
+        [el.priceChartShell, el.priceChartExpand],
+        [el.nikkeiChartShell, el.nikkeiChartExpand],
+      ].forEach(([shell, button]) => {
+        if (!shell?.classList.contains("is-expanded")) return;
+        shell.classList.remove("is-expanded");
+        button.textContent = "拡大表示";
+        button.setAttribute("aria-pressed", "false");
+        closed = true;
+      });
+      if (closed) document.body.classList.remove("chart-overlay-open");
+      return closed;
+    }
+
     function nikkeiAnalysisRangeDays() {
       return {
         "1w": 7,
@@ -5689,246 +6051,141 @@
     }
 
     function drawNikkeiAnalysisChart() {
-      const allRows = Array.isArray(nikkeiAnalysis?.rows) ? nikkeiAnalysis.rows : [];
-      const data = rowsForNikkeiAnalysisRange(allRows);
-      if (data.length < 5) {
-        drawAnalysisMessage(el.nikkeiAnalysisChart, "日経225の日足データを取得できていません。", 520);
+      const api = lightweightChartsApi();
+      const allRows = Array.isArray(nikkeiAnalysis?.rows)
+        ? nikkeiAnalysis.rows.filter(row => row?.date && Number.isFinite(Number(row.close)))
+        : [];
+      const visibleRows = rowsForNikkeiAnalysisRange(allRows);
+      const signature = [
+        state.nikkeiAnalysisRange,
+        allRows.length,
+        allRows.at(-1)?.date || "",
+        JSON.stringify(state.nikkeiIndicators),
+        nikkeiAnalysis?.per?.reference?.date || "",
+      ].join("|");
+      if (nikkeiChartController?.signature === signature) return;
+      disposeInteractiveChart(nikkeiChartController);
+      nikkeiChartController = null;
+
+      if (!api || allRows.length < 5) {
+        showInteractiveChartMessage(
+          el.nikkeiAnalysisChart,
+          el.nikkeiChartReadout,
+          api ? "日経225の日足データを取得できていません。" : "チャートライブラリを読み込めませんでした。",
+        );
         return;
       }
 
-      const { context, width, height } = prepareAnalysisCanvas(el.nikkeiAnalysisChart, 520);
-      const left = width < 520 ? 48 : 62;
-      const right = width < 520 ? 38 : 58;
-      const top = 22;
-      const bottom = 24;
-      const availableHeight = height - top - bottom - 52;
-      const priceHeight = Math.round(availableHeight * 0.58);
-      const macdHeight = Math.round(availableHeight * 0.20);
-      const rsiHeight = availableHeight - priceHeight - macdHeight;
-      const macdTop = top + priceHeight + 26;
-      const rsiTop = macdTop + macdHeight + 26;
-      const innerWidth = width - left - right;
-      const x = index => left + innerWidth * index / Math.max(1, data.length - 1);
+      const chart = createInteractiveChart(el.nikkeiAnalysisChart);
+      if (!chart) return;
+      const candleSeries = chart.addSeries(api.CandlestickSeries, {
+        upColor: "#ffffff",
+        downColor: "#bc3b42",
+        borderUpColor: "#0f8f6a",
+        borderDownColor: "#bc3b42",
+        wickUpColor: "#0f8f6a",
+        wickDownColor: "#bc3b42",
+        priceLineVisible: false,
+      }, 0);
+      candleSeries.setData(allRows.map(row => ({
+        time: row.date,
+        open: Number(row.open),
+        high: Number(row.high),
+        low: Number(row.low),
+        close: Number(row.close),
+      })));
 
-      const indicators = state.nikkeiIndicators;
-      const priceValues = data.flatMap(row => [row.high, row.low]).filter(Number.isFinite);
-      if (indicators.ma) {
-        priceValues.push(...data.flatMap(row => [row.ma5, row.ma25, row.ma75]).filter(Number.isFinite));
+      if (state.nikkeiIndicators.bb) {
+        addChartLine(chart, allRows, "bbUpper", "#6f8fc4", 0);
+        addChartLine(chart, allRows, "bbLower", "#6f8fc4", 0);
       }
-      if (indicators.bb) {
-        priceValues.push(...data.flatMap(row => [row.bbUpper, row.bbLower]).filter(Number.isFinite));
+      if (state.nikkeiIndicators.ma) {
+        addChartLine(chart, allRows, "ma5", "#0f8f6a", 0, { lineWidth: 2 });
+        addChartLine(chart, allRows, "ma25", "#246bce", 0, { lineWidth: 2 });
+        addChartLine(chart, allRows, "ma75", "#b17715", 0, { lineWidth: 2 });
       }
-      if (indicators.ichimoku) {
-        priceValues.push(...data.flatMap(row => [
-          row.tenkan,
-          row.kijun,
-          row.spanA,
-          row.spanB,
-          row.chikou,
-        ]).filter(Number.isFinite));
+      if (state.nikkeiIndicators.ichimoku) {
+        addChartLine(chart, allRows, "tenkan", "#d15460", 0);
+        addChartLine(chart, allRows, "kijun", "#246bce", 0);
+        addChartLine(chart, allRows, "spanA", "#0f8f6a", 0);
+        addChartLine(chart, allRows, "spanB", "#bc3b42", 0);
+        addChartLine(chart, allRows, "chikou", "#7a62a8", 0, { lineStyle: api.LineStyle.Dashed });
       }
-      let priceMin = Math.min(...priceValues);
-      let priceMax = Math.max(...priceValues);
-      const pricePadding = Math.max((priceMax - priceMin) * 0.07, priceMax * 0.005);
-      priceMin -= pricePadding;
-      priceMax += pricePadding;
-      const priceY = value => top + priceHeight - ((value - priceMin) / (priceMax - priceMin)) * priceHeight;
-
-      context.font = "10px Yu Gothic UI, Meiryo, sans-serif";
-      context.fillStyle = "#627083";
-      context.strokeStyle = "#e2e8f0";
-      context.lineWidth = 1;
-      for (let step = 0; step <= 4; step += 1) {
-        const lineY = top + priceHeight * step / 4;
-        context.beginPath();
-        context.moveTo(left, lineY);
-        context.lineTo(width - right, lineY);
-        context.stroke();
-        const value = priceMax - (priceMax - priceMin) * step / 4;
-        context.fillText(Math.round(value).toLocaleString("ja-JP"), 4, lineY + 4);
-      }
-
-      const drawFilledBand = (upperKey, lowerKey, color) => {
-        const indexes = data
-          .map((row, index) => (
-            Number.isFinite(row[upperKey]) && Number.isFinite(row[lowerKey]) ? index : -1
-          ))
-          .filter(index => index >= 0);
-        if (indexes.length < 2) return;
-        context.beginPath();
-        indexes.forEach((index, position) => {
-          const method = position === 0 ? "moveTo" : "lineTo";
-          context[method](x(index), priceY(data[index][upperKey]));
-        });
-        [...indexes].reverse().forEach(index => {
-          context.lineTo(x(index), priceY(data[index][lowerKey]));
-        });
-        context.closePath();
-        context.fillStyle = color;
-        context.fill();
-      };
-
-      if (indicators.bb) drawFilledBand("bbUpper", "bbLower", "rgba(36, 107, 206, .07)");
-      if (indicators.ichimoku) drawFilledBand("spanA", "spanB", "rgba(15, 143, 106, .10)");
-
-      const candleStep = innerWidth / Math.max(1, data.length - 1);
-      const candleWidth = Math.max(1, Math.min(8, candleStep * 0.58));
-      data.forEach((row, index) => {
-        if (![row.open, row.high, row.low, row.close].every(Number.isFinite)) return;
-        const rising = row.close >= row.open;
-        const color = rising ? "#0f8f6a" : "#bc3b42";
-        context.strokeStyle = color;
-        context.fillStyle = rising ? "#ffffff" : color;
-        context.lineWidth = 1;
-        context.beginPath();
-        context.moveTo(x(index), priceY(row.high));
-        context.lineTo(x(index), priceY(row.low));
-        context.stroke();
-        const bodyTop = priceY(Math.max(row.open, row.close));
-        const bodyBottom = priceY(Math.min(row.open, row.close));
-        const bodyHeight = Math.max(1, bodyBottom - bodyTop);
-        context.fillRect(x(index) - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-        context.strokeRect(x(index) - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-      });
-
-      const drawPriceSeries = (key, color, lineWidth = 1.5, dash = []) => {
-        context.strokeStyle = color;
-        context.lineWidth = lineWidth;
-        context.setLineDash(dash);
-        context.beginPath();
-        let started = false;
-        data.forEach((row, index) => {
-          const value = row[key];
-          if (!Number.isFinite(value)) {
-            started = false;
-            return;
-          }
-          if (!started) context.moveTo(x(index), priceY(value));
-          else context.lineTo(x(index), priceY(value));
-          started = true;
-        });
-        context.stroke();
-        context.setLineDash([]);
-      };
-
-      if (indicators.bb) {
-        drawPriceSeries("bbUpper", "#6f8fc4", 1);
-        drawPriceSeries("bbLower", "#6f8fc4", 1);
-      }
-      if (indicators.ma) {
-        drawPriceSeries("ma5", "#0f8f6a", 1.6);
-        drawPriceSeries("ma25", "#246bce", 1.8);
-        drawPriceSeries("ma75", "#b17715", 1.8);
-      }
-      if (indicators.ichimoku) {
-        drawPriceSeries("tenkan", "#d15460", 1.2);
-        drawPriceSeries("kijun", "#246bce", 1.2);
-        drawPriceSeries("spanA", "#0f8f6a", 1);
-        drawPriceSeries("spanB", "#bc3b42", 1);
-        drawPriceSeries("chikou", "#7a62a8", 1, [3, 3]);
-      }
-      if (indicators.psar) {
-        context.fillStyle = "#9b5c12";
-        data.forEach((row, index) => {
-          if (!Number.isFinite(row.psar)) return;
-          context.beginPath();
-          context.arc(x(index), priceY(row.psar), candleStep < 3 ? 1 : 1.8, 0, Math.PI * 2);
-          context.fill();
+      if (state.nikkeiIndicators.psar) {
+        addChartLine(chart, allRows, "psar", "#9b5c12", 0, {
+          lineVisible: false,
+          pointMarkersVisible: true,
+          pointMarkersRadius: 2,
         });
       }
 
       const perReference = nikkeiAnalysis?.per?.reference;
-      if (indicators.per && perReference?.bandLevels) {
-        context.font = "9px Yu Gothic UI, Meiryo, sans-serif";
+      if (state.nikkeiIndicators.per && perReference?.bandLevels) {
         Object.entries(perReference.bandLevels).forEach(([multiple, rawValue]) => {
-          const value = Number(rawValue);
-          if (!Number.isFinite(value) || value < priceMin || value > priceMax) return;
-          const lineY = priceY(value);
-          context.strokeStyle = "rgba(116, 84, 158, .55)";
-          context.lineWidth = 1;
-          context.setLineDash([4, 3]);
-          context.beginPath();
-          context.moveTo(left, lineY);
-          context.lineTo(width - right, lineY);
-          context.stroke();
-          context.setLineDash([]);
-          context.fillStyle = "#74549e";
-          context.fillText(`${multiple}倍`, width - right + 4, lineY + 3);
+          const price = Number(rawValue);
+          if (!Number.isFinite(price)) return;
+          candleSeries.createPriceLine({
+            price,
+            color: "#74549e",
+            lineWidth: 1,
+            lineStyle: api.LineStyle.Dashed,
+            axisLabelVisible: true,
+            title: `${multiple}倍`,
+          });
         });
       }
 
-      const macdValues = data
-        .flatMap(row => [row.macd, row.macdSignal, row.macdHistogram])
-        .filter(Number.isFinite);
-      const macdAbs = Math.max(1, ...macdValues.map(value => Math.abs(value)));
-      const macdY = value => macdTop + macdHeight / 2 - value / macdAbs * macdHeight * 0.45;
-      context.strokeStyle = "#d9e0e8";
-      context.beginPath();
-      context.moveTo(left, macdY(0));
-      context.lineTo(width - right, macdY(0));
-      context.stroke();
-      const histogramWidth = Math.max(1, Math.min(7, candleStep * 0.62));
-      data.forEach((row, index) => {
-        if (!Number.isFinite(row.macdHistogram)) return;
-        const valueY = macdY(row.macdHistogram);
-        context.fillStyle = row.macdHistogram >= 0 ? "rgba(15, 143, 106, .45)" : "rgba(188, 59, 66, .45)";
-        context.fillRect(
-          x(index) - histogramWidth / 2,
-          Math.min(macdY(0), valueY),
-          histogramWidth,
-          Math.max(1, Math.abs(valueY - macdY(0))),
-        );
+      const macdHistogram = chart.addSeries(api.HistogramSeries, {
+        priceLineVisible: false,
+        lastValueVisible: false,
+        base: 0,
+      }, 1);
+      macdHistogram.setData(allRows
+        .filter(row => Number.isFinite(Number(row.macdHistogram)))
+        .map(row => ({
+          time: row.date,
+          value: Number(row.macdHistogram),
+          color: Number(row.macdHistogram) >= 0 ? "rgba(15, 143, 106, .55)" : "rgba(188, 59, 66, .55)",
+        })));
+      addChartLine(chart, allRows, "macd", "#246bce", 1, { lineWidth: 2 });
+      const macdSignalSeries = addChartLine(chart, allRows, "macdSignal", "#d15460", 1, { lineWidth: 2 });
+      macdSignalSeries?.createPriceLine({
+        price: 0,
+        color: "#cbd5df",
+        lineWidth: 1,
+        lineStyle: api.LineStyle.Solid,
+        axisLabelVisible: false,
       });
-      const drawPanelSeries = (key, color, mapY) => {
-        context.strokeStyle = color;
-        context.lineWidth = 1.5;
-        context.beginPath();
-        let started = false;
-        data.forEach((row, index) => {
-          const value = row[key];
-          if (!Number.isFinite(value)) {
-            started = false;
-            return;
-          }
-          if (!started) context.moveTo(x(index), mapY(value));
-          else context.lineTo(x(index), mapY(value));
-          started = true;
-        });
-        context.stroke();
+
+      const rsiSeries = addChartLine(chart, allRows, "rsi14", "#74549e", 2, { lineWidth: 2 });
+      const rsiBounds = chart.addSeries(api.LineSeries, {
+        lineVisible: false,
+        pointMarkersVisible: false,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      }, 2);
+      rsiBounds.setData([
+        { time: allRows[0].date, value: 0 },
+        { time: allRows.at(-1).date, value: 100 },
+      ]);
+      [30, 70].forEach(level => rsiSeries?.createPriceLine({
+        price: level,
+        color: "#b17715",
+        lineWidth: 1,
+        lineStyle: api.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `RSI ${level}`,
+      }));
+
+      setChartPaneFactors(chart, [5, 1.6, 1.6]);
+      bindOhlcReadout(chart, candleSeries, null, el.nikkeiChartReadout, "日経225", allRows.at(-1));
+      nikkeiChartController = {
+        chart,
+        signature,
+        resetView: () => setChartVisibleRows(chart, visibleRows),
+        latest: () => chart.timeScale().scrollToRealTime(),
       };
-      drawPanelSeries("macd", "#246bce", macdY);
-      drawPanelSeries("macdSignal", "#d15460", macdY);
-
-      const rsiY = value => rsiTop + (100 - value) / 100 * rsiHeight;
-      [30, 50, 70].forEach(level => {
-        context.strokeStyle = level === 50 ? "#e2e8f0" : "rgba(177, 119, 21, .45)";
-        context.setLineDash(level === 50 ? [] : [4, 3]);
-        context.beginPath();
-        context.moveTo(left, rsiY(level));
-        context.lineTo(width - right, rsiY(level));
-        context.stroke();
-        context.setLineDash([]);
-        context.fillStyle = "#627083";
-        context.fillText(String(level), 18, rsiY(level) + 3);
-      });
-      drawPanelSeries("rsi14", "#74549e", rsiY);
-
-      context.fillStyle = "#627083";
-      context.font = "10px Yu Gothic UI, Meiryo, sans-serif";
-      context.fillText("価格", left, 13);
-      context.fillText("MACD", left, macdTop - 8);
-      context.fillText("RSI", left, rsiTop - 8);
-      const dateIndexes = [...new Set([0, Math.floor((data.length - 1) / 2), data.length - 1])];
-      dateIndexes.forEach((index, position) => {
-        const label = formatDate(data[index].date).slice(5);
-        const measured = context.measureText(label).width;
-        const labelX = position === 0
-          ? x(index)
-          : position === dateIndexes.length - 1
-            ? x(index) - measured
-            : x(index) - measured / 2;
-        context.fillText(label, labelX, height - 5);
-      });
+      nikkeiChartController.resetView();
     }
 
     function analysisStateLabel(section) {
@@ -6185,7 +6442,9 @@
         `;
         el.nikkeiAnalysisLegend.innerHTML = "";
         el.nikkeiPerNote.textContent = "data/nikkei225-analysis.json を読み込めませんでした。";
-        drawAnalysisMessage(el.nikkeiAnalysisChart, "日経225分析データ未取得", 520);
+        disposeInteractiveChart(nikkeiChartController);
+        nikkeiChartController = null;
+        showInteractiveChartMessage(el.nikkeiAnalysisChart, el.nikkeiChartReadout, "日経225分析データ未取得");
         renderNikkeiMargin();
         renderNikkeiInvestorFlows();
         renderNikkeiBreadth();
@@ -7433,222 +7692,155 @@
       return filtered.length >= 5 ? filtered : rows.slice(-5);
     }
 
-    function drawTechnicalChart(rows) {
-      const canvas = el.priceChart;
-      const context = canvas.getContext("2d");
-      const bounds = canvas.getBoundingClientRect();
-      const width = Math.max(320, Math.round(bounds.width));
-      const height = Math.max(460, Math.round(bounds.height));
-      const ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
-      context.setTransform(ratio, 0, 0, ratio, 0, 0);
-      context.clearRect(0, 0, width, height);
+    function drawTechnicalChart(rows, item) {
+      const api = lightweightChartsApi();
+      const allRows = Array.isArray(rows)
+        ? rows.filter(row => row?.date && Number.isFinite(Number(row.close)))
+        : [];
+      const visibleRows = rowsForSelectedRange(allRows);
+      const hasOhlc = allRows.length >= 5 && allRows.every(row =>
+        Number.isFinite(Number(row.open)) &&
+        Number.isFinite(Number(row.high)) &&
+        Number.isFinite(Number(row.low)) &&
+        Number.isFinite(Number(row.close))
+      );
+      const signature = [
+        String(item?.code || ""),
+        state.chartRange,
+        allRows.length,
+        allRows.at(-1)?.date || "",
+        hasOhlc,
+      ].join("|");
+      if (technicalChartController?.signature === signature) return;
+      disposeInteractiveChart(technicalChartController);
+      technicalChartController = null;
 
-      const data = rowsForSelectedRange(rows);
-      if (data.length < 5) return;
-      const closes = data.map(row => row.close);
-      const ma75Source = rows.map(row => row.close);
+      if (!api || allRows.length < 5) {
+        showInteractiveChartMessage(
+          el.priceChart,
+          el.priceChartReadout,
+          api ? "チャート表示に必要な価格履歴が不足しています。" : "チャートライブラリを読み込めませんでした。",
+        );
+        return;
+      }
+
+      const chart = createInteractiveChart(el.priceChart);
+      if (!chart) return;
+      const closes = allRows.map(row => Number(row.close));
+      let primarySeries;
+      if (hasOhlc) {
+        primarySeries = chart.addSeries(api.CandlestickSeries, {
+          upColor: "#0f8f6a",
+          downColor: "#bc3b42",
+          borderUpColor: "#0f8f6a",
+          borderDownColor: "#bc3b42",
+          wickUpColor: "#0f8f6a",
+          wickDownColor: "#bc3b42",
+          priceLineVisible: false,
+        }, 0);
+        primarySeries.setData(allRows.map(row => ({
+          time: row.date,
+          open: Number(row.open),
+          high: Number(row.high),
+          low: Number(row.low),
+          close: Number(row.close),
+        })));
+      } else {
+        primarySeries = chart.addSeries(api.LineSeries, {
+          color: "#246bce",
+          lineWidth: 2,
+          priceLineVisible: false,
+        }, 0);
+        primarySeries.setData(allRows.map(row => ({ time: row.date, value: Number(row.close) })));
+      }
+
       const ma5 = movingAverageSeries(closes, 5);
       const ma25 = movingAverageSeries(closes, 25);
-      const ma75Full = movingAverageSeries(ma75Source, 75);
-      const ma75 = ma75Full.slice(-data.length);
+      const ma75 = movingAverageSeries(closes, 75);
       const bands = bollingerSeries(closes, 20, 2);
-      const upperBand = bands.map(item => item.upper);
-      const lowerBand = bands.map(item => item.lower);
-      const hasOhlc = data.every(row =>
-        Number.isFinite(row.open) &&
-        Number.isFinite(row.high) &&
-        Number.isFinite(row.low) &&
-        Number.isFinite(row.close)
-      );
-      const hasVolume = data.some(row => Number.isFinite(row.volume) && row.volume > 0);
-      const priceValues = hasOhlc
-        ? data.flatMap(row => [row.high, row.low])
-        : closes;
-      const values = [...priceValues, ...ma5, ...ma25, ...ma75, ...upperBand, ...lowerBand].filter(Number.isFinite);
-      const min = Math.min(...values);
-      const max = Math.max(...values);
-      const padding = Math.max((max - min) * 0.08, max * 0.01);
-      const chartMin = min - padding;
-      const chartMax = max + padding;
-      const left = 44;
-      const right = 14;
-      const top = 14;
-      const priceHeight = Math.round(height * 0.48);
-      const volumeTop = top + priceHeight + 18;
-      const volumeHeight = 58;
-      const rsiTop = volumeTop + volumeHeight + 22;
-      const rsiHeight = 70;
-      const macdTop = rsiTop + rsiHeight + 24;
-      const macdHeight = height - macdTop - 28;
-      const innerWidth = width - left - right;
-      const innerHeight = priceHeight;
-      const x = index => left + (innerWidth * index / Math.max(1, data.length - 1));
-      const y = value => top + innerHeight - ((value - chartMin) / (chartMax - chartMin)) * innerHeight;
+      addIndexedChartLine(chart, allRows, bands.map(value => value.upper), "#8aa8d8", 0);
+      addIndexedChartLine(chart, allRows, bands.map(value => value.lower), "#8aa8d8", 0);
+      addIndexedChartLine(chart, allRows, ma5, "#0f8f6a", 0, { lineWidth: 2 });
+      addIndexedChartLine(chart, allRows, ma25, "#b26a00", 0, { lineWidth: 2 });
+      addIndexedChartLine(chart, allRows, ma75, "#627083", 0, { lineWidth: 2 });
 
-      const drawPanelGrid = (panelTop, panelHeight, labels = []) => {
-        context.strokeStyle = "#e2e8f0";
-        context.lineWidth = 1;
-        context.fillStyle = "#627083";
-        context.font = "11px Yu Gothic UI, Meiryo, sans-serif";
-        for (let step = 0; step <= 2; step += 1) {
-          const lineY = panelTop + panelHeight * step / 2;
-          context.beginPath();
-          context.moveTo(left, lineY);
-          context.lineTo(width - right, lineY);
-          context.stroke();
-          if (labels[step]) context.fillText(labels[step], 4, lineY + 4);
-        }
-      };
-
-      context.strokeStyle = "#e2e8f0";
-      context.lineWidth = 1;
-      context.fillStyle = "#627083";
-      context.font = "11px Yu Gothic UI, Meiryo, sans-serif";
-      for (let step = 0; step <= 4; step += 1) {
-        const lineY = top + innerHeight * step / 4;
-        context.beginPath();
-        context.moveTo(left, lineY);
-        context.lineTo(width - right, lineY);
-        context.stroke();
-        const labelValue = chartMax - (chartMax - chartMin) * step / 4;
-        context.fillText(Math.round(labelValue).toLocaleString("ja-JP"), 4, lineY + 4);
-      }
-
-      const drawSeries = (series, color, widthLine = 2, mapY = y) => {
-        context.strokeStyle = color;
-        context.lineWidth = widthLine;
-        context.beginPath();
-        let started = false;
-        series.forEach((value, index) => {
-          if (!Number.isFinite(value)) return;
-          if (!started) {
-            context.moveTo(x(index), mapY(value));
-            started = true;
-          } else {
-            context.lineTo(x(index), mapY(value));
-          }
-        });
-        if (started) context.stroke();
-      };
-
-      const drawBandFill = () => {
-        context.beginPath();
-        let started = false;
-        upperBand.forEach((value, index) => {
-          if (!Number.isFinite(value) || !Number.isFinite(lowerBand[index])) return;
-          if (!started) {
-            context.moveTo(x(index), y(value));
-            started = true;
-          } else {
-            context.lineTo(x(index), y(value));
-          }
-        });
-        [...lowerBand].reverse().forEach((value, reverseIndex) => {
-          const index = lowerBand.length - 1 - reverseIndex;
-          if (!Number.isFinite(value) || !Number.isFinite(upperBand[index])) return;
-          context.lineTo(x(index), y(value));
-        });
-        if (started) {
-          context.closePath();
-          context.fillStyle = "rgba(36, 107, 206, .08)";
-          context.fill();
-        }
-      };
-
-      drawBandFill();
-      drawSeries(upperBand, "#8aa8d8", 1);
-      drawSeries(lowerBand, "#8aa8d8", 1);
-
-      if (hasOhlc) {
-        const candleWidth = Math.max(2, Math.min(8, innerWidth / data.length * 0.62));
-        data.forEach((row, index) => {
-          const up = row.close >= row.open;
-          const color = up ? "#0f8f6a" : "#bc3b42";
-          const centerX = x(index);
-          const openY = y(row.open);
-          const closeY = y(row.close);
-          context.strokeStyle = color;
-          context.fillStyle = color;
-          context.lineWidth = 1;
-          context.beginPath();
-          context.moveTo(centerX, y(row.high));
-          context.lineTo(centerX, y(row.low));
-          context.stroke();
-          const bodyTop = Math.min(openY, closeY);
-          const bodyHeight = Math.max(2, Math.abs(closeY - openY));
-          context.fillRect(centerX - candleWidth / 2, bodyTop, candleWidth, bodyHeight);
-        });
-      } else {
-        drawSeries(closes, "#246bce", 2.4);
-      }
-      drawSeries(ma5, "#0f8f6a", 1.6);
-      drawSeries(ma25, "#b26a00", 1.4);
-      drawSeries(ma75, "#627083", 1.2);
-
-      context.fillStyle = "#1d2430";
-      context.font = "12px Yu Gothic UI, Meiryo, sans-serif";
-      context.fillText(hasOhlc ? "ローソク足 + BB(±2σ)" : "終値ライン + BB(±2σ)", left, top + 13);
-
-      drawPanelGrid(volumeTop, volumeHeight, ["出来高", "", ""]);
-      if (hasVolume) {
-        const maxVolume = Math.max(...data.map(row => Number(row.volume) || 0));
-        const barWidth = Math.max(1, innerWidth / data.length * 0.65);
-        data.forEach((row, index) => {
-          const barHeight = maxVolume > 0 ? (Number(row.volume) || 0) / maxVolume * volumeHeight : 0;
-          context.fillStyle = row.close >= (row.open || row.close) ? "rgba(15,143,106,.5)" : "rgba(188,59,66,.45)";
-          context.fillRect(x(index) - barWidth / 2, volumeTop + volumeHeight - barHeight, barWidth, barHeight);
-        });
-      } else {
-        context.fillStyle = "#627083";
-        context.fillText("出来高データ未取得", left + 8, volumeTop + 34);
-      }
+      const volumeSeries = chart.addSeries(api.HistogramSeries, {
+        priceFormat: { type: "volume" },
+        priceLineVisible: false,
+        lastValueVisible: false,
+      }, 1);
+      volumeSeries.setData(allRows
+        .filter(row => Number.isFinite(Number(row.volume)))
+        .map(row => ({
+          time: row.date,
+          value: Number(row.volume),
+          color: Number(row.close) >= Number(row.open || row.close)
+            ? "rgba(15, 143, 106, .55)"
+            : "rgba(188, 59, 66, .50)",
+        })));
 
       const rsiValues = rsiSeries(closes, 14);
-      const rsiY = value => rsiTop + rsiHeight - (value / 100) * rsiHeight;
-      drawPanelGrid(rsiTop, rsiHeight, ["RSI", "50", ""]);
-      context.strokeStyle = "#f0c36a";
-      [70, 30].forEach(level => {
-        context.beginPath();
-        context.moveTo(left, rsiY(level));
-        context.lineTo(width - right, rsiY(level));
-        context.stroke();
-      });
-      drawSeries(rsiValues, "#246bce", 1.5, rsiY);
+      const rsiLine = addIndexedChartLine(chart, allRows, rsiValues, "#246bce", 2, { lineWidth: 2 });
+      const rsiBounds = chart.addSeries(api.LineSeries, {
+        lineVisible: false,
+        pointMarkersVisible: false,
+        priceLineVisible: false,
+        lastValueVisible: false,
+      }, 2);
+      rsiBounds.setData([
+        { time: allRows[0].date, value: 0 },
+        { time: allRows.at(-1).date, value: 100 },
+      ]);
+      [30, 70].forEach(level => rsiLine?.createPriceLine({
+        price: level,
+        color: "#b17715",
+        lineWidth: 1,
+        lineStyle: api.LineStyle.Dashed,
+        axisLabelVisible: true,
+        title: `RSI ${level}`,
+      }));
 
       const macdValues = macdSeries(closes);
-      const macdLine = macdValues.macdLine.slice(-data.length);
-      const macdSignal = macdValues.signal.slice(-data.length);
-      const macdHistogram = macdValues.histogram.slice(-data.length);
-      const macdAbsValues = [...macdLine, ...macdSignal, ...macdHistogram]
-        .filter(Number.isFinite)
-        .map(value => Math.abs(value));
-      const macdMax = Math.max(1, ...macdAbsValues);
-      const macdMin = -macdMax;
-      const macdY = value => macdTop + macdHeight - ((value - macdMin) / (macdMax - macdMin)) * macdHeight;
-      drawPanelGrid(macdTop, macdHeight, ["MACD", "0", ""]);
-      const zeroY = macdY(0);
-      context.strokeStyle = "#cbd5df";
-      context.beginPath();
-      context.moveTo(left, zeroY);
-      context.lineTo(width - right, zeroY);
-      context.stroke();
-      const histWidth = Math.max(1, innerWidth / data.length * 0.58);
-      macdHistogram.forEach((value, index) => {
-        if (!Number.isFinite(value)) return;
-        context.fillStyle = value >= 0 ? "rgba(15,143,106,.55)" : "rgba(188,59,66,.5)";
-        const topY = macdY(Math.max(0, value));
-        const bottomY = macdY(Math.min(0, value));
-        context.fillRect(x(index) - histWidth / 2, topY, histWidth, Math.max(1, bottomY - topY));
+      const macdHistogram = chart.addSeries(api.HistogramSeries, {
+        priceLineVisible: false,
+        lastValueVisible: false,
+        base: 0,
+      }, 3);
+      macdHistogram.setData(allRows
+        .map((row, index) => ({
+          time: row.date,
+          value: Number(macdValues.histogram[index]),
+          color: Number(macdValues.histogram[index]) >= 0
+            ? "rgba(15, 143, 106, .55)"
+            : "rgba(188, 59, 66, .50)",
+        }))
+        .filter(row => Number.isFinite(row.value)));
+      addIndexedChartLine(chart, allRows, macdValues.macdLine, "#246bce", 3, { lineWidth: 2 });
+      const macdSignal = addIndexedChartLine(chart, allRows, macdValues.signal, "#b26a00", 3, { lineWidth: 2 });
+      macdSignal?.createPriceLine({
+        price: 0,
+        color: "#cbd5df",
+        lineWidth: 1,
+        lineStyle: api.LineStyle.Solid,
+        axisLabelVisible: false,
       });
-      drawSeries(macdLine, "#246bce", 1.5, macdY);
-      drawSeries(macdSignal, "#b26a00", 1.3, macdY);
 
-      context.fillStyle = "#1d2430";
-      context.font = "12px Yu Gothic UI, Meiryo, sans-serif";
-      context.fillText(data[0].date.slice(5).replace("-", "/"), left, height - 9);
-      context.fillText(data.at(-1).date.slice(5).replace("-", "/"), width - 56, height - 9);
+      setChartPaneFactors(chart, [5, 1.2, 1.5, 1.5]);
+      bindOhlcReadout(
+        chart,
+        primarySeries,
+        volumeSeries,
+        el.priceChartReadout,
+        item?.name || item?.code || "選択銘柄",
+        allRows.at(-1),
+      );
+      technicalChartController = {
+        chart,
+        signature,
+        resetView: () => setChartVisibleRows(chart, visibleRows),
+        latest: () => chart.timeScale().scrollToRealTime(),
+      };
+      technicalChartController.resetView();
     }
 
     function technicalSignals(item, rows, stats) {
@@ -8197,7 +8389,7 @@
         </div>
       `).join("");
       if (state.detailTab === "chart") {
-        requestAnimationFrame(() => drawTechnicalChart(chartRows));
+        requestAnimationFrame(() => drawTechnicalChart(chartRows, item));
       }
       if (state.detailTab === "scoreHistory" && scoreHistoryStatus === "available") {
         requestAnimationFrame(() => drawScoreHistoryChart(rowsForScoreHistoryRange(scoreRowsFor(item))));
@@ -8701,6 +8893,12 @@
         renderNikkeiAnalysis(nikkeiAnalysis);
       });
     });
+    el.priceChartLatest.addEventListener("click", () => technicalChartController?.latest());
+    el.priceChartFit.addEventListener("click", () => technicalChartController?.resetView());
+    el.priceChartExpand.addEventListener("click", () => toggleChartExpansion(el.priceChartShell, el.priceChartExpand));
+    el.nikkeiChartLatest.addEventListener("click", () => nikkeiChartController?.latest());
+    el.nikkeiChartFit.addEventListener("click", () => nikkeiChartController?.resetView());
+    el.nikkeiChartExpand.addEventListener("click", () => toggleChartExpansion(el.nikkeiChartShell, el.nikkeiChartExpand));
     el.rows.addEventListener("click", event => {
       const compareButton = event.target.closest("[data-compare-code]");
       if (compareButton) {
@@ -8802,6 +9000,7 @@
     });
     document.addEventListener("keydown", event => {
       if (event.key !== "Escape") return;
+      if (closeExpandedCharts()) return;
       if (state.mobileFilterOpen) setMobileFilterOpen(false);
       else if (state.mobileDetailOpen) closeMobileDetail();
     });

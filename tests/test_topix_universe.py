@@ -109,6 +109,9 @@ class TopixUniverseTest(unittest.TestCase):
             payloads["1"]["prices"][0]["chartHistory"][0],
             ["2026-07-24", 100, 110, 95, 108, 1000],
         )
+        self.assertEqual(bundle["chartHistoryRows"], 780)
+        self.assertEqual(payloads["1"]["chartHistoryFormat"]["maxRows"], 780)
+        self.assertEqual(dataset["chartHistoryFormat"]["maxRows"], 780)
         self.assertNotIn("topixPrices", dataset)
         self.assertEqual(dataset["candidates"], [])
         self.assertNotIn("nikkei225Prices", dataset)

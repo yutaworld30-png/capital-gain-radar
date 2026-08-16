@@ -53,6 +53,16 @@ class PortfolioUiTests(unittest.TestCase):
         self.assertIn('data-mobile-portfolio-view="holdings"', self.html)
         self.assertIn("function setMobilePortfolioView(view)", self.html)
 
+    def test_mobile_portfolio_events_bind_only_to_subtab_buttons(self) -> None:
+        self.assertIn(
+            'mobilePortfolioButtons: document.querySelectorAll("#mobilePortfolioTabs button[data-mobile-portfolio-view]")',
+            self.html,
+        )
+        self.assertNotIn(
+            'mobilePortfolioButtons: document.querySelectorAll("[data-mobile-portfolio-view]")',
+            self.html,
+        )
+
     def test_holdings_are_saved_only_in_browser_storage(self) -> None:
         self.assertIn('const PORTFOLIO_STORAGE_KEY = "capitalGainRadar.portfolio.v1";', self.html)
         self.assertIn("localStorage.setItem(PORTFOLIO_STORAGE_KEY", self.html)

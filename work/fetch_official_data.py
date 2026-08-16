@@ -74,6 +74,8 @@ SCORE_VERSION = "3.0.0"
 FACTOR_VERSION = "topix-capital-gain-v3.0"
 PRICE_BASIS = "adjusted-ohlc"
 HIGH_LOOKBACK_DAYS = 252
+CHART_HISTORY_ROWS = 780
+CHART_HISTORY_CALENDAR_DAYS = 1200
 TOPIX_MIN_COMPONENTS = 1500
 TOPIX_MAX_COMPONENTS = 2000
 SOURCE_FRESHNESS_DAYS = {
@@ -535,7 +537,7 @@ def collect_free_market_metrics(
         return
 
     today = date.today()
-    start = today - timedelta(days=760)
+    start = today - timedelta(days=CHART_HISTORY_CALENDAR_DAYS)
     validated: list[dict[str, object]] = []
     errors: list[str] = []
     codes = [str(component.get("code", "")) for component in components]
@@ -613,7 +615,7 @@ def collect_free_market_metrics(
                     "close": round(float(row.get("C") or 0), 4),
                     "volume": int(float(row.get("V") or 0)),
                 }
-                for row in primary_rows[-260:]
+                for row in primary_rows[-CHART_HISTORY_ROWS:]
                 if (
                     isinstance(row, dict)
                     and row.get("Date")
@@ -734,7 +736,7 @@ def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: 
         for prices in price_groups
     ]
     today = date.today()
-    start = today - timedelta(days=760)
+    start = today - timedelta(days=CHART_HISTORY_CALENDAR_DAYS)
     detailed_count = 0
     errors: list[str] = []
 
@@ -746,7 +748,7 @@ def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: 
         if all(
             target.get("chartType") == "ohlcv"
             and isinstance(target.get("chartHistory"), list)
-            and len(target["chartHistory"]) >= HIGH_LOOKBACK_DAYS
+            and len(target["chartHistory"]) >= CHART_HISTORY_ROWS
             for target in targets
         ):
             detailed_count += 1
@@ -767,7 +769,7 @@ def augment_candidate_chart_histories(dataset: dict[str, object], generated_at: 
                 "close": round(float(row.get("C") or 0), 4),
                 "volume": int(float(row.get("V") or 0)),
             }
-            for row in rows[-260:]
+            for row in rows[-CHART_HISTORY_ROWS:]
             if (
                 isinstance(row, dict)
                 and row.get("Date")
@@ -1901,6 +1903,8 @@ def build_price_history_shards(
     chart_format = {
         "version": 1,
         "fields": ["date", "open", "high", "low", "close", "volume"],
+        "maxRows": CHART_HISTORY_ROWS,
+        "approxYears": 3,
     }
     payloads: dict[str, dict[str, object]] = {}
     shard_entries: list[dict[str, object]] = []
@@ -1935,6 +1939,7 @@ def build_price_history_shards(
         "factorVersion": FACTOR_VERSION,
         "priceBasis": PRICE_BASIS,
         "highLookbackDays": HIGH_LOOKBACK_DAYS,
+        "chartHistoryRows": CHART_HISTORY_ROWS,
         "recordCount": record_count,
         "loadingPolicy": "on-demand-by-code-prefix",
         "shards": shard_entries,
@@ -2006,6 +2011,8 @@ def compact_dataset_for_output(dataset: dict[str, object]) -> None:
     dataset["chartHistoryFormat"] = {
         "version": 1,
         "fields": ["date", "open", "high", "low", "close", "volume"],
+        "maxRows": CHART_HISTORY_ROWS,
+        "approxYears": 3,
     }
     dataset["delivery"] = {
         "initialPayload": "ranking-and-details",
