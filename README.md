@@ -67,3 +67,41 @@ powershell -ExecutionPolicy Bypass -File .\start-mobile-private.ps1
 - On Windows, `start-mobile-private.cmd` can be double-clicked instead. Keep its console window open while using the app.
 - Connect the PC and phone to the same trusted Wi-Fi, open the displayed `http://192.168.x.x:8768/` URL, and enter the displayed password.
 - Do not use this mode on public Wi-Fi, configure router port forwarding, or share the URL/password outside the household network.
+
+## Cloudflare password-protected private mode
+
+- `.github/workflows/deploy-cloudflare-private.yml` builds a separate `.private-deploy/` site and uploads it with Cloudflare Pages Direct Upload. It remains disabled until `CLOUDFLARE_PRIVATE_DEPLOYMENT_ENABLED=true` is configured.
+- The private build uses `distributionMode=private-cloud`. `work/prepare_cloudflare_private.py` replaces only the private staging copy of `nikkei225-analysis.json`; the tracked `outputs/` analysis must remain `public` and is checked again before deployment.
+- `cloudflare/functions/_middleware.js` protects the entire site, including direct JSON URLs, with a password form and a signed seven-day `HttpOnly`, `Secure`, `SameSite=Strict` session cookie. Missing secrets return `503` instead of exposing the application.
+- The private site emits `Cache-Control: private, no-store`, `X-Robots-Tag: noindex`, and `robots.txt` search exclusion. A separate high-entropy service token lets GitHub Actions restore score history and weekly prediction records without using the browser password.
+- A private login screen does not automatically grant a data licence. Enable `NIKKEI_PRIVATE_CLOUD_USE_CONFIRMED=true` and `JPX_PRIVATE_CLOUD_USE_CONFIRMED=true` only after confirming that the intended authenticated cloud processing and display are permitted.
+
+Required Cloudflare Pages encrypted secrets:
+
+- `PRIVATE_APP_PASSWORD`: owner login password, at least 16 characters and preferably generated randomly.
+- `PRIVATE_SESSION_SECRET`: random signing secret, separate from the login password.
+- `PRIVATE_SERVICE_TOKEN`: random automation token; set the same value in GitHub Actions.
+
+Required GitHub Actions secrets:
+
+- `CLOUDFLARE_API_TOKEN`: Pages deployment token with the minimum required account/project permissions.
+- `CLOUDFLARE_ACCOUNT_ID`: target Cloudflare account ID.
+- `PRIVATE_SERVICE_TOKEN`: same encrypted value as the Cloudflare Pages secret.
+- `EDINET_API_KEY`: existing EDINET secret.
+
+Required repository variables:
+
+- `CLOUDFLARE_PAGES_PROJECT`: Direct Upload Pages project name.
+- `CLOUDFLARE_PRIVATE_SITE_URL`: authenticated production origin, without a trailing slash.
+- `PRIVATE_HISTORY_SOURCE_URL`: origin used to restore score and prediction history. Use the existing verified Pages origin for the first migration run, then switch it to `CLOUDFLARE_PRIVATE_SITE_URL` after Access service authentication is verified.
+- `CLOUDFLARE_PRIVATE_DEPLOYMENT_ENABLED`: keep unset until Pages secrets are ready; set to `true` to enable manual and scheduled deployment.
+- `NIKKEI_PRIVATE_CLOUD_USE_CONFIRMED` and `JPX_PRIVATE_CLOUD_USE_CONFIRMED`: restricted-data confirmation gates described above.
+
+Migration order:
+
+1. Create the Cloudflare Pages Direct Upload project.
+2. Add all three encrypted Pages secrets before uploading any application data.
+3. Add the GitHub Actions secrets and repository variables above.
+4. Run the private workflow manually; Wrangler compiles the root middleware in front of all static assets.
+5. Verify an unauthenticated request is blocked, the owner can sign in on mobile, PER lines render, and daily histories continue.
+6. Disable the old GitHub Pages deployment only after those checks pass.

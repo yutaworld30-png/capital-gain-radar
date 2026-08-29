@@ -30,7 +30,14 @@ class NikkeiAnalysisUiTests(unittest.TestCase):
             'addChartLine(chart, allRows, "psar"',
             'id="nikkeiLocalPrivateNotice"',
             'payload.distributionMode === "local-private"',
+            'payload.distributionMode === "private-cloud"',
+            'function nikkeiPerBandsAvailable(payload = nikkeiAnalysis)',
+            'state.nikkeiIndicators.per = perAvailable;',
+            'button.disabled = !available;',
+            'PER整数倍（非公開版のみ）',
+            'start-mobile-private.cmd',
             "ローカル個人利用専用。",
+            "Cloudflare Pages本人限定。",
         ):
             self.assertIn(expected, source)
 

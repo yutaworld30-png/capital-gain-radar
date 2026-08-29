@@ -17,6 +17,8 @@ from market_analysis import (  # noqa: E402
     ANALYSIS_VERSION,
     LOCAL_OUTPUT,
     LOCAL_PRIVATE_DISTRIBUTION_MODE,
+    PRIVATE_CLOUD_DISTRIBUTION_MODE,
+    PRIVATE_OUTPUT,
     MarketAnalysisError,
     _per_data,
     _timestamp_date,
@@ -274,6 +276,40 @@ class MarketAnalysisTests(unittest.TestCase):
             "ローカル個人利用データは公開成果物に含められません。",
             validate_analysis(payload, public_only=True),
         )
+
+    def test_private_cloud_sources_require_explicit_confirmation(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "NIKKEI_PRIVATE_CLOUD_USE_CONFIRMED": "",
+                "JPX_PRIVATE_CLOUD_USE_CONFIRMED": "",
+            },
+            clear=False,
+        ):
+            per_rows, per_source = _per_data(
+                {},
+                distribution_mode=PRIVATE_CLOUD_DISTRIBUTION_MODE,
+            )
+            margin, investor = _weekly_data(
+                {},
+                distribution_mode=PRIVATE_CLOUD_DISTRIBUTION_MODE,
+            )
+        self.assertEqual(per_rows, [])
+        self.assertEqual(per_source["status"], "permission-required")
+        self.assertEqual(margin["status"], "permission-required")
+        self.assertEqual(investor["status"], "permission-required")
+
+    def test_private_cloud_output_is_confined_to_private_data_directory(self) -> None:
+        self.assertEqual(
+            resolve_output_path(local_private=False, private_cloud=True),
+            PRIVATE_OUTPUT.resolve(),
+        )
+        with self.assertRaises(MarketAnalysisError):
+            resolve_output_path(
+                local_private=False,
+                private_cloud=True,
+                requested=ROOT / "outputs" / "data" / "private-analysis.json",
+            )
 
     def test_local_private_output_is_confined_to_local_data_directory(self) -> None:
         self.assertEqual(

@@ -176,8 +176,11 @@ class LinkParser(HTMLParser):
             self.current_text = ""
 
 
-def fetch_text(url: str) -> str:
-    request = Request(url, headers={"User-Agent": "CapitalGainRadar/0.1"})
+def fetch_text(url: str, *, headers: dict[str, str] | None = None) -> str:
+    request_headers = {"User-Agent": "CapitalGainRadar/0.1"}
+    if headers:
+        request_headers.update(headers)
+    request = Request(url, headers=request_headers)
     with urlopen(request, timeout=30) as response:
         data = response.read()
         charset = response.headers.get_content_charset() or "utf-8"
@@ -190,8 +193,17 @@ def fetch_bytes(url: str) -> bytes:
         return response.read()
 
 
-def load_json_url(url: str) -> dict[str, object]:
-    return json.loads(fetch_text(url))
+def load_json_url(
+    url: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> dict[str, object]:
+    return json.loads(fetch_text(url, headers=headers))
+
+
+def _remote_auth_headers() -> dict[str, str]:
+    service_token = os.environ.get("PRIVATE_SERVICE_TOKEN", "").strip()
+    return {"X-Capital-Radar-Service": service_token} if service_token else {}
 
 
 def parse_nikkei_components(html: str) -> list[dict[str, str]]:
@@ -1788,7 +1800,10 @@ def _load_existing_score_history() -> dict[str, object]:
         history_url = os.environ.get("SCORE_HISTORY_URL", f"{PAGES_BASE_URL}/data/score-history-v2.json")
         separator = "&" if "?" in history_url else "?"
         try:
-            loaded = load_json_url(f"{history_url}{separator}restore={int(time.time())}")
+            loaded = load_json_url(
+                f"{history_url}{separator}restore={int(time.time())}",
+                headers=_remote_auth_headers(),
+            )
             if isinstance(loaded, dict):
                 histories.append(loaded)
                 remote_history = loaded
@@ -1818,6 +1833,37 @@ def _load_existing_score_history() -> dict[str, object]:
 
 
 def _load_existing_weekly_predictions() -> dict[str, object]:
+    remote_required = os.environ.get(
+        "WEEKLY_PREDICTIONS_REQUIRE_REMOTE", ""
+    ).strip().lower() in {"1", "true", "yes"}
+    should_load_remote = remote_required or "WEEKLY_PREDICTIONS_URL" in os.environ
+    prediction_url = os.environ.get(
+        "WEEKLY_PREDICTIONS_URL",
+        f"{PAGES_BASE_URL}/data/weekly-predictions-v1.json",
+    )
+    remote_error: Exception | None = None
+    if should_load_remote:
+        try:
+            loaded = load_json_url(
+                prediction_url,
+                headers=_remote_auth_headers(),
+            )
+            if isinstance(loaded, dict):
+                return loaded
+            remote_error = ValueError("週5%予測台帳がJSONオブジェクトではありません。")
+        except (
+            URLError,
+            TimeoutError,
+            OSError,
+            json.JSONDecodeError,
+            ValueError,
+            RuntimeError,
+        ) as error:
+            remote_error = error
+    if remote_required:
+        raise RuntimeError(
+            f"週5%予測台帳を復元できないため更新を停止しました: {remote_error}"
+        )
     if WEEKLY_PREDICTIONS_OUTPUT.exists():
         try:
             loaded = json.loads(WEEKLY_PREDICTIONS_OUTPUT.read_text(encoding="utf-8"))
@@ -1825,16 +1871,6 @@ def _load_existing_weekly_predictions() -> dict[str, object]:
                 return loaded
         except (OSError, json.JSONDecodeError):
             pass
-    prediction_url = os.environ.get(
-        "WEEKLY_PREDICTIONS_URL",
-        f"{PAGES_BASE_URL}/data/weekly-predictions-v1.json",
-    )
-    try:
-        loaded = load_json_url(prediction_url)
-        if isinstance(loaded, dict):
-            return loaded
-    except (URLError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
-        pass
     return {"schemaVersion": 1, "records": []}
 
 

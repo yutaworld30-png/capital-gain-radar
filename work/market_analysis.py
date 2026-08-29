@@ -32,6 +32,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "outputs" / "data" / "nikkei225-analysis.json"
 LOCAL_DATA_DIR = ROOT / ".local-data"
 LOCAL_OUTPUT = LOCAL_DATA_DIR / "nikkei225-analysis.json"
+PRIVATE_DATA_DIR = ROOT / ".private-data"
+PRIVATE_OUTPUT = PRIVATE_DATA_DIR / "nikkei225-analysis.json"
 LOCAL_CANDIDATE_OUTPUT = LOCAL_DATA_DIR / "latest-candidates.json"
 CANDIDATE_OUTPUT = ROOT / "outputs" / "data" / "latest-candidates.json"
 PUBLISHED_CANDIDATE_URL = (
@@ -48,6 +50,7 @@ SCHEMA_VERSION = 1
 ANALYSIS_VERSION = "nikkei225-analysis-v1"
 PUBLIC_DISTRIBUTION_MODE = "public"
 LOCAL_PRIVATE_DISTRIBUTION_MODE = "local-private"
+PRIVATE_CLOUD_DISTRIBUTION_MODE = "private-cloud"
 PER_MULTIPLIER_MIN = 12
 PER_MULTIPLIER_MAX = 24
 
@@ -58,6 +61,19 @@ class MarketAnalysisError(RuntimeError):
 
 def _env_enabled(name: str) -> bool:
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _restricted_source_allowed(
+    distribution_mode: str,
+    *,
+    public_confirmation: str,
+    private_cloud_confirmation: str,
+) -> bool:
+    if distribution_mode == LOCAL_PRIVATE_DISTRIBUTION_MODE:
+        return True
+    if distribution_mode == PRIVATE_CLOUD_DISTRIBUTION_MODE:
+        return _env_enabled(private_cloud_confirmation)
+    return _env_enabled(public_confirmation)
 
 
 def fetch_bytes(url: str) -> bytes:
@@ -330,10 +346,19 @@ def _per_data(
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     prior_rows = previous.get("per", {}).get("rows", []) if isinstance(previous.get("per"), dict) else []
     local_private = distribution_mode == LOCAL_PRIVATE_DISTRIBUTION_MODE
-    if not local_private and not _env_enabled("NIKKEI_INDEX_DATA_USE_CONFIRMED"):
+    private_cloud = distribution_mode == PRIVATE_CLOUD_DISTRIBUTION_MODE
+    if not _restricted_source_allowed(
+        distribution_mode,
+        public_confirmation="NIKKEI_INDEX_DATA_USE_CONFIRMED",
+        private_cloud_confirmation="NIKKEI_PRIVATE_CLOUD_USE_CONFIRMED",
+    ):
         return [], _permission_required_source(
             NIKKEI_PER_URL,
-            "日経指数データのウェブ表示・演算利用条件を確認後に有効化します。",
+            (
+                "日経指数データの非公開クラウド利用条件を確認後に有効化します。"
+                if private_cloud
+                else "日経指数データのウェブ表示・演算利用条件を確認後に有効化します。"
+            ),
         )
     try:
         refreshed = parse_weighted_per_html(fetch_bytes(NIKKEI_PER_URL).decode("utf-8", errors="replace"))
@@ -352,6 +377,8 @@ def _per_data(
             "note": (
                 "日経平均プロフィルの加重平均PER。ローカル個人利用モードで取得しています。"
                 if local_private
+                else "日経平均プロフィルの加重平均PER。本人限定クラウド利用の確認済みフラグで取得しています。"
+                if private_cloud
                 else "日経平均プロフィルの加重平均PER。利用条件確認済みフラグで取得しています。"
             ),
         }
@@ -373,18 +400,31 @@ def _weekly_data(
     today: date | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     local_private = distribution_mode == LOCAL_PRIVATE_DISTRIBUTION_MODE
-    if not local_private and not _env_enabled("JPX_PUBLIC_DATA_USE_CONFIRMED"):
+    private_cloud = distribution_mode == PRIVATE_CLOUD_DISTRIBUTION_MODE
+    if not _restricted_source_allowed(
+        distribution_mode,
+        public_confirmation="JPX_PUBLIC_DATA_USE_CONFIRMED",
+        private_cloud_confirmation="JPX_PRIVATE_CLOUD_USE_CONFIRMED",
+    ):
         margin = {
             **_permission_required_source(
                 MARGIN_HISTORY_PAGE,
-                "JPX公開データの二次利用条件を確認後に有効化します。",
+                (
+                    "JPX公開データの本人限定クラウド利用条件を確認後に有効化します。"
+                    if private_cloud
+                    else "JPX公開データの二次利用条件を確認後に有効化します。"
+                ),
             ),
             "rows": [],
         }
         investor = {
             **_permission_required_source(
                 INVESTOR_ARCHIVE_BASE.format(index=0),
-                "JPX公開データの二次利用条件を確認後に有効化します。",
+                (
+                    "JPX公開データの本人限定クラウド利用条件を確認後に有効化します。"
+                    if private_cloud
+                    else "JPX公開データの二次利用条件を確認後に有効化します。"
+                ),
             ),
             "rows": [],
         }
@@ -486,7 +526,11 @@ def validate_analysis(payload: object, *, public_only: bool = False) -> list[str
         return ["ルートがJSONオブジェクトではありません。"]
     errors: list[str] = []
     distribution_mode = payload.get("distributionMode", PUBLIC_DISTRIBUTION_MODE)
-    if distribution_mode not in {PUBLIC_DISTRIBUTION_MODE, LOCAL_PRIVATE_DISTRIBUTION_MODE}:
+    if distribution_mode not in {
+        PUBLIC_DISTRIBUTION_MODE,
+        LOCAL_PRIVATE_DISTRIBUTION_MODE,
+        PRIVATE_CLOUD_DISTRIBUTION_MODE,
+    }:
         errors.append("distributionModeが不正です。")
     if public_only and distribution_mode != PUBLIC_DISTRIBUTION_MODE:
         errors.append("ローカル個人利用データは公開成果物に含められません。")
@@ -531,6 +575,7 @@ def build_analysis_payload(
         margin, investor = _weekly_data(previous, distribution_mode=distribution_mode)
     technical_rows = build_technical_rows(raw_rows, weighted_per_rows=per_rows)
     local_private = distribution_mode == LOCAL_PRIVATE_DISTRIBUTION_MODE
+    private_cloud = distribution_mode == PRIVATE_CLOUD_DISTRIBUTION_MODE
     payload = {
         "schemaVersion": SCHEMA_VERSION,
         "analysisVersion": ANALYSIS_VERSION,
@@ -541,6 +586,8 @@ def build_analysis_payload(
         "usage": (
             "ローカル個人利用専用です。外部公開・共有・再配布をしないでください。"
             if local_private
+            else "Cloudflare Pagesの合言葉認証で本人だけに制限した非公開利用専用です。認証を解除せず、共有・再配布をしないでください。"
+            if private_cloud
             else "相場環境の確認用です。個別銘柄ランキングの総合スコアには反映しません。"
         ),
         "parameters": indicator_parameters(),
@@ -565,7 +612,7 @@ def build_analysis_payload(
         "breadth": breadth if breadth is not None else _load_breadth(),
     }
     quality_issues = validate_analysis(payload)
-    if local_private:
+    if local_private or private_cloud:
         for key, label in (
             ("per", "日経PER"),
             ("margin", "信用残"),
@@ -581,8 +628,21 @@ def build_analysis_payload(
     return payload
 
 
-def resolve_output_path(*, local_private: bool, requested: Path | None = None) -> Path:
-    output = requested or (LOCAL_OUTPUT if local_private else OUTPUT)
+def resolve_output_path(
+    *,
+    local_private: bool,
+    private_cloud: bool = False,
+    requested: Path | None = None,
+) -> Path:
+    if local_private and private_cloud:
+        raise MarketAnalysisError("ローカル専用と非公開クラウドは同時指定できません。")
+    output = requested or (
+        LOCAL_OUTPUT
+        if local_private
+        else PRIVATE_OUTPUT
+        if private_cloud
+        else OUTPUT
+    )
     if not output.is_absolute():
         output = ROOT / output
     output = output.resolve()
@@ -590,32 +650,50 @@ def resolve_output_path(*, local_private: bool, requested: Path | None = None) -
         raise MarketAnalysisError(
             "ローカル個人利用データは .local-data 配下にのみ保存できます。"
         )
+    if private_cloud and not output.is_relative_to(PRIVATE_DATA_DIR.resolve()):
+        raise MarketAnalysisError(
+            "本人限定クラウド用データは .private-data 配下にのみ保存できます。"
+        )
     return output
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="日経225テクニカル分析JSONを生成")
-    parser.add_argument(
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
         "--local-private",
         action="store_true",
         help="日経PER・JPX週次統計をローカル個人利用専用として取得する",
     )
+    mode_group.add_argument(
+        "--private-cloud",
+        action="store_true",
+        help="Cloudflare Pagesの合言葉認証で本人限定にする非公開クラウド用データを取得する",
+    )
     parser.add_argument("--output", type=Path, help="JSON出力先")
     args = parser.parse_args(argv)
     try:
-        output = resolve_output_path(local_private=args.local_private, requested=args.output)
+        output = resolve_output_path(
+            local_private=args.local_private,
+            private_cloud=args.private_cloud,
+            requested=args.output,
+        )
     except MarketAnalysisError as error:
         print(f"ERROR: {error}")
         return 2
     distribution_mode = (
         LOCAL_PRIVATE_DISTRIBUTION_MODE
         if args.local_private
+        else PRIVATE_CLOUD_DISTRIBUTION_MODE
+        if args.private_cloud
         else PUBLIC_DISTRIBUTION_MODE
     )
     generated_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     local_previous = _load_previous(output)
     published_previous = (
-        {} if args.local_private else _load_published_previous()
+        _load_published_previous()
+        if distribution_mode == PUBLIC_DISTRIBUTION_MODE
+        else {}
     )
     previous = published_previous or local_previous
     try:

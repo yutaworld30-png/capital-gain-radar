@@ -483,6 +483,14 @@
       color: #102235;
     }
 
+    .indicator-toggles button:disabled {
+      border-color: var(--line);
+      background: #f3f5f8;
+      color: #8995a5;
+      cursor: not-allowed;
+      opacity: .78;
+    }
+
     .nikkei-analysis-kpis {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3696,6 +3704,9 @@
           <button class="secondary" type="button" id="importBtn" title="検証済みJSONを取り込む">JSON取込</button>
           <input id="dataFile" type="file" accept="application/json,.json">
           <button class="primary" type="button" id="refreshBtn" title="データを更新">↻ 更新</button>
+          <form action="/_auth/logout" method="post" id="privateLogoutForm" hidden>
+            <button class="secondary" type="submit" title="本人限定版からログアウト">ログアウト</button>
+          </form>
         </div>
       </div>
 
@@ -3866,8 +3877,8 @@
         </div>
         <div class="nikkei-analysis-body">
           <div class="local-private-notice" id="nikkeiLocalPrivateNotice" hidden>
-            <strong>ローカル個人利用モード</strong>
-            <span>日経PER・JPX週次統計をローカル環境だけで表示しています。PCと同じWi-Fi内の認証済み端末以外へ、画面やデータを公開・共有・再配布しないでください。</span>
+            <strong id="nikkeiPrivateModeLabel">非公開利用モード</strong>
+            <span id="nikkeiPrivateModeNote">日経PER・JPX週次統計を本人限定で表示しています。画面やデータを公開・共有・再配布しないでください。</span>
           </div>
           <div class="nikkei-analysis-kpis" id="nikkeiAnalysisKpis">
             <div class="nikkei-analysis-kpi">
@@ -3891,7 +3902,7 @@
                 <button class="active" data-nikkei-indicator="psar" type="button" aria-pressed="true">パラボリック</button>
                 <button class="active" data-nikkei-indicator="bb" type="button" aria-pressed="true">ボリンジャー</button>
                 <button data-nikkei-indicator="ichimoku" type="button" aria-pressed="false">一目均衡表</button>
-                <button data-nikkei-indicator="per" type="button" aria-pressed="false">PER整数倍</button>
+                <button data-nikkei-indicator="per" type="button" aria-pressed="false" disabled>PER整数倍（非公開版のみ）</button>
               </div>
             </div>
             <div class="interactive-chart-controls">
@@ -4398,6 +4409,7 @@
     let mobileDetailHistoryActive = false;
     let technicalChartController = null;
     let nikkeiChartController = null;
+    let nikkeiPerPreferenceInitialized = false;
     const mobileScrollPositions = {
       candidates: 0,
       market: 0,
@@ -4630,6 +4642,9 @@
       nikkeiAnalysisStatus: document.querySelector("#nikkeiAnalysisStatus"),
       nikkeiAnalysisTitle: document.querySelector("#nikkeiAnalysisTitle"),
       nikkeiLocalPrivateNotice: document.querySelector("#nikkeiLocalPrivateNotice"),
+      nikkeiPrivateModeLabel: document.querySelector("#nikkeiPrivateModeLabel"),
+      nikkeiPrivateModeNote: document.querySelector("#nikkeiPrivateModeNote"),
+      privateLogoutForm: document.querySelector("#privateLogoutForm"),
       nikkeiAnalysisKpis: document.querySelector("#nikkeiAnalysisKpis"),
       nikkeiChartShell: document.querySelector("#nikkeiChartShell"),
       nikkeiAnalysisChart: document.querySelector("#nikkeiAnalysisChart"),
@@ -6038,6 +6053,14 @@
       return filtered.length >= 5 ? filtered : rows.slice(-5);
     }
 
+    function nikkeiPerBandsAvailable(payload = nikkeiAnalysis) {
+      const per = payload?.per;
+      const levels = per?.reference?.bandLevels;
+      return per?.status === "available"
+        && levels
+        && Object.values(levels).some(value => Number.isFinite(Number(value)));
+    }
+
     function prepareAnalysisCanvas(canvas, minimumHeight = 180) {
       const context = canvas.getContext("2d");
       const bounds = canvas.getBoundingClientRect();
@@ -6130,7 +6153,7 @@
       }
 
       const perReference = nikkeiAnalysis?.per?.reference;
-      if (state.nikkeiIndicators.per && perReference?.bandLevels) {
+      if (state.nikkeiIndicators.per && nikkeiPerBandsAvailable() && perReference?.bandLevels) {
         Object.entries(perReference.bandLevels).forEach(([multiple, rawValue]) => {
           const price = Number(rawValue);
           if (!Number.isFinite(price)) return;
@@ -6432,14 +6455,28 @@
     }
 
     function renderNikkeiAnalysis(payload = nikkeiAnalysis) {
+      const hasRows = Boolean(payload && Array.isArray(payload.rows) && payload.rows.length);
+      const perAvailable = hasRows && nikkeiPerBandsAvailable(payload);
+      if (hasRows && !nikkeiPerPreferenceInitialized) {
+        state.nikkeiIndicators.per = perAvailable;
+        nikkeiPerPreferenceInitialized = true;
+      }
       Object.entries(el.nikkeiRangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.nikkeiAnalysisRange === range);
       });
       el.nikkeiIndicatorButtons.forEach(button => {
         const key = button.dataset.nikkeiIndicator;
-        const active = Boolean(state.nikkeiIndicators[key]);
+        const available = key !== "per" || perAvailable;
+        const active = available && Boolean(state.nikkeiIndicators[key]);
         button.classList.toggle("active", active);
         button.setAttribute("aria-pressed", String(active));
+        if (key === "per") {
+          button.disabled = !available;
+          button.textContent = available ? "PER整数倍" : "PER整数倍（非公開版のみ）";
+          button.title = available
+            ? "日経平均のPER整数倍ラインを表示・非表示"
+            : "公開版ではPER参照値を配信していません。本人限定版または同じWi-Fiのローカル専用URLで表示できます。";
+        }
       });
       if (!payload || !Array.isArray(payload.rows) || !payload.rows.length) {
         el.nikkeiLocalPrivateNotice.hidden = true;
@@ -6477,8 +6514,18 @@
         ? "未取得"
         : macd >= macdSignal ? "シグナルより上" : "シグナルより下";
       const localPrivate = payload.distributionMode === "local-private";
-      el.nikkeiLocalPrivateNotice.hidden = !localPrivate;
-      el.nikkeiAnalysisStatus.textContent = `${localPrivate ? "ローカル限定 / " : ""}価格 ${formatDate(payload.priceSource?.asOf || latest.date)} / 生成 ${formatDate(payload.generatedAt)}`;
+      const privateCloud = payload.distributionMode === "private-cloud";
+      const privateMode = localPrivate || privateCloud;
+      el.privateLogoutForm.hidden = !privateCloud;
+      el.nikkeiLocalPrivateNotice.hidden = !privateMode;
+      if (privateMode) {
+        el.nikkeiPrivateModeLabel.textContent = privateCloud ? "Cloudflare本人限定モード" : "ローカル個人利用モード";
+        el.nikkeiPrivateModeNote.textContent = privateCloud
+          ? "日経PER・JPX週次統計をCloudflare Pagesの合言葉認証で本人だけに制限して表示しています。認証を解除せず、画面やデータを公開・共有・再配布しないでください。"
+          : "日経PER・JPX週次統計をローカル環境だけで表示しています。PCと同じWi-Fi内の認証済み端末以外へ、画面やデータを公開・共有・再配布しないでください。";
+      }
+      const modePrefix = privateCloud ? "本人限定 / " : localPrivate ? "ローカル限定 / " : "";
+      el.nikkeiAnalysisStatus.textContent = `${modePrefix}価格 ${formatDate(payload.priceSource?.asOf || latest.date)} / 生成 ${formatDate(payload.generatedAt)}`;
       el.nikkeiAnalysisKpis.innerHTML = [
         ["日経225", `${Math.round(Number(latest.close)).toLocaleString("ja-JP")}円`, `基準 ${formatDate(latest.date)}`],
         ["移動平均", trend, `5日 ${Math.round(Number(latest.ma5)).toLocaleString("ja-JP")} / 25日 ${Math.round(Number(latest.ma25)).toLocaleString("ja-JP")} / 75日 ${Math.round(Number(latest.ma75)).toLocaleString("ja-JP")}`],
@@ -6515,10 +6562,14 @@
         <span class="legend-item"><span class="legend-line" style="background:${color}"></span>${escapeHtml(label)}</span>
       `).join("");
       const per = payload.per || {};
-      const perPrefix = localPrivate ? "ローカル個人利用専用。 " : "";
-      el.nikkeiPerNote.textContent = per.status === "available" && per.reference
+      const perPrefix = privateCloud
+        ? "Cloudflare Pages本人限定。 "
+        : localPrivate
+        ? "ローカル個人利用専用。 "
+        : "";
+      el.nikkeiPerNote.textContent = perAvailable
         ? `${perPrefix}PER整数倍ライン: ${formatDate(per.reference.date)}の加重平均PER ${Number(per.reference.weightedPer).toFixed(2)}倍から推計したEPSを固定して表示します。日々の業績変化を反映する理論価格ではありません。`
-        : per.note || "PER整数倍ラインは利用条件とデータを確認できるまで表示しません。";
+        : `${per.note || "PER整数倍ラインは利用条件とデータを確認できるまで表示しません。"} 公開版ではPER参照値を配信していません。本人限定版、またはPCで start-mobile-private.cmd を起動したローカル専用URLで表示できます。`;
       requestAnimationFrame(() => {
         drawNikkeiAnalysisChart();
         renderNikkeiMargin();

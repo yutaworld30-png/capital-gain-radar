@@ -1,6 +1,10 @@
 __pycache__/
 *.py[cod]
 .local-data/
+.private-data/
+.private-deploy/
+.dev.vars*
+.env*
 work/tmp/
 outputs/data/latest-candidates.json
 outputs/data/price-history/

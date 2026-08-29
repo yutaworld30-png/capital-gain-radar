@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
@@ -206,13 +207,20 @@ def history_freshness_issues(
     return issues
 
 
+def _access_headers() -> dict[str, str]:
+    service_token = os.environ.get("PRIVATE_SERVICE_TOKEN", "").strip()
+    return {"X-Capital-Radar-Service": service_token} if service_token else {}
+
+
 def fetch_payload(url: str, *, timeout: float = 30.0) -> dict[str, Any]:
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "capital-gain-radar-freshness-check/1.0",
+        **_access_headers(),
+    }
     request = Request(
         url,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "capital-gain-radar-freshness-check/1.0",
-        },
+        headers=headers,
     )
     try:
         with urlopen(request, timeout=timeout) as response:
