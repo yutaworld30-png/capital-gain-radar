@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import sys
+from io import BytesIO
+import openpyxl
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -38,6 +40,21 @@ class FakeWorkbook:
 
 
 class TopixUniverseTest(unittest.TestCase):
+    def test_xlsx_official_format(self) -> None:
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.append(["日付", "コード", "銘柄名", "市場・商品区分", "規模区分"])
+        sheet.append([20260831, 1301, "Stock", "プライム（内国株式）", "TOPIX Small 1"])
+        sheet.append([20260831, "409A", "New stock", "プライム（内国株式）", "TOPIX Small 2"])
+        sheet.append([20260831, 9999, "Excluded", "グロース", "-"])
+        stream = BytesIO()
+        workbook.save(stream)
+        workbook.close()
+        components, as_of = parse_topix_components(stream.getvalue(), {"1301"})
+        self.assertEqual(as_of, "2026-08-31")
+        self.assertEqual([row["code"] for row in components], ["1301", "409A"])
+        self.assertTrue(components[0]["isNikkei225"])
+
     def test_only_topix_size_classes_are_included(self) -> None:
         rows = [
             ["日付", "コード", "銘柄名", "市場・商品区分", "33業種区分", "17業種区分", "規模区分"],

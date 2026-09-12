@@ -6,6 +6,7 @@ import re
 import time
 import zipfile
 import xlrd
+import openpyxl
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from datetime import date, datetime, timedelta, timezone
@@ -66,7 +67,7 @@ PDF_INSPECTION_DIR = ROOT / "work" / "tmp" / "pdfs"
 PAGES_BASE_URL = "https://yutaworld30-png.github.io/capital-gain-radar"
 NIKKEI_URL = "https://indexes.nikkei.co.jp/en/nkave/index/component?idx=nk225"
 JPX_LIST_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/01.html"
-JPX_LIST_FILE_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
+JPX_LIST_FILE_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xlsx"
 JPX_MARGIN_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin/05.html"
 JPX_MARGIN_INDEX_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin/index.html"
 SCHEMA_VERSION = 2
@@ -228,9 +229,19 @@ def parse_nikkei_components(html: str) -> list[dict[str, str]]:
 
 
 def parse_topix_components(content: bytes, nikkei_codes: set[str]) -> tuple[list[dict[str, object]], str]:
-    workbook = xlrd.open_workbook(file_contents=content)
-    sheet = workbook.sheet_by_index(0)
-    headers = [str(value).strip() for value in sheet.row_values(0)]
+    if zipfile.is_zipfile(BytesIO(content)):
+        workbook = openpyxl.load_workbook(BytesIO(content), read_only=True, data_only=True)
+        try:
+            rows = list(workbook.worksheets[0].iter_rows(values_only=True))
+        finally:
+            workbook.close()
+    else:
+        workbook = xlrd.open_workbook(file_contents=content)
+        sheet = workbook.sheet_by_index(0)
+        rows = [sheet.row_values(index) for index in range(sheet.nrows)]
+    if not rows:
+        raise ValueError("JPX上場銘柄一覧が空です。")
+    headers = [str(value).strip() for value in rows[0]]
     required = {"日付", "コード", "銘柄名", "市場・商品区分", "規模区分"}
     if not required.issubset(headers):
         raise ValueError("JPX上場銘柄一覧の列構成を確認できません。")
@@ -238,8 +249,7 @@ def parse_topix_components(content: bytes, nikkei_codes: set[str]) -> tuple[list
     components: list[dict[str, object]] = []
     seen: set[str] = set()
     as_of = ""
-    for row_index in range(1, sheet.nrows):
-        row = sheet.row_values(row_index)
+    for row in rows[1:]:
         market = str(row[indexes["市場・商品区分"]]).strip()
         topix_size = str(row[indexes["規模区分"]]).strip()
         if not topix_size.startswith("TOPIX "):
@@ -2707,6 +2717,13 @@ def main() -> None:
             }  # type: ignore[index]
             dataset["universe"]["expectedCount"] = len(previous_components)  # type: ignore[index]
             dataset["topixComponents"] = previous_components
+
+    if dataset["sources"]["topix"].get("status") != "available":
+        raise RuntimeError(
+            "TOPIX一覧の取得に失敗しました。更新を中止し、配信中のデータを保持します: "
+            + str(dataset["sources"]["topix"].get("refreshReason")
+                  or dataset["sources"]["topix"].get("reason", "取得元不明"))
+        )
 
     try:
         margin_html = fetch_text(JPX_MARGIN_URL)

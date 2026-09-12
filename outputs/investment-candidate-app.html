@@ -6719,23 +6719,29 @@
           loadNikkeiAnalysis(),
           loadWeeklyAccuracy(),
         ]);
+        if (response.redirected && new URL(response.url).pathname === "/_auth/login") {
+          window.location.assign(response.url);
+          return;
+        }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         applyDataset(await response.json(), "公式データ読込");
       } catch (error) {
+        console.error("Candidate dataset could not be loaded", error);
+        const loadMessage = "データを読み込めませんでした。通信状態を確認して「更新」を押してください。";
         el.topixStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
         el.priceStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
         el.marginStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
         el.edinetStatus.innerHTML = `<span class="badge warn">JSON未読込</span>`;
-        el.candidateStatus.innerHTML = `<span class="badge warn">JSON取込待ち</span>`;
+        el.candidateStatus.innerHTML = `<span class="badge warn">データ読込失敗</span>`;
         renderQuality([
           {
             label: "データファイル",
             status: "not-connected",
             required: true,
-            message: "JSON取込ボタンから検証済みファイルを選択できます。",
+            message: loadMessage,
           },
         ]);
-        document.querySelector(".updated").textContent = "JSON未読込: JSON取込ボタンから検証済みファイルを選択できます";
+        document.querySelector(".updated").textContent = loadMessage;
         render();
       }
     }
