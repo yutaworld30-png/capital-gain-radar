@@ -19,6 +19,7 @@ sys.modules.setdefault(
 )
 
 import fetch_official_data as pipeline  # noqa: E402
+from backtest_score import load_score_history  # noqa: E402
 from tdnet_connector import analyze_disclosures  # noqa: E402
 
 
@@ -205,6 +206,86 @@ class P1QualityTest(unittest.TestCase):
         self.assertIn('fetch("data/score-history-v2.json"', html)
         self.assertIn("void ensureScoreHistoryLoaded()", html)
         self.assertNotIn("loadScoreHistory(),", loader)
+
+    def test_score_history_migrates_legacy_rows_to_compact_arrays(self) -> None:
+        legacy_row = {
+            "code": "6098",
+            "name": "fixture",
+            "industry": "サービス業",
+            "score": 82,
+            "theme": 80,
+            "supply": 75,
+            "technical": 90,
+            "relative": 85,
+            "earnings": 70,
+            "liquidity": 88,
+            "valuation": 65,
+            "risk": 72,
+            "isNewHigh52w": True,
+            "dataQuality": 95,
+            "priceAsOf": "2026-08-14",
+            "dataWarnings": ["legacy payload"],
+        }
+        legacy_history = {
+            "schemaVersion": 2,
+            "snapshots": [{
+                "date": "2026-08-14",
+                "scoreVersion": pipeline.SCORE_VERSION,
+                "factorVersion": pipeline.FACTOR_VERSION,
+                "rows": [legacy_row],
+            }],
+        }
+        dataset = {
+            "sources": {"priceHistory": {"asOf": "2026-08-15"}},
+            "searchUniverse": [{**legacy_row, "priceAsOf": "2026-08-15"}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "score-history-v2.json"
+            output.write_text(json.dumps(legacy_history), encoding="utf-8")
+            with patch.object(pipeline, "SCORE_HISTORY_OUTPUT", output):
+                updated = pipeline.update_score_history(dataset, "2026-08-15T16:10:00+09:00")
+            stored = json.loads(output.read_text(encoding="utf-8"))
+            decoded = load_score_history(output)
+
+        self.assertEqual(updated["schemaVersion"], pipeline.SCORE_HISTORY_SCHEMA_VERSION)
+        self.assertEqual(updated["rowFormat"], list(pipeline.SCORE_HISTORY_ROW_FIELDS))
+        self.assertTrue(all(isinstance(row, list) for snapshot in stored["snapshots"] for row in snapshot["rows"]))
+        self.assertEqual(decoded[-1]["searchUniverse"][0]["code"], "6098")
+        self.assertEqual(decoded[-1]["searchUniverse"][0]["score"], 82)
+        self.assertNotIn("name", decoded[-1]["searchUniverse"][0])
+
+    def test_score_history_retention_is_capped_below_cloudflare_file_limit(self) -> None:
+        snapshots = []
+        start = date(2025, 1, 1)
+        for index in range(301):
+            snapshot_date = (start + timedelta(days=index)).isoformat()
+            snapshots.append({
+                "date": snapshot_date,
+                "scoreVersion": pipeline.SCORE_VERSION,
+                "factorVersion": pipeline.FACTOR_VERSION,
+                "rows": [{"code": "6098", "score": 70, "priceAsOf": snapshot_date}],
+            })
+        dataset = {
+            "sources": {"priceHistory": {"asOf": "2026-01-01"}},
+            "searchUniverse": [{"code": "6098", "score": 71, "priceAsOf": "2026-01-01"}],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "score-history-v2.json"
+            output.write_text(json.dumps({"snapshots": snapshots}), encoding="utf-8")
+            with (
+                patch.object(pipeline, "SCORE_HISTORY_OUTPUT", output),
+                patch.dict(pipeline.os.environ, {"SCORE_HISTORY_MAX_DAYS": "999"}),
+            ):
+                updated = pipeline.update_score_history(dataset, "2026-01-01T16:10:00+09:00")
+
+        self.assertEqual(updated["retentionDays"], pipeline.SCORE_HISTORY_MAX_SNAPSHOTS)
+        self.assertEqual(updated["snapshotCount"], pipeline.SCORE_HISTORY_MAX_SNAPSHOTS)
+
+    def test_frontend_decodes_compact_score_history_rows(self) -> None:
+        html = (ROOT / "outputs" / "investment-candidate-app.html").read_text(encoding="utf-8")
+
+        self.assertIn("function decodeScoreHistoryRow", html)
+        self.assertIn("const row = decodeScoreHistoryRow(rawRow, rowFormat);", html)
 
     def test_frontend_marks_sparse_score_history_as_incomplete(self) -> None:
         html = (ROOT / "outputs" / "investment-candidate-app.html").read_text(encoding="utf-8")

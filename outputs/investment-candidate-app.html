@@ -5345,8 +5345,19 @@
       )).join("");
     }
 
+    function decodeScoreHistoryRow(row, rowFormat) {
+      if (row && !Array.isArray(row) && typeof row === "object") return row;
+      if (!Array.isArray(row) || !Array.isArray(rowFormat)) return null;
+      return Object.fromEntries(
+        rowFormat.slice(0, row.length)
+          .map((field, index) => [field, row[index]])
+          .filter(([, value]) => value !== null && value !== undefined)
+      );
+    }
+
     function indexScoreHistory(history) {
       const indexed = new Map();
+      const rowFormat = Array.isArray(history?.rowFormat) ? history.rowFormat : [];
       const snapshots = (Array.isArray(history?.snapshots) ? history.snapshots : []).filter(snapshot => (
         snapshot?.scoreVersion === officialDataset?.scoreVersion &&
         snapshot?.factorVersion === officialDataset?.factorVersion
@@ -5354,7 +5365,8 @@
       snapshots.forEach(snapshot => {
         const dateText = String(snapshot?.date || "");
         const rows = Array.isArray(snapshot?.rows) ? snapshot.rows : [];
-        rows.forEach(row => {
+        rows.forEach(rawRow => {
+          const row = decodeScoreHistoryRow(rawRow, rowFormat);
           if (!row?.code || !Number.isFinite(Number(row.score))) return;
           const code = String(row.code);
           if (!indexed.has(code)) indexed.set(code, []);

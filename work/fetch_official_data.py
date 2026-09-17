@@ -71,11 +71,28 @@ JPX_LIST_FILE_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdi
 JPX_MARGIN_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin/05.html"
 JPX_MARGIN_INDEX_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin/index.html"
 SCHEMA_VERSION = 2
+SCORE_HISTORY_SCHEMA_VERSION = 3
 SCORE_VERSION = "3.0.0"
 FACTOR_VERSION = "topix-capital-gain-v3.0"
 PRICE_BASIS = "adjusted-ohlc"
 HIGH_LOOKBACK_DAYS = 252
 CHART_HISTORY_ROWS = 780
+SCORE_HISTORY_ROW_FIELDS = (
+    "code",
+    "score",
+    "theme",
+    "supply",
+    "technical",
+    "relative",
+    "earnings",
+    "liquidity",
+    "valuation",
+    "risk",
+    "isNewHigh52w",
+    "dataQuality",
+    "historySource",
+)
+SCORE_HISTORY_MAX_SNAPSHOTS = 300
 CHART_HISTORY_CALENDAR_DAYS = 1200
 JST = timezone(timedelta(hours=9), name="JST")
 TOPIX_MIN_COMPONENTS = 1500
@@ -1677,51 +1694,35 @@ def _attach_history_changes(
 
 
 def _compact_score_row(row: dict[str, object]) -> dict[str, object]:
-    fields = (
-        "code",
-        "name",
-        "industry",
-        "isNikkei225",
-        "score",
-        "supply",
-        "valuation",
-        "theme",
-        "technical",
-        "relative",
-        "earnings",
-        "liquidity",
-        "risk",
-        "margin",
-        "monthsFromHigh",
-        "high52wDistance",
-        "isNewHigh52w",
-        "dataQuality",
-        "dataWarnings",
-        "dataAnomalies",
-        "latestClose",
-        "priceAsOf",
-        "per",
-        "pbr",
-        "roe",
-        "salesGrowth",
-        "profitGrowth",
-        "scoreVersion",
-        "factorVersion",
-        "priceBasis",
-        "highLookbackDays",
-        "rank",
-        "previousRank",
-        "rankChange",
-        "scoreChange",
-        "factorChanges",
-        "changeAlerts",
-        "previousSnapshotDate",
-    )
     return {
         key: row[key]
-        for key in fields
+        for key in SCORE_HISTORY_ROW_FIELDS
         if key in row and row[key] is not None
     }
+
+
+def _encode_score_history_row(row: dict[str, object]) -> list[object]:
+    values = [row.get(field) for field in SCORE_HISTORY_ROW_FIELDS]
+    while values and values[-1] is None:
+        values.pop()
+    return values
+
+
+def _decode_score_history_row(
+    row: object,
+    row_fields: object = SCORE_HISTORY_ROW_FIELDS,
+) -> dict[str, object] | None:
+    if isinstance(row, dict):
+        return dict(row) if row.get("code") else None
+    if not isinstance(row, list) or not isinstance(row_fields, (list, tuple)):
+        return None
+    fields = [field for field in row_fields if isinstance(field, str)]
+    decoded = {
+        fields[index]: value
+        for index, value in enumerate(row[:len(fields)])
+        if value is not None
+    }
+    return decoded if decoded.get("code") else None
 
 
 def _valid_iso_date(value: object) -> str | None:
@@ -1733,12 +1734,22 @@ def _valid_iso_date(value: object) -> str | None:
         return None
 
 
-def _normalise_score_snapshot(snapshot: object) -> dict[str, object] | None:
+def _normalise_score_snapshot(
+    snapshot: object,
+    row_fields: object = SCORE_HISTORY_ROW_FIELDS,
+) -> dict[str, object] | None:
     if not isinstance(snapshot, dict):
         return None
     if snapshot.get("scoreVersion") != SCORE_VERSION or snapshot.get("factorVersion") != FACTOR_VERSION:
         return None
-    rows = [row for row in snapshot.get("rows", []) if isinstance(row, dict) and row.get("code")]
+    raw_rows = snapshot.get("rows", [])
+    if not isinstance(raw_rows, list):
+        raw_rows = []
+    rows = [
+        decoded
+        for row in raw_rows
+        if (decoded := _decode_score_history_row(row, row_fields)) is not None
+    ]
     if not rows:
         return None
 
@@ -1767,11 +1778,12 @@ def _normalise_score_snapshot(snapshot: object) -> dict[str, object] | None:
 def _merge_score_histories(histories: list[dict[str, object]]) -> list[dict[str, object]]:
     merged: dict[str, dict[str, object]] = {}
     for history in histories:
+        row_fields = history.get("rowFormat", SCORE_HISTORY_ROW_FIELDS)
         snapshots = history.get("snapshots")
         if not isinstance(snapshots, list):
             continue
         for raw_snapshot in snapshots:
-            snapshot = _normalise_score_snapshot(raw_snapshot)
+            snapshot = _normalise_score_snapshot(raw_snapshot, row_fields)
             if snapshot is None:
                 continue
             snapshot_date = str(snapshot["date"])
@@ -1834,7 +1846,7 @@ def _load_existing_score_history() -> dict[str, object]:
         raise RuntimeError("公開スコア履歴に現在の計算版の有効なスナップショットがありません。")
 
     return {
-        "schemaVersion": SCHEMA_VERSION,
+        "schemaVersion": SCORE_HISTORY_SCHEMA_VERSION,
         "scoreVersion": SCORE_VERSION,
         "factorVersion": FACTOR_VERSION,
         "restoreStatus": "remote-and-local" if remote_loaded and local_loaded else "remote" if remote_loaded else "local" if local_loaded else "empty",
@@ -2067,7 +2079,10 @@ def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[
         "rows": compact_rows,
     })
 
-    max_days = max(30, int(os.environ.get("SCORE_HISTORY_MAX_DAYS", "400")))
+    max_days = min(
+        SCORE_HISTORY_MAX_SNAPSHOTS,
+        max(30, int(os.environ.get("SCORE_HISTORY_MAX_DAYS", str(SCORE_HISTORY_MAX_SNAPSHOTS)))),
+    )
     snapshots.sort(key=lambda item: str(item.get("date", "")))
     snapshots = snapshots[-max_days:]
     minimum_retained = min(restored_snapshot_count, max_days)
@@ -2081,13 +2096,25 @@ def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[
     trading_dates = _score_history_trading_dates(dataset, first_date, snapshot_date)
     coverage = _score_history_coverage(snapshots, trading_dates)
 
+    serialised_snapshots = [
+        {
+            **{key: value for key, value in snapshot.items() if key != "rows"},
+            "rows": [
+                _encode_score_history_row(row)
+                for row in snapshot.get("rows", [])
+                if isinstance(row, dict)
+            ],
+        }
+        for snapshot in snapshots
+    ]
     updated = {
-        "schemaVersion": SCHEMA_VERSION,
+        "schemaVersion": SCORE_HISTORY_SCHEMA_VERSION,
         "generatedAt": generated_at,
         "scoreVersion": SCORE_VERSION,
         "factorVersion": FACTOR_VERSION,
         "priceBasis": PRICE_BASIS,
         "highLookbackDays": HIGH_LOOKBACK_DAYS,
+        "rowFormat": list(SCORE_HISTORY_ROW_FIELDS),
         "retentionDays": max_days,
         "snapshotDateBasis": "price-as-of",
         "restoreStatus": history.get("restoreStatus", "unknown"),
@@ -2097,7 +2124,7 @@ def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[
         "latestDate": snapshot_date,
         "tradingDates": trading_dates,
         "coverage": coverage,
-        "snapshots": snapshots,
+        "snapshots": serialised_snapshots,
     }
     SCORE_HISTORY_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     temporary = SCORE_HISTORY_OUTPUT.with_suffix(".tmp")

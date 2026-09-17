@@ -67,9 +67,14 @@ class OutputValidationTest(unittest.TestCase):
 
     def valid_history(self) -> dict[str, object]:
         return {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "scoreVersion": "3.0.0",
             "factorVersion": "topix-capital-gain-v3.0",
+            "rowFormat": [
+                "code", "score", "theme", "supply", "technical", "relative",
+                "earnings", "liquidity", "valuation", "risk", "isNewHigh52w",
+                "dataQuality", "historySource",
+            ],
             "snapshotCount": 1,
             "restoredSnapshotCount": 0,
             "latestDate": "2026-07-14",
@@ -83,7 +88,7 @@ class OutputValidationTest(unittest.TestCase):
                 "scoreVersion": "3.0.0",
                 "factorVersion": "topix-capital-gain-v3.0",
                 "rowCount": 1,
-                "rows": [{"code": "1000", "score": 70}],
+                "rows": [["1000", 70]],
             }],
         }
 
@@ -115,9 +120,10 @@ class OutputValidationTest(unittest.TestCase):
     def test_history_rejects_mixed_factor_versions(self) -> None:
         dataset = self.valid_dataset()
         history = {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "scoreVersion": dataset["scoreVersion"],
             "factorVersion": dataset["factorVersion"],
+            "rowFormat": self.valid_history()["rowFormat"],
             "snapshots": [{"scoreVersion": "old", "factorVersion": "old"}],
         }
 

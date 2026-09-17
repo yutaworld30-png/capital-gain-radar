@@ -17,6 +17,21 @@ DEFAULT_ANALYSIS = ROOT / "outputs" / "data" / "nikkei225-analysis.json"
 DEFAULT_WEEKLY_PREDICTIONS = ROOT / "outputs" / "data" / "weekly-predictions-v1.json"
 DEFAULT_WEEKLY_ACCURACY = ROOT / "outputs" / "data" / "weekly-accuracy-summary-v1.json"
 REQUIRED_SOURCES = ("topix", "marginWeekly", "priceHistory", "themeNews", "fundamentals")
+SCORE_HISTORY_ROW_FIELDS = (
+    "code",
+    "score",
+    "theme",
+    "supply",
+    "technical",
+    "relative",
+    "earnings",
+    "liquidity",
+    "valuation",
+    "risk",
+    "isNewHigh52w",
+    "dataQuality",
+    "historySource",
+)
 TOPIX_MIN_COMPONENTS = 1500
 TOPIX_MAX_COMPONENTS = 2000
 
@@ -177,8 +192,11 @@ def validate_history(payload: object, dataset: dict[str, object]) -> list[str]:
     if not isinstance(payload, dict):
         return ["スコア履歴のルートがJSONオブジェクトではありません。"]
     errors: list[str] = []
-    if payload.get("schemaVersion") != 2:
-        errors.append("スコア履歴のschemaVersionが2ではありません。")
+    if payload.get("schemaVersion") != 3:
+        errors.append("スコア履歴のschemaVersionが3ではありません。")
+    row_format = payload.get("rowFormat")
+    if row_format != list(SCORE_HISTORY_ROW_FIELDS):
+        errors.append("スコア履歴のrowFormatが想定形式と一致しません。")
     if payload.get("scoreVersion") != dataset.get("scoreVersion") or payload.get("factorVersion") != dataset.get("factorVersion"):
         errors.append("スコア履歴の計算版が最新候補データと一致しません。")
     snapshots = payload.get("snapshots")
@@ -203,6 +221,26 @@ def validate_history(payload: object, dataset: dict[str, object]) -> list[str]:
         errors.append("スコア履歴の日付が昇順ではありません。")
     if len(dates) != len(set(dates)):
         errors.append("スコア履歴に同一日付が重複しています。")
+
+    for snapshot in snapshots:
+        if not isinstance(snapshot, dict):
+            continue
+        rows = snapshot.get("rows")
+        if not isinstance(rows, list):
+            errors.append("スコア履歴のrowsが配列ではありません。")
+            continue
+        if snapshot.get("rowCount") != len(rows):
+            errors.append("スコア履歴のrowCountがrows件数と一致しません。")
+        for row in rows:
+            if (
+                not isinstance(row, list)
+                or len(row) < 2
+                or len(row) > len(SCORE_HISTORY_ROW_FIELDS)
+                or not row[0]
+                or not isinstance(row[1], (int, float))
+            ):
+                errors.append("スコア履歴に不正な圧縮行があります。")
+                break
 
     if payload.get("snapshotCount") != len(snapshots):
         errors.append("スコア履歴のsnapshotCountが実データ件数と一致しません。")

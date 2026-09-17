@@ -133,6 +133,35 @@ class CloudflarePrivateTests(unittest.TestCase):
                     destination=root / "private-site",
                 )
 
+    def test_private_validation_rejects_cloudflare_oversized_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            public_site = root / "outputs"
+            (public_site / "data").mkdir(parents=True)
+            (public_site / "investment-candidate-app.html").write_text("app", encoding="utf-8")
+            (public_site / "data" / "nikkei225-analysis.json").write_text(
+                json.dumps(analysis(PUBLIC_DISTRIBUTION_MODE)),
+                encoding="utf-8",
+            )
+            private_analysis = root / "private-analysis.json"
+            private_analysis.write_text(
+                json.dumps(analysis(PRIVATE_CLOUD_DISTRIBUTION_MODE)),
+                encoding="utf-8",
+            )
+            destination = root / "private-site"
+            prepare_private_site(
+                public_site=public_site,
+                private_analysis=private_analysis,
+                destination=destination,
+            )
+            oversized = destination / "data" / "oversized.json"
+            with oversized.open("wb") as stream:
+                stream.truncate(25 * 1024 * 1024)
+
+            errors = validate_private_site(destination, public_site=public_site)
+
+        self.assertTrue(any("25MiB" in error and "oversized.json" in error for error in errors))
+
     def test_password_middleware_uses_signed_secure_cookie_and_fails_closed(self) -> None:
         source = (
             ROOT / "cloudflare" / "functions" / "_middleware.js"

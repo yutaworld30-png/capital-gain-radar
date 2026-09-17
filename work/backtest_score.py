@@ -66,6 +66,9 @@ def load_score_history(path: Path) -> list[dict[str, Any]]:
     snapshots = history.get("snapshots")
     if not isinstance(snapshots, list):
         return []
+    row_format = history.get("rowFormat")
+    if not isinstance(row_format, list) or not all(isinstance(field, str) for field in row_format):
+        row_format = []
     result: list[dict[str, Any]] = []
     for snapshot in snapshots:
         if not isinstance(snapshot, dict):
@@ -73,9 +76,19 @@ def load_score_history(path: Path) -> list[dict[str, Any]]:
         rows = snapshot.get("rows")
         if not isinstance(rows, list):
             continue
+        decoded_rows = []
+        for row in rows:
+            if isinstance(row, dict):
+                decoded_rows.append(row)
+            elif isinstance(row, list) and row_format:
+                decoded_rows.append({
+                    row_format[index]: value
+                    for index, value in enumerate(row[:len(row_format)])
+                    if value is not None
+                })
         result.append({
             "generatedAt": snapshot.get("generatedAt") or snapshot.get("date"),
-            "searchUniverse": rows,
+            "searchUniverse": decoded_rows,
         })
     result.sort(key=lambda item: str(item.get("generatedAt", "")))
     return result

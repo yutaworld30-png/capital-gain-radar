@@ -13,6 +13,9 @@ from prepare_cloudflare_private import (
 )
 
 
+MAX_CLOUDFLARE_FILE_BYTES = 25 * 1024 * 1024
+
+
 def _json(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -23,6 +26,14 @@ def validate_private_site(
     public_site: Path = PUBLIC_SITE,
 ) -> list[str]:
     errors: list[str] = []
+    if site.is_dir():
+        for path in site.rglob("*"):
+            if path.is_file() and path.stat().st_size >= MAX_CLOUDFLARE_FILE_BYTES:
+                relative = path.relative_to(site).as_posix()
+                size_mib = path.stat().st_size / (1024 * 1024)
+                errors.append(
+                    f"Cloudflare Pagesの25MiB制限以上のファイルがあります: {relative} ({size_mib:.1f}MiB)"
+                )
     try:
         marker = _json(site / PRIVATE_MARKER)
     except (OSError, json.JSONDecodeError) as error:
