@@ -52,6 +52,7 @@ from edinet_connector import (
     parse_financial_metrics_from_xbrl,
 )
 from market_breadth import build_nikkei225_breadth
+from margin_history import update as update_margin_history
 from weekly_target import attach_weekly_targets
 from weekly_prediction import build_accuracy_summary, update_prediction_ledger
 
@@ -387,6 +388,17 @@ def parse_margin_rows(reader: object) -> tuple[list[dict[str, object]], int]:
     return list(unique.values()), failures
 
 
+def margin_pdf_publication_date(text: str, as_of: str) -> str | None:
+    header = text.splitlines()[0] if text.splitlines() else ""
+    dates = []
+    for year, month, day in re.findall(r"(\d{4})/(\d{1,2})/(\d{1,2})", header):
+        try:
+            dates.append(date(int(year), int(month), int(day)).isoformat())
+        except ValueError:
+            return None
+    return dates[-1] if len(dates) >= 2 and dates[0] == as_of and dates[-1] >= as_of else None
+
+
 def inspect_latest_margin_pdf(file_links: list[dict[str, str]]) -> dict[str, object]:
     dated_files: list[tuple[str, dict[str, str]]] = []
     for link in file_links:
@@ -413,6 +425,7 @@ def inspect_latest_margin_pdf(file_links: list[dict[str, str]]) -> dict[str, obj
 
         reader = PdfReader(BytesIO(pdf_bytes))
         first_page_text = reader.pages[0].extract_text() or ""
+        result["publishedAt"] = margin_pdf_publication_date(first_page_text, str(result["asOf"]))
         first_page_layout = reader.pages[0].extract_text(extraction_mode="layout") or ""
         fragments: list[dict[str, object]] = []
 
@@ -2778,7 +2791,7 @@ def main() -> None:
         topix_coverage = len(topix_margin_records) / max(1, len(topix_codes))
         source = dataset["sources"]["marginWeekly"]  # type: ignore[index]
         source["status"] = "available" if topix_coverage >= 0.95 else ("partial" if margin_records else "file-index-only")
-        source["updatedAt"] = extract_latest_date(margin_html)
+        source["updatedAt"] = pdf_inspection.get("publishedAt")
         source["fileCount"] = len(file_links)
         source["files"] = file_links[:12]
         source["relatedPages"] = page_links
@@ -2941,6 +2954,17 @@ def main() -> None:
             "message": f"取得課題は{len(issue_rows)}件、異常値注意は{len(anomaly_rows)}件です。銘柄詳細のデータ品質で確認できます。",
         },
     ]
+    history_base = os.environ.get("SCORE_HISTORY_URL", "").rsplit("/", 1)[0]
+    margin_history = update_margin_history(
+        OUTPUT.parent, dataset, generated_at,
+        remote_url=f"{history_base}/margin-history-v1.json" if history_base else None,
+        loader=lambda url: load_json_url(url, headers=_remote_auth_headers()),
+    )
+    dataset["marginHistorySummary"] = {
+        "schemaVersion": 1,
+        "stockCount": len(margin_history["stocks"]),
+        "generatedAt": generated_at,
+    }
     score_history = update_score_history(dataset, generated_at)
     weekly_predictions, weekly_accuracy = update_weekly_prediction_outputs(dataset, generated_at)
     dataset["priceHistoryBundle"] = write_price_history_shards(dataset, generated_at)

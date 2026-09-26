@@ -102,6 +102,9 @@ jobs:
           PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
         run: python work/fetch_official_data.py
 
+      - name: Fill available official weekly margin history
+        run: python work/backfill_margin_history.py
+
       - name: Generate public-safe analysis for leak comparison
         run: python work/market_analysis.py
 

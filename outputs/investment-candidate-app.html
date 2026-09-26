@@ -1481,7 +1481,7 @@
     }
 
     .detail-tabs {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .range-tabs {
@@ -4188,6 +4188,7 @@
                 <button id="fundamentalTab" class="active" type="button">基本情報</button>
                 <button id="chartTab" type="button">チャート</button>
                 <button id="scoreHistoryTab" type="button">スコア推移</button>
+                <button id="marginHistoryTab" type="button">信用需給</button>
               </div>
               <div id="fundamentalPanel">
                 <div class="fundamental-grid" id="fundamentalGrid"></div>
@@ -4242,6 +4243,14 @@
                 <div class="indicator-grid" id="indicatorGrid"></div>
                 <div class="signal-list" id="signalList"></div>
                 <div class="chart-note" id="chartNote">候補銘柄はローソク足・出来高つきで表示します。詳細OHLCVがない銘柄は、無料取得できる終値履歴を使ったラインチャートに切り替えます。</div>
+              </div>
+              <div id="marginHistoryPanel" hidden>
+                <div class="range-tabs" aria-label="信用需給の表示期間">
+                  <button type="button" class="active" data-margin-months="3">3ヶ月</button>
+                  <button type="button" data-margin-months="6">6ヶ月</button>
+                  <button type="button" data-margin-months="12">1年</button>
+                </div>
+                <div id="marginHistoryContent" aria-live="polite"></div>
               </div>
               <div id="scoreHistoryPanel" hidden>
                 <div class="range-tabs" aria-label="スコア推移期間">
@@ -4386,6 +4395,7 @@
   </dialog>
 
   <script src="vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="margin-chart.js"></script>
   <script>
     let candidates = [];
     let searchUniverse = [];
@@ -8469,6 +8479,9 @@
       el.fundamentalPanel.hidden = state.detailTab !== "fundamental";
       el.chartPanel.hidden = state.detailTab !== "chart";
       el.scoreHistoryPanel.hidden = state.detailTab !== "scoreHistory";
+      document.querySelector("#marginHistoryPanel").hidden = state.detailTab !== "marginHistory";
+      document.querySelector("#marginHistoryTab").classList.toggle("active", state.detailTab === "marginHistory");
+      if (state.detailTab === "marginHistory") void window.marginHistoryChart.show(item.code);
       Object.entries(el.rangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.chartRange === range);
       });
@@ -8984,6 +8997,10 @@
     });
     el.chartTab.addEventListener("click", () => {
       state.detailTab = "chart";
+      render();
+    });
+    document.querySelector("#marginHistoryTab").addEventListener("click", () => {
+      state.detailTab = "marginHistory";
       render();
     });
     el.scoreHistoryTab.addEventListener("click", () => {

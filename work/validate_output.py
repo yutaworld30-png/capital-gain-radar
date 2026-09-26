@@ -8,6 +8,7 @@ from pathlib import Path
 
 from market_analysis import validate_analysis
 from weekly_prediction import validate_accuracy_summary, validate_prediction_ledger
+from margin_history import validate_files as validate_margin_files
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -300,6 +301,11 @@ def main() -> int:
         print(f"ERROR: 候補JSONを読み込めません: {error}")
         return 1
     errors = validate_dataset(dataset)
+    if dataset.get("marginHistorySummary"):
+        try:
+            validate_margin_files(args.dataset.parent)
+        except (OSError, ValueError, TypeError, KeyError) as error:
+            errors.append(f"信用需給履歴: {error}")
     errors.extend(validate_price_history_files(dataset, args.dataset.parent.parent))
     try:
         history = json.loads(args.history.read_text(encoding="utf-8"))

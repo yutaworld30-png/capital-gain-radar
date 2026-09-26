@@ -8,3 +8,5 @@ __pycache__/
 work/tmp/
 outputs/data/latest-candidates.json
 outputs/data/price-history/
+outputs/data/margin-history/
+outputs/data/margin-history-v1.json
