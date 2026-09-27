@@ -43,7 +43,7 @@ class MarginHistoryTest(unittest.TestCase):
     def test_restore_and_shard(self):
         remote = merge(self.empty(), self.dataset(), "2026-09-24")
         with tempfile.TemporaryDirectory() as directory:
-            result = update(directory, self.dataset(day="2026-09-25"), "2026-09-27", "https://example.test", lambda url: remote)
+            result = update(directory, self.dataset(day="2026-09-25"), "2026-09-27", "https://example.test", lambda url: {"schemaVersion": 2, "sources": {}, "marginHistorySummary": {"schemaVersion": 1}} if url.endswith("latest-candidates.json") else remote)
             self.assertEqual(len(result["stocks"]["9433"]), 2)
             shard = json.loads((Path(directory) / "margin-history/9433.json").read_text())
             self.assertEqual(shard["rows"], result["stocks"]["9433"])
@@ -66,7 +66,7 @@ class MarginHistoryTest(unittest.TestCase):
         for initialized in (False, True):
             def loader(url):
                 if url.endswith("latest-candidates.json"):
-                    return {"marginHistorySummary": {"schemaVersion": 1}} if initialized else {}
+                    return {"schemaVersion": 2, "sources": {}, **({"marginHistorySummary": {"schemaVersion": 1}} if initialized else {})}
                 raise HTTPError(url, 404, "Not found", None, None)
             with tempfile.TemporaryDirectory() as directory:
                 if initialized:
@@ -75,6 +75,22 @@ class MarginHistoryTest(unittest.TestCase):
                 else:
                     result = update(directory, self.dataset(), "2026-09-27", "https://example.test/margin-history-v1.json", loader)
                     self.assertEqual(len(result["stocks"]), 1)
+
+    def test_first_release_does_not_request_nonexistent_asset(self):
+        requests = []
+        def loader(url):
+            requests.append(url)
+            if url.endswith("latest-candidates.json"):
+                return {"schemaVersion": 2, "sources": {}}
+            raise json.JSONDecodeError("HTML fallback", "<html>", 0)
+        with tempfile.TemporaryDirectory() as directory:
+            update(directory, self.dataset(), "2026-09-27", "https://example.test/margin-history-v1.json", loader)
+        self.assertEqual(len(requests), 1)
+
+    def test_invalid_dataset_is_not_a_bootstrap_signal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(RuntimeError):
+                update(directory, self.dataset(), "2026-09-27", "https://example.test/margin-history-v1.json", lambda url: {})
 
 
 if __name__ == "__main__":

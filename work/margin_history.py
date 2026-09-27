@@ -4,7 +4,6 @@ import math
 import re
 from datetime import date, timedelta
 from pathlib import Path
-from urllib.error import HTTPError
 
 
 def number(value):
@@ -65,22 +64,20 @@ def update(data_dir, dataset, generated_at, remote_url=None, loader=None):
     validate(history)
     if remote_url:
         try:
-            remote = validate(loader(remote_url))
+            published = loader(remote_url.rsplit("/", 1)[0] + "/latest-candidates.json")
+            if not isinstance(published, dict) or published.get("schemaVersion") != 2 or not isinstance(published.get("sources"), dict):
+                raise ValueError("Invalid published dataset")
+            # Missing assets can return the site's HTML with HTTP 200. The
+            # authenticated dataset explicitly indicates whether history exists.
+            remote = validate(loader(remote_url)) if published.get("marginHistorySummary") else {"schemaVersion": 1, "stocks": {}}
             remote["sources"] = {**history.get("sources", {}), **remote.get("sources", {})}
             for code, rows in history["stocks"].items():
                 combined = {row["date"]: row for row in rows}
                 combined.update({row["date"]: row for row in remote["stocks"].get(code, [])})
                 remote["stocks"][code] = [combined[key] for key in sorted(combined)]
             history = remote
-        except HTTPError as error:
-            # The first release has no remote history; all other errors stop publication.
-            if error.code != 404:
-                raise RuntimeError("Margin history restore failed") from None
-            published = loader(remote_url.rsplit("/", 1)[0] + "/latest-candidates.json")
-            if published.get("marginHistorySummary"):
-                raise RuntimeError("Previously published margin history is missing")
-        except Exception:
-            raise RuntimeError("Margin history restore failed") from None
+        except Exception as error:
+            raise RuntimeError(f"Margin history restore failed ({type(error).__name__})") from None
     result = merge(history, dataset, generated_at)
     shard_dir = Path(data_dir) / "margin-history"
     shard_dir.mkdir(parents=True, exist_ok=True)
