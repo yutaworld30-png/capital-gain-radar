@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fetch_official_data import (
-    JPX_MARGIN_URL, fetch_text, inspect_latest_margin_pdf, parse_margin_file_links,
+    fetch_margin_file_links, inspect_latest_margin_pdf,
 )
 from margin_history import update, validate
 
@@ -22,7 +22,7 @@ def main():
         parser.error("TOPIX components are required")
     history_path = args.data_dir / "margin-history-v1.json"
     history = validate(json.loads(history_path.read_text(encoding="utf-8"))) if history_path.exists() else {"sources": {}}
-    links = parse_margin_file_links(fetch_text(JPX_MARGIN_URL))
+    links = fetch_margin_file_links()
     count = 0
     for link in sorted(links, key=lambda item: item["url"]):
         match = re.search(r"syumatsu(\d{4})(\d{2})(\d{2})\d*\.pdf$", link["url"])

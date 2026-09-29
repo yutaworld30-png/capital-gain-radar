@@ -69,7 +69,7 @@ PAGES_BASE_URL = "https://yutaworld30-png.github.io/capital-gain-radar"
 NIKKEI_URL = "https://indexes.nikkei.co.jp/en/nkave/index/component?idx=nk225"
 JPX_LIST_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/01.html"
 JPX_LIST_FILE_URL = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xlsx"
-JPX_MARGIN_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin/05.html"
+JPX_MARGIN_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin/01.html"
 JPX_MARGIN_INDEX_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin/index.html"
 SCHEMA_VERSION = 2
 SCORE_HISTORY_SCHEMA_VERSION = 3
@@ -335,6 +335,20 @@ def parse_margin_page_links(html: str) -> list[dict[str, str]]:
         pages.append({"url": url, "label": label or url.rsplit("/", 1)[-1]})
         seen.add(url)
     return pages
+
+
+def fetch_margin_file_links() -> list[dict[str, str]]:
+    # Discover the per-issue page by its official label, not its numeric filename.
+    pages = parse_margin_page_links(fetch_text(JPX_MARGIN_INDEX_URL))
+    urls = [item["url"] for item in pages
+            if "銘柄別信用取引残高" in re.sub(r"\s+", "", item["label"])
+            and item["url"].startswith("https://www.jpx.co.jp/markets/statistics-equities/margin/")]
+    urls.append(JPX_MARGIN_URL)
+    for url in dict.fromkeys(urls):
+        links = parse_margin_file_links(fetch_text(url))
+        if any(re.search(r"syumatsu\d{8}\d*\.pdf$", item["url"], re.I) for item in links):
+            return links
+    raise ValueError("JPX per-issue weekly margin PDFs not found on official pages")
 
 
 def parse_number(token: str) -> int:
@@ -2766,9 +2780,8 @@ def main() -> None:
         )
 
     try:
-        margin_html = fetch_text(JPX_MARGIN_URL)
         margin_index_html = fetch_text(JPX_MARGIN_INDEX_URL)
-        file_links = parse_margin_file_links(margin_html)
+        file_links = fetch_margin_file_links()
         page_links = parse_margin_page_links(margin_index_html)
         pdf_inspection = inspect_latest_margin_pdf(file_links)
         margin_records = pdf_inspection.pop("records", [])
@@ -2840,6 +2853,11 @@ def main() -> None:
                 item for item in previous_margin
                 if isinstance(item, dict) and str(item.get("code", "")) in nikkei_codes
             ]
+
+    margin_status = dataset["sources"]["marginWeekly"]
+    if margin_status.get("status") != "available":
+        raise RuntimeError("JPX weekly margin acquisition failed; published data retained: "
+                           + str(margin_status.get("reason", "unknown")))
 
     if not collect_jquants_metrics(dataset, generated_at):
         collect_free_market_metrics(dataset, generated_at, previous_dataset)
