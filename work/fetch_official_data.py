@@ -346,9 +346,22 @@ def fetch_margin_file_links() -> list[dict[str, str]]:
     urls.append(JPX_MARGIN_URL)
     for url in dict.fromkeys(urls):
         links = parse_margin_file_links(fetch_text(url))
-        if any(re.search(r"syumatsu\d{8}\d*\.pdf$", item["url"], re.I) for item in links):
+        if any(margin_pdf_date(item["url"]) for item in links):
             return links
     raise ValueError("JPX per-issue weekly margin PDFs not found on official pages")
+
+
+def margin_pdf_date(url: str) -> str | None:
+    weekly = re.search(r"syumatsu(\d{8})\d*\.pdf$", url, re.I)
+    daily = re.search(r"/(\d{8})_mtall\.pdf$", url, re.I)
+    matched = weekly or daily
+    if not matched:
+        return None
+    try:
+        basis = date.fromisoformat(f"{matched[1][:4]}-{matched[1][4:6]}-{matched[1][6:]}")
+    except ValueError:
+        return None
+    return basis.isoformat() if weekly or basis.weekday() == 4 else None
 
 
 def parse_number(token: str) -> int:
@@ -362,6 +375,11 @@ def parse_margin_rows(reader: object) -> tuple[list[dict[str, object]], int]:
         r"^[A-Z]\s+(?P<name>.+?)\s+(?P<raw_code>[0-9A-Z]{5})\s+"
         r"(?P<isin>JP[0-9A-Z]{10})\s+(?P<values>.+)$"
     )
+    daily_balances = re.compile(
+        r"\bShs\.\s+(?P<sales>\d[\d,]*)\s+"
+        r"(?:[^\d\s]+\s+)?\d[\d,]*\s+\d+(?:\.\d+)?%\s+"
+        r"(?P<purchases>\d[\d,]*)\b"
+    )
     records: list[dict[str, object]] = []
     failures = 0
     for page in reader.pages:  # type: ignore[attr-defined]
@@ -371,15 +389,21 @@ def parse_margin_rows(reader: object) -> tuple[list[dict[str, object]], int]:
             match = row_pattern.match(line)
             if not match:
                 continue
-            tokens = match.group("values").split()
+            values = match.group("values")
+            daily = daily_balances.search(values)
+            tokens = values.split()
             try:
-                sales = parse_number(tokens[0])
-                index = 1
-                if tokens[index] == "▲":
+                if daily:
+                    sales = parse_number(daily["sales"])
+                    purchases = parse_number(daily["purchases"])
+                else:
+                    sales = parse_number(tokens[0])
+                    index = 1
+                    if tokens[index] == "▲":
+                        index += 1
+                    parse_number(tokens[index])
                     index += 1
-                parse_number(tokens[index])
-                index += 1
-                purchases = parse_number(tokens[index])
+                    purchases = parse_number(tokens[index])
             except (IndexError, ValueError):
                 failures += 1
                 continue
@@ -403,22 +427,22 @@ def parse_margin_rows(reader: object) -> tuple[list[dict[str, object]], int]:
 
 
 def margin_pdf_publication_date(text: str, as_of: str) -> str | None:
-    header = text.splitlines()[0] if text.splitlines() else ""
+    header = text[:2000]
     dates = []
     for year, month, day in re.findall(r"(\d{4})/(\d{1,2})/(\d{1,2})", header):
         try:
             dates.append(date(int(year), int(month), int(day)).isoformat())
         except ValueError:
             return None
-    return dates[-1] if len(dates) >= 2 and dates[0] == as_of and dates[-1] >= as_of else None
+    return dates[1] if len(dates) >= 2 and dates[0] == as_of and dates[1] >= as_of else None
 
 
 def inspect_latest_margin_pdf(file_links: list[dict[str, str]]) -> dict[str, object]:
     dated_files: list[tuple[str, dict[str, str]]] = []
     for link in file_links:
-        match = re.search(r"syumatsu(\d{8})\d*\.pdf", link["url"], flags=re.IGNORECASE)
-        if match:
-            dated_files.append((match.group(1), link))
+        basis = margin_pdf_date(link["url"])
+        if basis:
+            dated_files.append((basis.replace("-", ""), link))
     if not dated_files:
         return {"status": "not-found", "reason": "日付付きの銘柄別信用取引週末残高PDFが見つかりません。"}
 

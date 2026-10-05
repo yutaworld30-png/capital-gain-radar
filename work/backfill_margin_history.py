@@ -1,12 +1,11 @@
 """Import available official weekly PDFs; never infer missing weeks."""
 import argparse
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 
 from fetch_official_data import (
-    fetch_margin_file_links, inspect_latest_margin_pdf,
+    fetch_margin_file_links, inspect_latest_margin_pdf, margin_pdf_date,
 )
 from margin_history import update, validate
 
@@ -25,10 +24,9 @@ def main():
     links = fetch_margin_file_links()
     count = 0
     for link in sorted(links, key=lambda item: item["url"]):
-        match = re.search(r"syumatsu(\d{4})(\d{2})(\d{2})\d*\.pdf$", link["url"])
-        if not match:
+        as_of = margin_pdf_date(link["url"])
+        if not as_of:
             continue
-        as_of = "-".join(match.groups())
         if history.get("sources", {}).get(as_of, {}).get("url") == link["url"]:
             continue
         inspected = inspect_latest_margin_pdf([link])

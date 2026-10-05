@@ -4,11 +4,26 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "work"))
-from fetch_official_data import margin_pdf_publication_date
+from fetch_official_data import margin_pdf_publication_date, margin_pdf_date, parse_margin_rows
 from fetch_official_data import fetch_margin_file_links, JPX_MARGIN_URL, JPX_MARGIN_INDEX_URL
 
 
 class MarginPublicationTest(unittest.TestCase):
+    def test_daily_pdf_is_weekly_only_on_friday(self):
+        self.assertEqual(margin_pdf_date("https://www.jpx.co.jp/20261002_mtall.pdf"), "2026-10-02")
+        self.assertIsNone(margin_pdf_date("https://www.jpx.co.jp/20261001_mtall.pdf"))
+        self.assertEqual(margin_pdf_date("https://www.jpx.co.jp/syumatsu2026091800.pdf"), "2026-09-18")
+
+    def test_daily_pdf_balance_columns(self):
+        class Page:
+            def extract_text(self):
+                return ("B test 13010 JP3257200000 Shs. 9,400 600 0.1% 160,100 2,400 1.3%\n"
+                        "B test 13320 JP3718800000 Shs. 55,800 �� 8,900 0.0% 721,100 47,000 0.2%")
+        rows, failures = parse_margin_rows(type("Reader", (), {"pages": [Page()]})())
+        self.assertEqual(failures, 0)
+        self.assertEqual([(row["outstandingSales"], row["outstandingPurchases"]) for row in rows],
+                         [(9400, 160100), (55800, 721100)])
+
     def test_discovers_moved_official_page(self):
         moved = "https://www.jpx.co.jp/markets/statistics-equities/margin/99.html"
         pages = {
@@ -32,6 +47,7 @@ class MarginPublicationTest(unittest.TestCase):
 
     def test_header_dates(self):
         self.assertEqual(margin_pdf_publication_date("2026/9/18 application (Unit: 1 share) 2026/9/25\nAs of 2026/9/18", "2026-09-18"), "2026-09-25")
+        self.assertEqual(margin_pdf_publication_date("Note\n2026/10/2 application 2026/10/5\nAs of 2026/10/2", "2026-10-02"), "2026-10-05")
 
     def test_unverified_dates_stay_missing(self):
         for text in ("2026/9/18", "", "2026/9/11 2026/9/25", "2026/9/18 2026/9/12", "2026/9/18 2026/99/25"):
