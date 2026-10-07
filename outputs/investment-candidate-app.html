@@ -491,6 +491,17 @@
       opacity: .78;
     }
 
+    .bb-sigma-controls {
+      align-items: center;
+    }
+
+    .bb-sigma-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
     .nikkei-analysis-kpis {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3904,6 +3915,11 @@
                 <button data-nikkei-indicator="ichimoku" type="button" aria-pressed="false">一目均衡表</button>
                 <button data-nikkei-indicator="per" type="button" aria-pressed="false" disabled>PER整数倍（非公開版のみ）</button>
               </div>
+              <div class="indicator-toggles bb-sigma-controls" aria-label="ボリンジャーバンドの幅">
+                <span class="bb-sigma-label">BB</span>
+                <button class="active" data-bb-sigma="2" type="button" aria-pressed="true">2σ</button>
+                <button data-bb-sigma="3" type="button" aria-pressed="false">3σ</button>
+              </div>
             </div>
             <div class="interactive-chart-controls">
               <div class="interactive-chart-readout" id="nikkeiChartReadout" aria-live="polite">日経225の価格履歴を読み込み中です。</div>
@@ -4234,6 +4250,11 @@
                       <button id="priceChartExpand" type="button" aria-pressed="false" title="チャートを画面いっぱいに表示">拡大表示</button>
                     </div>
                   </div>
+                  <div class="indicator-toggles bb-sigma-controls" aria-label="ボリンジャーバンドの幅">
+                    <span class="bb-sigma-label">ボリンジャー</span>
+                    <button class="active" data-bb-sigma="2" type="button" aria-pressed="true">2σ</button>
+                    <button data-bb-sigma="3" type="button" aria-pressed="false">3σ</button>
+                  </div>
                   <div class="interactive-chart-readout" id="priceChartReadout" aria-live="polite">価格履歴を読み込み中です。</div>
                   <div class="chart-wrap">
                     <div id="priceChart" role="img" aria-label="ローソク足、出来高、RSI、MACDチャート"></div>
@@ -4454,6 +4475,7 @@
       scoreHistoryRange: "1w",
       marketHistoryRange: "1m",
       nikkeiAnalysisRange: "6m",
+      bollingerSigma: 2,
       mobilePage: "candidates",
       mobileCandidateView: "overall",
       mobilePortfolioView: "holdings",
@@ -4673,6 +4695,7 @@
         "3y": document.querySelector("#nikkeiRange3y"),
       },
       nikkeiIndicatorButtons: document.querySelectorAll("[data-nikkei-indicator]"),
+      bollingerSigmaButtons: document.querySelectorAll("[data-bb-sigma]"),
       nikkeiMarginState: document.querySelector("#nikkeiMarginState"),
       nikkeiMarginLatest: document.querySelector("#nikkeiMarginLatest"),
       nikkeiMarginChart: document.querySelector("#nikkeiMarginChart"),
@@ -6116,6 +6139,7 @@
         allRows.length,
         allRows.at(-1)?.date || "",
         JSON.stringify(state.nikkeiIndicators),
+        state.bollingerSigma,
         nikkeiAnalysis?.per?.reference?.date || "",
       ].join("|");
       if (nikkeiChartController?.signature === signature) return;
@@ -6151,8 +6175,14 @@
       })));
 
       if (state.nikkeiIndicators.bb) {
-        addChartLine(chart, allRows, "bbUpper", "#6f8fc4", 0);
-        addChartLine(chart, allRows, "bbLower", "#6f8fc4", 0);
+        if (state.bollingerSigma === 2) {
+          addChartLine(chart, allRows, "bbUpper", "#6f8fc4", 0);
+          addChartLine(chart, allRows, "bbLower", "#6f8fc4", 0);
+        } else {
+          const bands = bollingerSeries(allRows.map(row => Number(row.close)), 20, 3);
+          addIndexedChartLine(chart, allRows, bands.map(value => value.upper), "#6f8fc4", 0);
+          addIndexedChartLine(chart, allRows, bands.map(value => value.lower), "#6f8fc4", 0);
+        }
       }
       if (state.nikkeiIndicators.ma) {
         addChartLine(chart, allRows, "ma5", "#0f8f6a", 0, { lineWidth: 2 });
@@ -6569,7 +6599,7 @@
           ["#b17715", "MA75"],
         ] : []),
         ...(state.nikkeiIndicators.psar ? [["#9b5c12", "パラボリックSAR"]] : []),
-        ...(state.nikkeiIndicators.bb ? [["#6f8fc4", "ボリンジャー ±2σ"]] : []),
+        ...(state.nikkeiIndicators.bb ? [["#6f8fc4", `ボリンジャー ±${state.bollingerSigma}σ`]] : []),
         ...(state.nikkeiIndicators.ichimoku ? [
           ["#d15460", "一目 転換線"],
           ["#246bce", "一目 基準線"],
@@ -7853,6 +7883,7 @@
         allRows.length,
         allRows.at(-1)?.date || "",
         hasOhlc,
+        state.bollingerSigma,
       ].join("|");
       if (technicalChartController?.signature === signature) return;
       disposeInteractiveChart(technicalChartController);
@@ -7900,7 +7931,7 @@
       const ma5 = movingAverageSeries(closes, 5);
       const ma25 = movingAverageSeries(closes, 25);
       const ma75 = movingAverageSeries(closes, 75);
-      const bands = bollingerSeries(closes, 20, 2);
+      const bands = bollingerSeries(closes, 20, state.bollingerSigma);
       addIndexedChartLine(chart, allRows, bands.map(value => value.upper), "#8aa8d8", 0);
       addIndexedChartLine(chart, allRows, bands.map(value => value.lower), "#8aa8d8", 0);
       addIndexedChartLine(chart, allRows, ma5, "#0f8f6a", 0, { lineWidth: 2 });
@@ -8004,8 +8035,8 @@
         else signals.push(["watch", "RSIは中立圏です。過熱・売られ過ぎの偏りは大きくありません。"]);
       }
       if (Number.isFinite(stats.bbUpper) && Number.isFinite(stats.bbLower)) {
-        if (close >= stats.bbUpper) signals.push(["bad", "終値がボリンジャーバンド+2σ付近です。短期の過熱に注意します。"]);
-        else if (close <= stats.bbLower) signals.push(["good", "終値がボリンジャーバンド-2σ付近です。反転候補として監視できます。"]);
+        if (close >= stats.bbUpper) signals.push(["bad", `終値がボリンジャーバンド+${state.bollingerSigma}σ付近です。短期の過熱に注意します。`]);
+        else if (close <= stats.bbLower) signals.push(["good", `終値がボリンジャーバンド-${state.bollingerSigma}σ付近です。反転候補として監視できます。`]);
         else signals.push(["watch", "終値はボリンジャーバンド内にあります。バンド上限・下限のどちらへ寄るかを見ます。"]);
       }
       if (Number.isFinite(stats.macdLine) && Number.isFinite(stats.macdSignal)) {
@@ -8448,7 +8479,7 @@
       const hasEnoughChartRows = chartRows.length >= 50;
 
       const closes = chartRows.map(row => row.close);
-      const latestBands = bollingerSeries(closes, 20, 2).at(-1) || {};
+      const latestBands = bollingerSeries(closes, 20, state.bollingerSigma).at(-1) || {};
       const hasOhlc = hasEnoughChartRows && chartRows.every(row =>
         Number.isFinite(row.open) &&
         Number.isFinite(row.high) &&
@@ -8485,6 +8516,11 @@
       Object.entries(el.rangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.chartRange === range);
       });
+      el.bollingerSigmaButtons.forEach(button => {
+        const active = Number(button.dataset.bbSigma) === state.bollingerSigma;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
       Object.entries(el.scoreRangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.scoreHistoryRange === range);
       });
@@ -8492,7 +8528,7 @@
       renderScoreHistory(item);
       el.chartLegend.innerHTML = [
         ["#246bce", hasOhlc ? "ローソク足" : "終値"],
-        ["#8aa8d8", "BB ±2σ"],
+        ["#8aa8d8", `BB ±${state.bollingerSigma}σ`],
         ["#0f8f6a", "MA5"],
         ["#b26a00", "MA25 / MACD Signal"],
         ["#627083", "MA75"],
@@ -8514,8 +8550,8 @@
         ["MA5", formatPrice(stats.ma5)],
         ["MA25", formatPrice(stats.ma25)],
         ["MA75", formatPrice(stats.ma75)],
-        ["BB +2σ", formatPrice(stats.bbUpper)],
-        ["BB -2σ", formatPrice(stats.bbLower)],
+        [`BB +${state.bollingerSigma}σ`, formatPrice(stats.bbUpper)],
+        [`BB -${state.bollingerSigma}σ`, formatPrice(stats.bbLower)],
         ["RSI14", Number.isFinite(stats.rsi) ? stats.rsi.toFixed(1) : "-"],
         ["MACD", Number.isFinite(stats.macdLine) && Number.isFinite(stats.macdSignal)
           ? `${stats.macdLine.toFixed(1)} / ${stats.macdSignal.toFixed(1)}`
@@ -9041,6 +9077,20 @@
         if (!Object.hasOwn(state.nikkeiIndicators, key)) return;
         state.nikkeiIndicators[key] = !state.nikkeiIndicators[key];
         renderNikkeiAnalysis(nikkeiAnalysis);
+      });
+    });
+    el.bollingerSigmaButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        const sigma = Number(button.dataset.bbSigma);
+        if (sigma !== 2 && sigma !== 3) return;
+        state.bollingerSigma = sigma;
+        el.bollingerSigmaButtons.forEach(option => {
+          const active = Number(option.dataset.bbSigma) === sigma;
+          option.classList.toggle("active", active);
+          option.setAttribute("aria-pressed", String(active));
+        });
+        renderNikkeiAnalysis(nikkeiAnalysis);
+        render();
       });
     });
     el.priceChartLatest.addEventListener("click", () => technicalChartController?.latest());

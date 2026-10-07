@@ -2,18 +2,27 @@ from __future__ import annotations
 
 import sys
 import unittest
-from datetime import date
+from datetime import date, datetime
+from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
+
+import openpyxl
 
 ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
 sys.path.insert(0, str(WORK))
 
 from jpx_weekly_connector import (  # noqa: E402
+    JpxWeeklyError,
+    MARGIN_CURRENT_PAGE,
+    MARGIN_HISTORY_PAGE,
     extract_xls_links,
+    fetch_margin_history,
     parse_current_margin_sheet,
     parse_investor_sheet,
     parse_margin_sheet,
+    parse_margin_workbook,
 )
 
 
@@ -31,6 +40,57 @@ class FakeSheet:
 
 
 class JpxWeeklyConnectorTests(unittest.TestCase):
+    @staticmethod
+    def margin_xlsx(*, include_unit: bool = True) -> bytes:
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.title = "信用取引現在高"
+        sheet["N4"] = "合計 Total"
+        sheet["N6"] = "売り残 Shares Sold Short"
+        sheet["P6"] = "買い残 Shares Bought on Margin"
+        if include_unit:
+            sheet["N9"] = "株数 thous.shs."
+            sheet["P9"] = "株数 thous.shs."
+        sheet["A10"] = "東京・名古屋 Tokyo & Nagoya"
+        sheet["A11"] = datetime(2026, 10, 2)
+        sheet["J11"] = 77_387  # Other margin column, not the two-market total.
+        sheet["L11"] = 1_981_537
+        sheet["N11"] = 354_386
+        sheet["P11"] = 3_765_572
+        output = BytesIO()
+        workbook.save(output)
+        return output.getvalue()
+
+    def test_current_xlsx_uses_total_columns_and_thousand_share_unit(self) -> None:
+        rows = parse_margin_workbook(self.margin_xlsx())
+        self.assertEqual(rows, [{
+            "weekEnd": "2026-10-02",
+            "sellBalanceThousandShares": 354386.0,
+            "buyBalanceThousandShares": 3765572.0,
+            "marginRatio": round(3765572 / 354386, 4),
+        }])
+
+    def test_current_xlsx_rejects_unknown_unit(self) -> None:
+        with self.assertRaises(JpxWeeklyError):
+            parse_margin_workbook(self.margin_xlsx(include_unit=False))
+
+    def test_history_survives_current_page_error(self) -> None:
+        xlsx_url = "https://www.jpx.co.jp/markets/statistics-equities/margin/current.xlsx"
+        html = f'<a href="{xlsx_url}">Excel</a>'.encode()
+
+        def fetch(url: str) -> bytes:
+            if url == MARGIN_HISTORY_PAGE:
+                return html
+            if url == xlsx_url:
+                return self.margin_xlsx()
+            raise JpxWeeklyError(f"HTTP 404: {url}")
+
+        with patch("jpx_weekly_connector.fetch_bytes", side_effect=fetch):
+            rows, source = fetch_margin_history()
+        self.assertEqual(source, xlsx_url)
+        self.assertEqual(rows[-1]["weekEnd"], "2026-10-02")
+        self.assertEqual(rows[-1]["sellBalanceThousandShares"], 354386.0)
+
     def test_margin_columns_and_zero_sell_balance(self) -> None:
         sheet = FakeSheet(12, 22)
         excel_epoch = date(1899, 12, 30)
@@ -82,11 +142,15 @@ class JpxWeeklyConnectorTests(unittest.TestCase):
         html = """
         <a href="/a/stock_val_1_260702.xls">amount</a>
         <a href="/a/stock_1_260702.xls">shares</a>
+        <a href="/a/stock_val_1_260709.xlsx">new amount</a>
         """
         links = extract_xls_links(html, "https://www.jpx.co.jp/page", contains="stock_val_1_")
         self.assertEqual(
             links,
-            ["https://www.jpx.co.jp/a/stock_val_1_260702.xls"],
+            [
+                "https://www.jpx.co.jp/a/stock_val_1_260702.xls",
+                "https://www.jpx.co.jp/a/stock_val_1_260709.xlsx",
+            ],
         )
 
 

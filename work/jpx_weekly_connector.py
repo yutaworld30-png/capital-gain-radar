@@ -3,17 +3,19 @@ from __future__ import annotations
 import math
 import re
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from io import BytesIO
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import Request, urlopen
+from zipfile import BadZipFile
 
 import xlrd
+import openpyxl
 
 
-MARGIN_HISTORY_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/margin/06.html"
+MARGIN_HISTORY_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/margin/05.html"
 MARGIN_CURRENT_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/margin/04.html"
 MARGIN_HISTORY_FALLBACK = (
     "https://www.jpx.co.jp/markets/statistics-equities/margin/"
@@ -110,6 +112,8 @@ def parse_margin_sheet(sheet: Any, *, datemode: int = 0) -> list[dict[str, Any]]
 
 
 def parse_margin_workbook(content: bytes) -> list[dict[str, Any]]:
+    if content.startswith(b"PK"):
+        return parse_margin_xlsx_workbook(content)
     try:
         workbook = xlrd.open_workbook(file_contents=content)
     except xlrd.XLRDError as error:
@@ -126,6 +130,66 @@ def parse_margin_workbook(content: bytes) -> list[dict[str, Any]]:
     if preferred is None:
         raise JpxWeeklyError("信用取引現在高シートが見つかりません。")
     return parse_margin_sheet(workbook.sheet_by_name(preferred), datemode=workbook.datemode)
+
+
+def parse_margin_xlsx_workbook(content: bytes) -> list[dict[str, Any]]:
+    try:
+        workbook = openpyxl.load_workbook(BytesIO(content), read_only=True, data_only=True)
+    except (OSError, ValueError, KeyError, BadZipFile) as error:
+        raise JpxWeeklyError("信用取引現在高Excelを開けませんでした。") from error
+    try:
+        for sheet in workbook.worksheets:
+            rows = sheet.iter_rows(values_only=True)
+            header = [tuple(row) for _, row in zip(range(10), rows)]
+            if not any("Tokyo & Nagoya" in str(cell) for row in header for cell in row):
+                continue
+            total_column = next(
+                (column for row in header[:5] for column, cell in enumerate(row) if "Total" in str(cell)),
+                None,
+            )
+            labels = next(
+                (
+                    row for row in header
+                    if any("Shares Sold Short" in str(cell) for cell in row)
+                    and any("Shares Bought on Margin" in str(cell) for cell in row)
+                ),
+                None,
+            )
+            if total_column is None or labels is None:
+                continue
+            sell_column = next(
+                (index for index in range(total_column, len(labels)) if "Shares Sold Short" in str(labels[index])),
+                None,
+            )
+            buy_column = next(
+                (index for index in range(total_column, len(labels)) if "Shares Bought on Margin" in str(labels[index])),
+                None,
+            )
+            if sell_column is None or buy_column is None or not any(
+                "thous.shs." in str(row[sell_column]) and "thous.shs." in str(row[buy_column])
+                for row in header if len(row) > buy_column
+            ):
+                continue
+            parsed = []
+            for row in rows:
+                if not row or not isinstance(row[0], (date, datetime)) or len(row) <= buy_column:
+                    continue
+                sell_balance = _number(row[sell_column])
+                buy_balance = _number(row[buy_column])
+                if sell_balance is None or buy_balance is None:
+                    continue
+                parsed.append({
+                    "weekEnd": row[0].date().isoformat() if isinstance(row[0], datetime) else row[0].isoformat(),
+                    "sellBalanceThousandShares": round(sell_balance, 3),
+                    "buyBalanceThousandShares": round(buy_balance, 3),
+                    "marginRatio": round(buy_balance / sell_balance, 4) if sell_balance > 0 else None,
+                })
+            if parsed:
+                by_date = {row["weekEnd"]: row for row in parsed}
+                return [by_date[key] for key in sorted(by_date)]
+        raise JpxWeeklyError("二市場合計の信用残高または単位を判定できません。")
+    finally:
+        workbook.close()
 
 
 def _normalized_text(value: object) -> str:
@@ -261,7 +325,7 @@ def parse_investor_workbook(content: bytes) -> dict[str, Any]:
 
 
 def extract_xls_links(html: str, base_url: str, *, contains: str = "") -> list[str]:
-    links = re.findall(r"""href=["']([^"']+\.xls(?:\?[^"']*)?)["']""", html, flags=re.IGNORECASE)
+    links = re.findall(r"""href=["']([^"']+\.xlsx?(?:\?[^"']*)?)["']""", html, flags=re.IGNORECASE)
     output: list[str] = []
     for link in links:
         absolute = urljoin(base_url, link)
@@ -296,25 +360,33 @@ def fetch_margin_history(existing: object = None, *, limit: int = 160) -> tuple[
     links.append(MARGIN_HISTORY_FALLBACK)
     refreshed: list[dict[str, Any]] = []
     source_url = MARGIN_HISTORY_FALLBACK
-    for link in dict.fromkeys(links):
+    newest_week = ""
+    for link in sorted(dict.fromkeys(links), key=lambda item: item.lower().split("?", 1)[0].endswith(".xlsx")):
         try:
             parsed = parse_margin_workbook(fetch_bytes(link))
         except JpxWeeklyError:
             continue
-        if len(parsed) > len(refreshed):
-            refreshed = parsed
+        refreshed = _merge_rows(refreshed, parsed, key="weekEnd", limit=limit)
+        if parsed and parsed[-1]["weekEnd"] >= newest_week:
+            newest_week = parsed[-1]["weekEnd"]
             source_url = link
     if not refreshed:
         raise JpxWeeklyError("信用取引現在高の履歴を解析できませんでした。")
-    current_html = fetch_bytes(MARGIN_CURRENT_PAGE).decode("utf-8", errors="replace")
+    try:
+        current_html = fetch_bytes(MARGIN_CURRENT_PAGE).decode("utf-8", errors="replace")
+    except JpxWeeklyError:
+        current_html = ""
     current_links = sorted(
         extract_xls_links(current_html, MARGIN_CURRENT_PAGE, contains="mtseisan"),
         key=_link_sort_key,
     )
     for link in current_links[-12:]:
         try:
-            refreshed.append(parse_current_margin_workbook(fetch_bytes(link)))
-            source_url = link
+            row = parse_current_margin_workbook(fetch_bytes(link))
+            refreshed.append(row)
+            if row["weekEnd"] > newest_week:
+                newest_week = row["weekEnd"]
+                source_url = link
         except JpxWeeklyError:
             continue
     return _merge_rows(existing, refreshed, key="weekEnd", limit=limit), source_url

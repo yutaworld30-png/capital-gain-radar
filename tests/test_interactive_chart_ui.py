@@ -66,6 +66,18 @@ class InteractiveChartUiTests(unittest.TestCase):
         ):
             self.assertIn(expected, self.html)
 
+    def test_bollinger_sigma_switch_updates_both_charts_and_labels(self) -> None:
+        self.assertEqual(self.html.count('data-bb-sigma="2"'), 2)
+        self.assertEqual(self.html.count('data-bb-sigma="3"'), 2)
+        self.assertIn('bollingerSigma: 2,', self.html)
+        self.assertIn('state.bollingerSigma = sigma;', self.html)
+        self.assertIn('const bands = bollingerSeries(allRows.map(row => Number(row.close)), 20, 3);', self.html)
+        self.assertIn('const bands = bollingerSeries(closes, 20, state.bollingerSigma);', self.html)
+        self.assertIn('`ボリンジャー ±${state.bollingerSigma}σ`', self.html)
+        self.assertIn('`BB +${state.bollingerSigma}σ`', self.html)
+        self.assertIn('`BB -${state.bollingerSigma}σ`', self.html)
+        self.assertIn('state.bollingerSigma,', self.html)
+
     def test_price_pipeline_keeps_three_year_chart_history(self) -> None:
         self.assertIn("CHART_HISTORY_ROWS = 780", self.fetch_source)
         self.assertIn("CHART_HISTORY_CALENDAR_DAYS = 1200", self.fetch_source)
