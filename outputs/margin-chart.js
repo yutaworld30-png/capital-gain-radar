@@ -33,7 +33,7 @@
       }
     });
     body += `<text x="${left}" y="210" font-size="12">${esc(rows[0].date)}</text><text x="${right}" y="210" text-anchor="end" font-size="12">${esc(rows.at(-1).date)}</text>`;
-    return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${balances ? "信用買い残と売り残" : "信用倍率"}の週次推移" style="width:100%;display:block">${body}</svg>`;
+    return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${balances ? "信用買い残と売り残" : "信用倍率"}の観測日別推移" style="width:100%;display:block">${body}</svg>`;
   }
   function draw(payload) {
     const panel = document.querySelector("#marginHistoryContent");
@@ -41,17 +41,17 @@
     const cutoff = new Date();
     cutoff.setUTCMonth(cutoff.getUTCMonth() - months);
     const rows = all.filter(row => Date.parse(row.date) >= cutoff.getTime());
-    if (!rows.length) { panel.textContent = "この期間の信用残高履歴はありません。週次データの取得後に表示されます。"; return; }
+    if (!rows.length) { panel.textContent = "この期間の信用残高履歴はありません。公表データの取得後に表示されます。"; return; }
     const last = rows.at(-1), prev = all[all.length - 2];
     const diff = prev && valid(last.ratio) && valid(prev.ratio) && Date.parse(last.date) - Date.parse(prev.date) <= 10 * 86400000 ? last.ratio - prev.ratio : null;
-    panel.innerHTML = `<p>信用倍率 <strong>${fmt(last.ratio)}${valid(last.ratio) ? "倍" : ""}</strong> / 前週差 ${diff === null ? "未算出" : (diff >= 0 ? "+" : "") + diff.toFixed(2) + "倍"}</p>
+    panel.innerHTML = `<p>信用倍率 <strong>${fmt(last.ratio)}${valid(last.ratio) ? "倍" : ""}</strong> / 前回差 ${diff === null ? "未算出" : (diff >= 0 ? "+" : "") + diff.toFixed(2) + "倍"}</p>
       <p>買い残 ${fmt(last.buy)}株 / 売り残 ${fmt(last.sell)}株</p>
       <p>基準日 ${esc(last.date)} / 公表日 ${esc(last.publishedAt)}</p>
-      ${Date.now() - Date.parse(last.date) > 14 * 86400000 ? '<p role="status">注意：最新の保存データは2週間以上前です。</p>' : ''}
+      ${Date.now() - Date.parse(last.date) > 7 * 86400000 ? '<p role="status">注意：最新の保存データは7日以上前です。</p>' : ''}
       ${chart(rows, false)}${chart(rows, true)}
       <p>緑：買い残　赤：売り残（棒グラフは千株）</p>
-      <p>${rows.length}週分を表示。未取得の週は補間しません。売り残ゼロの倍率は算出不可です。信用倍率の低さだけで買い時とは判断できません。</p>
-      <details><summary>週次データ一覧</summary><div style="overflow-x:auto"><table><thead><tr><th>基準日</th><th>倍率</th><th>買い残（株）</th><th>売り残（株）</th><th>公表日</th></tr></thead><tbody>${[...rows].reverse().map(row => `<tr><td>${esc(row.date)}</td><td>${fmt(row.ratio)}</td><td>${fmt(row.buy)}</td><td>${fmt(row.sell)}</td><td>${esc(row.publishedAt)}</td></tr>`).join("")}</tbody></table></div></details>`;
+      <p>${rows.length}観測日を表示。日次へ移行する前の期間には週次観測が含まれます。未取得日は補間しません。売り残ゼロの倍率は算出不可です。</p>
+      <details><summary>観測データ一覧</summary><div style="overflow-x:auto"><table><thead><tr><th>基準日</th><th>倍率</th><th>買い残（株）</th><th>売り残（株）</th><th>公表日</th></tr></thead><tbody>${[...rows].reverse().map(row => `<tr><td>${esc(row.date)}</td><td>${fmt(row.ratio)}</td><td>${fmt(row.buy)}</td><td>${fmt(row.sell)}</td><td>${esc(row.publishedAt)}</td></tr>`).join("")}</tbody></table></div></details>`;
   }
   async function show(code) {
     selected = String(code);

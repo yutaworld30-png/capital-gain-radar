@@ -1,4 +1,4 @@
-"""Import available official weekly PDFs; never infer missing weeks."""
+"""Import available official dated PDFs; never infer missing trading days."""
 import argparse
 import json
 from datetime import datetime, timezone
@@ -40,7 +40,7 @@ def main():
         history = update(args.data_dir, dataset, datetime.now(timezone.utc).isoformat())
         print(f"Imported {as_of}: {len(records)} stocks, published {inspected.get('publishedAt')}", flush=True)
         count += 1
-    print(f"Imported {count} official weekly PDFs. Unavailable dates remain missing.")
+    print(f"Imported {count} official dated PDFs. Unavailable dates remain missing.")
 
 
 if __name__ == "__main__":

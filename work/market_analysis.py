@@ -14,13 +14,14 @@ from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from jpx_weekly_connector import (
-    INVESTOR_ARCHIVE_BASE,
+    INVESTOR_CURRENT_PAGE,
     JpxWeeklyError,
     MARGIN_HISTORY_PAGE,
     fetch_investor_history,
     fetch_margin_history,
 )
 from market_breadth import build_nikkei225_breadth
+from nikkei_margin_daily import JPX_MARGIN_URL, load_nikkei_margin_daily
 from market_technical import (
     TECHNICAL_VERSION,
     build_technical_rows,
@@ -46,13 +47,13 @@ PUBLISHED_ANALYSIS_URL = (
 )
 YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/%5EN225"
 NIKKEI_PER_URL = "https://indexes.nikkei.co.jp/nkave/archives/data?list=per"
+NIKKEI_PBR_URL = "https://indexes.nikkei.co.jp/nkave/archives/data?list=pbr"
+NIKKEI_DAILY_URL = "https://indexes.nikkei.co.jp/nkave/archives/data?list=daily"
 SCHEMA_VERSION = 1
 ANALYSIS_VERSION = "nikkei225-analysis-v1"
 PUBLIC_DISTRIBUTION_MODE = "public"
 LOCAL_PRIVATE_DISTRIBUTION_MODE = "local-private"
 PRIVATE_CLOUD_DISTRIBUTION_MODE = "private-cloud"
-PER_MULTIPLIER_MIN = 12
-PER_MULTIPLIER_MAX = 24
 
 
 class MarketAnalysisError(RuntimeError):
@@ -213,6 +214,56 @@ def parse_weighted_per_html(html: str) -> list[dict[str, Any]]:
     return [by_date[key] for key in sorted(by_date)]
 
 
+def parse_index_pbr_html(html: str) -> list[dict[str, Any]]:
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+    rows = []
+    for match in re.finditer(
+        r"(20\d{2})[./](\d{1,2})[./](\d{1,2})\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)",
+        text,
+    ):
+        try:
+            day = date(*(int(match.group(index)) for index in range(1, 4))).isoformat()
+        except ValueError:
+            continue
+        weighted, index = float(match.group(4)), float(match.group(5))
+        if weighted > 0 and index > 0:
+            rows.append({"date": day, "weightedPbr": weighted, "indexPbr": index})
+    by_date = {row["date"]: row for row in rows}
+    return [by_date[key] for key in sorted(by_date)]
+
+
+def parse_nikkei_daily_close_html(html: str) -> list[dict[str, Any]]:
+    text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html))
+    rows = []
+    for match in re.finditer(
+        r"(20\d{2})[./](\d{1,2})[./](\d{1,2})\s+"
+        r"(\d[\d,]*(?:\.\d+)?)\s+(\d[\d,]*(?:\.\d+)?)\s+"
+        r"(\d[\d,]*(?:\.\d+)?)\s+(\d[\d,]*(?:\.\d+)?)",
+        text,
+    ):
+        try:
+            day = date(*(int(match.group(index)) for index in range(1, 4))).isoformat()
+        except ValueError:
+            continue
+        open_, high, low, close = (float(match.group(index).replace(",", "")) for index in range(4, 8))
+        if 0 < low <= min(open_, close) <= max(open_, close) <= high:
+            rows.append({"date": day, "close": close})
+    by_date = {row["date"]: row for row in rows}
+    return [by_date[key] for key in sorted(by_date)]
+
+
+def _valuation_row(row: dict[str, Any]) -> dict[str, Any]:
+    result = {key: row.get(key) for key in ("date", "weightedPer", "indexPer", "weightedPbr", "indexPbr", "close")}
+    close, per, pbr = (row.get(key) for key in ("close", "indexPer", "indexPbr"))
+    if all(isinstance(value, (int, float)) and math.isfinite(value) and value > 0 for value in (close, per, pbr)):
+        result["eps"] = round(close / per, 2)
+        result["bps"] = round(close / pbr, 2)
+    else:
+        result["eps"] = None
+        result["bps"] = None
+    return result
+
+
 def _load_previous(path: Path = OUTPUT) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -227,6 +278,32 @@ def _load_published_previous() -> dict[str, Any]:
         return payload if isinstance(payload, dict) else {}
     except (MarketAnalysisError, json.JSONDecodeError, UnicodeDecodeError):
         return {}
+
+
+def _load_private_previous() -> dict[str, Any]:
+    base_url = os.getenv("PRIVATE_HISTORY_SOURCE_URL", "").rstrip("/")
+    if not base_url:
+        return {}
+    token = os.getenv("PRIVATE_SERVICE_TOKEN", "")
+    if not token:
+        raise MarketAnalysisError("本人限定の前回分析履歴を復元する認証設定がありません。")
+    request = Request(
+        f"{base_url}/data/nikkei225-analysis.json",
+        headers={"X-Capital-Radar-Service": token, "User-Agent": "CapitalGainRadar/0.6"},
+    )
+    try:
+        with urlopen(request, timeout=45) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise MarketAnalysisError("本人限定の前回分析履歴を復元できません。") from error
+    if (
+        not isinstance(payload, dict)
+        or payload.get("distributionMode") != PRIVATE_CLOUD_DISTRIBUTION_MODE
+        or not isinstance(payload.get("per"), dict)
+        or not isinstance(payload["per"].get("rows"), list)
+    ):
+        raise MarketAnalysisError("本人限定の前回分析履歴の形式が不正です。")
+    return payload
 
 
 def _valid_price_row(row: object) -> dict[str, Any] | None:
@@ -361,25 +438,43 @@ def _per_data(
             ),
         )
     try:
-        refreshed = parse_weighted_per_html(fetch_bytes(NIKKEI_PER_URL).decode("utf-8", errors="replace"))
+        per_rows = parse_weighted_per_html(fetch_bytes(NIKKEI_PER_URL).decode("utf-8", errors="replace"))
+        pbr_rows = parse_index_pbr_html(fetch_bytes(NIKKEI_PBR_URL).decode("utf-8", errors="replace"))
+        close_rows = parse_nikkei_daily_close_html(fetch_bytes(NIKKEI_DAILY_URL).decode("utf-8", errors="replace"))
+        if not per_rows or not pbr_rows or not close_rows:
+            raise MarketAnalysisError("日経公式のPER・PBR・終値のいずれかが未取得です。")
+        refreshed = {row["date"]: dict(row) for row in per_rows}
+        for group in (pbr_rows, close_rows):
+            for row in group:
+                if row["date"] in refreshed:
+                    refreshed[row["date"]].update(row)
+        refreshed = {
+            day: _valuation_row(row)
+            for day, row in refreshed.items()
+            if row.get("indexPbr") is not None and row.get("close") is not None
+        }
+        if not refreshed:
+            raise MarketAnalysisError("日経公式のPER・PBR・終値に同じ基準日がありません。")
         merged = {
             str(row.get("date")): row
             for row in prior_rows
             if isinstance(row, dict) and row.get("date")
         }
-        merged.update({str(row["date"]): row for row in refreshed})
-        rows = [merged[key] for key in sorted(merged)[-1_100:]]
+        merged.update(refreshed)
+        rows = [_valuation_row(merged[key]) for key in sorted(merged)[-1_100:]]
+        latest_complete = next((row for row in reversed(rows) if row["eps"] is not None and row["bps"] is not None), None)
         return rows, {
-            "status": "available" if rows else "unavailable",
+            "status": "available" if latest_complete else "unavailable",
             "url": NIKKEI_PER_URL,
-            "asOf": rows[-1]["date"] if rows else None,
+            "asOf": latest_complete["date"] if latest_complete else None,
+            "sourceUrls": [NIKKEI_PER_URL, NIKKEI_PBR_URL, NIKKEI_DAILY_URL],
             "accessMode": distribution_mode,
             "note": (
-                "日経平均プロフィルの加重平均PER。ローカル個人利用モードで取得しています。"
+                "日経公式の加重平均・指数ベースPER/PBRと終値。ローカル個人利用モードで取得しています。"
                 if local_private
-                else "日経平均プロフィルの加重平均PER。本人限定クラウド利用の確認済みフラグで取得しています。"
+                else "日経公式の加重平均・指数ベースPER/PBRと終値。本人限定クラウド利用の確認済みフラグで取得しています。"
                 if private_cloud
-                else "日経平均プロフィルの加重平均PER。利用条件確認済みフラグで取得しています。"
+                else "日経公式の加重平均・指数ベースPER/PBRと終値。利用条件確認済みフラグで取得しています。"
             ),
         }
     except MarketAnalysisError as error:
@@ -419,7 +514,7 @@ def _weekly_data(
         }
         investor = {
             **_permission_required_source(
-                INVESTOR_ARCHIVE_BASE.format(index=0),
+                INVESTOR_CURRENT_PAGE,
                 (
                     "JPX公開データの本人限定クラウド利用条件を確認後に有効化します。"
                     if private_cloud
@@ -467,7 +562,7 @@ def _weekly_data(
             investor_note = "直近の投資主体別ファイルを更新できず、前回履歴を維持しています。"
         investor = {
             "status": investor_status,
-            "url": INVESTOR_ARCHIVE_BASE.format(index=0),
+            "url": INVESTOR_CURRENT_PAGE,
             "asOf": investor_as_of,
             "unit": "100m-yen",
             "scope": "東京・名古屋二市場合計（金額）",
@@ -479,7 +574,7 @@ def _weekly_data(
     except JpxWeeklyError as error:
         investor = {
             "status": "stale-fallback" if previous_investor else "unavailable",
-            "url": INVESTOR_ARCHIVE_BASE.format(index=0),
+            "url": INVESTOR_CURRENT_PAGE,
             "asOf": previous_investor[-1].get("periodEnd") if previous_investor else None,
             "note": str(error),
             "rows": previous_investor,
@@ -491,33 +586,42 @@ def _per_reference(
     technical_rows: list[dict[str, Any]],
     per_rows: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    if not technical_rows or not per_rows:
+    if not per_rows:
         return None
-    close_by_date = {str(row["date"]): float(row["close"]) for row in technical_rows}
     match = next(
         (
             row for row in reversed(per_rows)
-            if str(row.get("date")) in close_by_date
-            and isinstance(row.get("weightedPer"), (int, float))
-            and float(row["weightedPer"]) > 0
+            if row.get("eps") is not None and row.get("bps") is not None
+            and all(
+                isinstance(row.get(key), (int, float))
+                and math.isfinite(row[key]) and row[key] > 0
+                for key in ("weightedPer", "weightedPbr", "indexPer", "indexPbr", "close")
+            )
         ),
         None,
     )
     if not match:
         return None
+    index_per = float(match["indexPer"])
     weighted_per = float(match["weightedPer"])
-    close = close_by_date[str(match["date"])]
-    implied_eps = close / weighted_per
+    close = float(match["close"])
+    eps = close / index_per
+    band_eps = close / weighted_per
+    lower = math.floor(weighted_per)
     return {
         "date": match["date"],
         "weightedPer": round(weighted_per, 2),
+        "weightedPbr": round(float(match["weightedPbr"]), 2),
+        "indexPer": round(index_per, 2),
+        "indexPbr": round(float(match["indexPbr"]), 2),
         "close": round(close, 2),
-        "impliedEps": round(implied_eps, 4),
-        "bandLevels": {
-            str(multiplier): round(implied_eps * multiplier, 2)
-            for multiplier in range(PER_MULTIPLIER_MIN, PER_MULTIPLIER_MAX + 1)
-        },
-        "basis": "基準日の指数値÷加重平均PERで算出したEPSを固定した参考ライン",
+        "eps": round(eps, 2),
+        "bps": round(close / float(match["indexPbr"]), 2),
+        "lowerMultiple": lower,
+        "lowerPrice": round(band_eps * lower, 2),
+        "upperMultiple": lower + 1,
+        "upperPrice": round(band_eps * (lower + 1), 2),
+        "basis": "整数倍価格は同日終値÷加重平均PER。EPS/BPSは同日終値÷指数ベースPER/PBR。",
     }
 
 
@@ -549,9 +653,21 @@ def validate_analysis(payload: object, *, public_only: bool = False) -> list[str
             errors.append("日経225テクニカル行の必須項目が不足しています。")
         if [str(row.get("date")) for row in rows] != sorted(str(row.get("date")) for row in rows):
             errors.append("日経225テクニカル行が日付順ではありません。")
-    for key in ("margin", "investorFlows", "breadth", "per"):
+    for key in ("margin", "nikkeiMarginDaily", "investorFlows", "breadth", "per"):
         if not isinstance(payload.get(key), dict) or not payload[key].get("status"):
             errors.append(f"{key}の状態がありません。")
+    if public_only:
+        for key in ("per", "margin", "investorFlows"):
+            section = payload.get(key)
+            if isinstance(section, dict) and (
+                section.get("status") != "permission-required" or section.get("rows")
+            ):
+                errors.append(f"{key}の本人限定データが公開成果物に混入しています。")
+        daily_margin = payload.get("nikkeiMarginDaily")
+        if isinstance(daily_margin, dict) and (
+            daily_margin.get("status") != "permission-required" or daily_margin.get("rows")
+        ):
+            errors.append("日経225の日次信用残が公開成果物に混入しています。")
     return errors
 
 
@@ -564,6 +680,7 @@ def build_analysis_payload(
     per_rows: list[dict[str, Any]] | None = None,
     per_source: dict[str, Any] | None = None,
     margin: dict[str, Any] | None = None,
+    nikkei_margin_daily: dict[str, Any] | None = None,
     investor: dict[str, Any] | None = None,
     breadth: dict[str, Any] | None = None,
     distribution_mode: str = PUBLIC_DISTRIBUTION_MODE,
@@ -573,6 +690,11 @@ def build_analysis_payload(
         per_rows, per_source = _per_data(previous, distribution_mode=distribution_mode)
     if margin is None or investor is None:
         margin, investor = _weekly_data(previous, distribution_mode=distribution_mode)
+    if nikkei_margin_daily is None:
+        nikkei_margin_daily = {
+            **_permission_required_source(JPX_MARGIN_URL, "JPX銘柄別信用残高は本人限定版のみで表示します。"),
+            "rows": [],
+        }
     technical_rows = build_technical_rows(raw_rows, weighted_per_rows=per_rows)
     local_private = distribution_mode == LOCAL_PRIVATE_DISTRIBUTION_MODE
     private_cloud = distribution_mode == PRIVATE_CLOUD_DISTRIBUTION_MODE
@@ -605,9 +727,9 @@ def build_analysis_payload(
             **per_source,
             "rows": per_rows,
             "reference": _per_reference(technical_rows, per_rows),
-            "multipliers": list(range(PER_MULTIPLIER_MIN, PER_MULTIPLIER_MAX + 1)),
         },
         "margin": margin,
+        "nikkeiMarginDaily": nikkei_margin_daily,
         "investorFlows": investor,
         "breadth": breadth if breadth is not None else _load_breadth(),
     }
@@ -616,6 +738,7 @@ def build_analysis_payload(
         for key, label in (
             ("per", "日経PER"),
             ("margin", "信用残"),
+            ("nikkeiMarginDaily", "日経225構成銘柄の日次信用残"),
             ("investorFlows", "投資主体別"),
         ):
             section = payload.get(key) if isinstance(payload.get(key), dict) else {}
@@ -695,7 +818,12 @@ def main(argv: list[str] | None = None) -> int:
         if distribution_mode == PUBLIC_DISTRIBUTION_MODE
         else {}
     )
-    previous = published_previous or local_previous
+    try:
+        private_previous = _load_private_previous() if args.private_cloud else {}
+    except MarketAnalysisError as error:
+        print(f"ERROR: {error}")
+        return 1
+    previous = private_previous or published_previous or local_previous
     try:
         refreshed_rows, price_url = fetch_nikkei225_ohlc()
     except MarketAnalysisError as error:
@@ -703,6 +831,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     raw_rows = merge_price_rows(
         local_previous.get("rows"),
+        private_previous.get("rows"),
         published_previous.get("rows"),
         refreshed_rows,
     )
@@ -714,6 +843,15 @@ def main(argv: list[str] | None = None) -> int:
         breadth=(
             _load_breadth(LOCAL_CANDIDATE_OUTPUT, allow_published_fallback=False)
             if args.local_private
+            else None
+        ),
+        nikkei_margin_daily=(
+            load_nikkei_margin_daily(LOCAL_DATA_DIR if args.local_private else CANDIDATE_OUTPUT.parent)
+            if _restricted_source_allowed(
+                distribution_mode,
+                public_confirmation="JPX_PUBLIC_DATA_USE_CONFIRMED",
+                private_cloud_confirmation="JPX_PRIVATE_CLOUD_USE_CONFIRMED",
+            )
             else None
         ),
         distribution_mode=distribution_mode,

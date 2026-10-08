@@ -1,4 +1,4 @@
-"""Weekly per-issue margin observations, independent of score history."""
+"""Dated per-issue margin observations, independent of score history."""
 import json
 import math
 import re
@@ -107,7 +107,7 @@ def validate_files(data_dir):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Import verified per-issue weekly margin JSON")
+    parser = argparse.ArgumentParser(description="Import verified per-issue dated margin JSON")
     parser.add_argument("dataset", type=Path)
     parser.add_argument("--data-dir", type=Path, required=True)
     args = parser.parse_args()

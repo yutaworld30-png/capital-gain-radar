@@ -62,7 +62,6 @@ class InteractiveChartUiTests(unittest.TestCase):
             'addIndexedChartLine(chart, allRows, ma5, "#0f8f6a"',
             'addIndexedChartLine(chart, allRows, rsiValues, "#246bce", 2',
             'addChartLine(chart, allRows, "psar", "#9b5c12"',
-            "candleSeries.createPriceLine",
         ):
             self.assertIn(expected, self.html)
 

@@ -18,6 +18,7 @@ from market_analysis import (  # noqa: E402
     PRIVATE_CLOUD_DISTRIBUTION_MODE,
     PUBLIC_DISTRIBUTION_MODE,
     build_analysis_payload,
+    validate_analysis,
 )
 from prepare_cloudflare_private import (  # noqa: E402
     PrivateDeploymentError,
@@ -49,7 +50,9 @@ def analysis(mode: str) -> dict:
         generated_at="2026-08-28T16:10:00+09:00",
         price_url="https://example.test/chart",
         per_rows=(
-            [{"date": latest_date, "weightedPer": 18.0, "indexPer": 23.0}]
+            [{"date": latest_date, "weightedPer": 18.0, "indexPer": 23.0,
+              "weightedPbr": 1.6, "indexPbr": 2.0, "close": 40_189.0,
+              "eps": round(40_189 / 23, 2), "bps": round(40_189 / 2, 2)}]
             if private
             else []
         ),
@@ -66,6 +69,18 @@ def analysis(mode: str) -> dict:
 
 
 class CloudflarePrivateTests(unittest.TestCase):
+    def test_public_analysis_rejects_daily_margin_rows(self) -> None:
+        payload = analysis(PUBLIC_DISTRIBUTION_MODE)
+        payload["nikkeiMarginDaily"] = {"status": "available", "rows": [{"date": "2026-10-07"}]}
+        self.assertTrue(any("日次信用残" in item for item in validate_analysis(payload, public_only=True)))
+
+    def test_public_analysis_rejects_per_and_weekly_restricted_rows(self) -> None:
+        for key in ("per", "margin", "investorFlows"):
+            with self.subTest(key=key):
+                payload = analysis(PUBLIC_DISTRIBUTION_MODE)
+                payload[key] = {"status": "available", "rows": [{"date": "2026-10-08"}]}
+                self.assertTrue(any(key in item for item in validate_analysis(payload, public_only=True)))
+
     def test_service_header_is_attached_only_when_configured(self) -> None:
         with patch.dict(
             pipeline.os.environ,

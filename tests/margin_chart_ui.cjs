@@ -43,7 +43,7 @@ const server = http.createServer((req, res) => {
       await page.waitForSelector('#marginHistoryContent svg', {state:'attached'});
       assert.equal(await page.locator('#marginHistoryContent svg').count(),2);
       await page.locator('[data-margin-months="12"]').evaluate(button => button.click());
-      await page.waitForFunction(() => document.querySelector('#marginHistoryContent').textContent.includes('20週分'));
+      await page.waitForFunction(() => document.querySelector('#marginHistoryContent').textContent.includes('20観測日'));
       await page.locator('#fundamentalTab').evaluate(button => button.click());
       assert.equal(await page.locator('#marginHistoryPanel').evaluate(panel => panel.hidden),true);
       await page.locator('#scoreHistoryTab').evaluate(button => button.click());
@@ -74,7 +74,7 @@ const server = http.createServer((req, res) => {
       await page.reload();
       await page.waitForFunction(() => document.querySelector('#selectedName').textContent.length > 1);
       await page.locator('#marginHistoryTab').evaluate(button => button.click());
-      await page.waitForFunction(() => document.querySelector('#marginHistoryContent').textContent.includes('5週分'));
+      await page.waitForFunction(() => document.querySelector('#marginHistoryContent').textContent.includes('5観測日'));
       const content = await page.locator('#marginHistoryContent').textContent();
       assert(content.includes('2026-09-18') && content.includes('2026-09-25'));
       await page.evaluate(() => document.body.classList.add('mobile-detail-open'));

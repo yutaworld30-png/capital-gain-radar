@@ -7,6 +7,8 @@ on:
     - cron: "10 7 * * 1-5"
     # 19:10 JST backup. It skips when the authenticated site is already fresh.
     - cron: "10 10 * * 1-5"
+    # 20:10 JST: retry if Nikkei's evening PER/PBR publication was late.
+    - cron: "10 11 * * 1-5"
 
 permissions:
   contents: read
@@ -58,7 +60,8 @@ jobs:
           elif python3 work/check_published_freshness.py \
             --url "$PRIVATE_SITE_URL/data/latest-candidates.json" \
             --analysis-url "$PRIVATE_SITE_URL/data/nikkei225-analysis.json" \
-            --history-url "$PRIVATE_SITE_URL/data/score-history-v2.json"; then
+            --history-url "$PRIVATE_SITE_URL/data/score-history-v2.json" \
+            --require-daily-margin; then
             echo "Private site data is already fresh; skip backup refresh"
             echo "should_refresh=false" >> "$GITHUB_OUTPUT"
           else
@@ -102,7 +105,7 @@ jobs:
           PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
         run: python work/fetch_official_data.py
 
-      - name: Fill available official weekly margin history
+      - name: Fill available official dated margin history
         run: python work/backfill_margin_history.py
 
       - name: Generate public-safe analysis for leak comparison
@@ -115,6 +118,8 @@ jobs:
         env:
           NIKKEI_PRIVATE_CLOUD_USE_CONFIRMED: ${{ vars.NIKKEI_PRIVATE_CLOUD_USE_CONFIRMED }}
           JPX_PRIVATE_CLOUD_USE_CONFIRMED: ${{ vars.JPX_PRIVATE_CLOUD_USE_CONFIRMED }}
+          PRIVATE_HISTORY_SOURCE_URL: ${{ vars.PRIVATE_HISTORY_SOURCE_URL }}
+          PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
         run: python work/market_analysis.py --private-cloud
 
       - name: Prepare and validate private deployment folder

@@ -25,12 +25,14 @@ INVESTOR_ARCHIVE_BASE = (
     "https://www.jpx.co.jp/markets/statistics-equities/"
     "investor-type/00-00-archives-{index:02d}.html"
 )
+INVESTOR_CURRENT_PAGE = "https://www.jpx.co.jp/markets/statistics-equities/investor-type/index.html"
 INVESTOR_CATEGORIES = {
     "individual": ("個人",),
     "foreign": ("海外投資家", "外国人"),
     "investmentTrust": ("投資信託",),
     "businessCorporation": ("事業法人",),
     "trustBank": ("信託銀行",),
+    "proprietary": ("自己計",),
 }
 
 
@@ -310,7 +312,77 @@ def parse_investor_sheet(sheet: Any) -> dict[str, Any]:
     }
 
 
-def parse_investor_workbook(content: bytes) -> dict[str, Any]:
+def parse_new_investor_workbook(content: bytes, source_url: str) -> dict[str, Any]:
+    match = re.search(r"stock_1_w_(\d{8})_(\d{8})\.xlsx$", urlparse(source_url).path)
+    if not match:
+        raise JpxWeeklyError("投資部門別Excelの対象期間を確認できません。")
+    try:
+        start = date.fromisoformat(f"{match[1][:4]}-{match[1][4:6]}-{match[1][6:]}")
+        end = date.fromisoformat(f"{match[2][:4]}-{match[2][4:6]}-{match[2][6:]}")
+    except ValueError as error:
+        raise JpxWeeklyError("投資部門別Excelの日付が不正です。") from error
+    if not start <= end or (end - start).days > 7:
+        raise JpxWeeklyError("投資部門別Excelの対象期間が不正です。")
+    try:
+        sheet = openpyxl.load_workbook(BytesIO(content), data_only=True).active
+    except (OSError, ValueError, BadZipFile) as error:
+        raise JpxWeeklyError("新形式の投資部門別Excelを開けませんでした。") from error
+    cell = lambda row, column: sheet.cell(row, column).value
+    if (
+        "千円" not in str(cell(7, 3) or "")
+        or "売" not in str(cell(7, 4) or "")
+        or "買" not in str(cell(7, 5) or "")
+        or "自己" not in str(cell(3, 4) or "")
+        or "投資信託" not in str(cell(6, 32) or "")
+        or "信託銀行" not in str(cell(6, 52) or "")
+    ):
+        raise JpxWeeklyError("投資部門別Excelの列配置または単位が想定外です。")
+    market_row = next(
+        (row for row in range(8, sheet.max_row or 8)
+         if "二市場" in str(cell(row, 2) or "") and "株数" in str(cell(row, 3) or "")),
+        None,
+    )
+    if market_row is None or "金額" not in str(cell(market_row + 1, 3) or ""):
+        raise JpxWeeklyError("投資部門別Excelの二市場合計・金額行が見つかりません。")
+    value_row = market_row + 1
+    columns = {
+        "foreign": (20, 24),
+        "individual": (12, 16),
+        "investmentTrust": (32,),
+        "businessCorporation": (36,),
+        "trustBank": (52,),
+        "proprietary": (4, 8),
+    }
+    flows: dict[str, dict[str, float | None]] = {}
+    for key, starts in columns.items():
+        pairs = []
+        for column in starts:
+            sales = _number(cell(value_row, column))
+            purchases = _number(cell(value_row, column + 1))
+            balance = _number(cell(value_row, column + 2))
+            if sales is None or purchases is None or balance is None or sales < 0 or purchases < 0:
+                raise JpxWeeklyError(f"投資部門別Excelの{key}金額が欠損または不正です。")
+            if abs((purchases - sales) - balance) > 1:
+                raise JpxWeeklyError(f"投資部門別Excelの{key}売買差引が一致しません。")
+            pairs.append((sales, purchases))
+        total_sales = sum(pair[0] for pair in pairs)
+        total_purchases = sum(pair[1] for pair in pairs)
+        flows[key] = {
+            "sales100mYen": round(total_sales / 100_000, 2),
+            "purchases100mYen": round(total_purchases / 100_000, 2),
+            "net100mYen": round((total_purchases - total_sales) / 100_000, 2),
+        }
+    return {
+        "periodStart": start.isoformat(),
+        "periodEnd": end.isoformat(),
+        "unit": "100m-yen",
+        "flows": flows,
+    }
+
+
+def parse_investor_workbook(content: bytes, source_url: str = "") -> dict[str, Any]:
+    if content[:2] == b"PK":
+        return parse_new_investor_workbook(content, source_url)
     try:
         workbook = xlrd.open_workbook(file_contents=content)
     except xlrd.XLRDError as error:
@@ -398,6 +470,15 @@ def _link_sort_key(url: str) -> str:
     return match.group(1) if match else filename
 
 
+def _investor_link_date(url: str) -> str:
+    filename = urlparse(url).path.rsplit("/", 1)[-1]
+    new = re.fullmatch(r"stock_1_w_\d{8}_(\d{8})\.xlsx", filename)
+    if new:
+        return new[1]
+    old = re.fullmatch(r"stock_val_1_(\d{6})\.xlsx?", filename)
+    return f"20{old[1]}" if old else ""
+
+
 def fetch_investor_history(
     existing: object = None,
     *,
@@ -406,14 +487,14 @@ def fetch_investor_history(
     refresh_downloads: int = 8,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     links: list[str] = []
-    for index in range(3):
-        page_url = INVESTOR_ARCHIVE_BASE.format(index=index)
+    for page_url in [INVESTOR_CURRENT_PAGE, *(INVESTOR_ARCHIVE_BASE.format(index=index) for index in range(3))]:
         try:
             html = fetch_bytes(page_url).decode("utf-8", errors="replace")
         except JpxWeeklyError:
             continue
         links.extend(extract_xls_links(html, page_url, contains="stock_val_1_"))
-    links = sorted(set(links), key=_link_sort_key)
+        links.extend(extract_xls_links(html, page_url, contains="stock_1_w_"))
+    links = sorted({link for link in links if _investor_link_date(link)}, key=_investor_link_date)
     existing_count = len(existing) if isinstance(existing, list) else 0
     download_count = refresh_downloads if existing_count >= 26 else initial_downloads
     selected = links[-download_count:]
@@ -421,7 +502,7 @@ def fetch_investor_history(
     successful_urls: list[str] = []
     for link in selected:
         try:
-            refreshed.append(parse_investor_workbook(fetch_bytes(link)))
+            refreshed.append(parse_investor_workbook(fetch_bytes(link), link))
             successful_urls.append(link)
         except JpxWeeklyError:
             continue

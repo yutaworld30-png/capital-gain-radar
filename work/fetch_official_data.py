@@ -348,7 +348,7 @@ def fetch_margin_file_links() -> list[dict[str, str]]:
         links = parse_margin_file_links(fetch_text(url))
         if any(margin_pdf_date(item["url"]) for item in links):
             return links
-    raise ValueError("JPX per-issue weekly margin PDFs not found on official pages")
+    raise ValueError("JPX per-issue margin PDFs not found on official pages")
 
 
 def margin_pdf_date(url: str) -> str | None:
@@ -361,7 +361,7 @@ def margin_pdf_date(url: str) -> str | None:
         basis = date.fromisoformat(f"{matched[1][:4]}-{matched[1][4:6]}-{matched[1][6:]}")
     except ValueError:
         return None
-    return basis.isoformat() if weekly or basis.weekday() == 4 else None
+    return basis.isoformat()
 
 
 def parse_number(token: str) -> int:
@@ -444,7 +444,7 @@ def inspect_latest_margin_pdf(file_links: list[dict[str, str]]) -> dict[str, obj
         if basis:
             dated_files.append((basis.replace("-", ""), link))
     if not dated_files:
-        return {"status": "not-found", "reason": "日付付きの銘柄別信用取引週末残高PDFが見つかりません。"}
+        return {"status": "not-found", "reason": "日付付きの銘柄別信用取引残高PDFが見つかりません。"}
 
     date_text, latest = max(dated_files, key=lambda item: item[0])
     pdf_bytes = fetch_bytes(latest["url"])
@@ -1456,7 +1456,7 @@ def _data_quality_details(item: dict[str, object]) -> tuple[list[dict[str, objec
             "信用",
             margin_status if isinstance(item.get("margin"), (int, float)) else "missing",
             (
-                "JPX信用取引週末残高を取得済み"
+                "JPX銘柄別信用取引残高を取得済み"
                 if margin_status == "available"
                 else "信用倍率が古い、または更新確認に失敗"
                 if isinstance(item.get("margin"), (int, float))
@@ -2702,7 +2702,7 @@ def main() -> None:
         },
         "notes": [
             "個別候補は、価格、信用倍率、テーマ、業績、リスク指標が検証できるまで出力しません。",
-            "信用取引週末残高はJPX公式ページを確認しますが、銘柄別の倍率へ変換できるまで候補判定には使いません。",
+            "銘柄別信用残高はJPX公式の日次公表データから取得します。",
         ],
         "qualityChecks": [],
     }
@@ -2835,6 +2835,7 @@ def main() -> None:
         source["pdfInspection"] = pdf_inspection
         source["asOf"] = pdf_inspection.get("asOf")
         source["scope"] = "per-issue"
+        source["frequency"] = "daily"
         source["hasPerIssueData"] = topix_coverage >= 0.95
         source["recordCount"] = len(margin_records)
         source["topixMatchCount"] = len(topix_margin_records)
@@ -2880,7 +2881,7 @@ def main() -> None:
 
     margin_status = dataset["sources"]["marginWeekly"]
     if margin_status.get("status") != "available":
-        raise RuntimeError("JPX weekly margin acquisition failed; published data retained: "
+        raise RuntimeError("JPX per-issue margin acquisition failed; published data retained: "
                            + str(margin_status.get("reason", "unknown")))
 
     if not collect_jquants_metrics(dataset, generated_at):
@@ -2922,7 +2923,7 @@ def main() -> None:
         "fundamentals": ["EDINET API v2", "previous EDINET snapshot reuse", "TDnet disclosure signals"],
         "dividend": ["Yahoo Finance company forecast", "EDINET actual DPS"],
         "listing": ["JPX listed company file"],
-        "margin": ["JPX weekly margin balance PDF"],
+        "margin": ["JPX daily per-issue margin balance PDF"],
         "note": "無料・公式優先で複数取得元を使い、未取得や異常値は銘柄別の品質情報として表示します。",
     }
     dataset["acquisitionIssueSummary"] = {

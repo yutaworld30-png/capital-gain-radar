@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import io
 import sys
 import unittest
 from datetime import date, datetime, timedelta, timezone
@@ -21,12 +22,16 @@ from market_analysis import (  # noqa: E402
     PRIVATE_OUTPUT,
     MarketAnalysisError,
     _per_data,
+    _per_reference,
+    _load_private_previous,
     _timestamp_date,
     _weekly_data,
     build_analysis_payload,
     fetch_nikkei225_ohlc,
     merge_price_rows,
     parse_weighted_per_html,
+    parse_index_pbr_html,
+    parse_nikkei_daily_close_html,
     resolve_output_path,
     validate_analysis,
     _weekly_recency_status,
@@ -167,7 +172,9 @@ class MarketAnalysisTests(unittest.TestCase):
             rows,
             generated_at="2026-07-19T10:00:00+09:00",
             price_url="https://example.test/chart",
-            per_rows=[{"date": latest_date, "weightedPer": 20.0, "indexPer": 25.0}],
+            per_rows=[{"date": latest_date, "weightedPer": 20.0, "indexPer": 25.0,
+                       "weightedPbr": 2.0, "indexPbr": 2.5, "close": 40_189.0,
+                       "eps": 1607.56, "bps": 16075.6}],
             per_source={"status": "available", "url": "https://example.test/per", "asOf": latest_date},
             margin={"status": "permission-required", "rows": []},
             investor={"status": "permission-required", "rows": []},
@@ -175,11 +182,36 @@ class MarketAnalysisTests(unittest.TestCase):
         )
         self.assertEqual(payload["analysisVersion"], ANALYSIS_VERSION)
         self.assertEqual(validate_analysis(payload), [])
-        self.assertEqual(payload["per"]["reference"]["weightedPer"], 20.0)
-        self.assertEqual(
-            payload["per"]["reference"]["bandLevels"]["20"],
-            round(float(rows[-1]["close"]), 2),
+        self.assertEqual(payload["per"]["reference"]["indexPer"], 25.0)
+        self.assertEqual(payload["per"]["reference"]["lowerMultiple"], 20)
+        self.assertEqual(payload["per"]["reference"]["upperMultiple"], 21)
+        self.assertEqual(payload["per"]["reference"]["lowerPrice"], 40_189.0)
+
+    def test_parse_official_pbr_and_close_and_reject_misaligned_dates(self) -> None:
+        pbr = parse_index_pbr_html("<tr><td>2026.10.08</td><td>1.90</td><td>2.83</td></tr>")
+        closes = parse_nikkei_daily_close_html(
+            "<tr><td>2026.10.08</td><td>69,840.64</td><td>69,918.20</td>"
+            "<td>69,042.11</td><td>69,042.11</td></tr>"
         )
+        self.assertEqual(pbr[0]["indexPbr"], 2.83)
+        self.assertEqual(closes[0]["close"], 69_042.11)
+        with patch("market_analysis.fetch_bytes", side_effect=[
+            b"<tr><td>2026.10.07</td><td>17.4</td><td>23.2</td></tr>",
+            b"<tr><td>2026.10.08</td><td>1.9</td><td>2.8</td></tr>",
+            b"<tr><td>2026.10.08</td><td>1</td><td>2</td><td>1</td><td>2</td></tr>",
+        ]):
+            rows, source = _per_data({}, distribution_mode=LOCAL_PRIVATE_DISTRIBUTION_MODE)
+        self.assertEqual(rows, [])
+        self.assertEqual(source["status"], "unavailable")
+
+    def test_adjacent_per_multiples_use_same_day_index_eps(self) -> None:
+        rows = [{"date": "2026-10-08", "weightedPer": 17.4, "weightedPbr": 1.5,
+                 "indexPer": 20.0, "indexPbr": 2.0,
+                 "close": 34_800.0, "eps": 1_740.0, "bps": 17_400.0}]
+        reference = _per_reference([], rows)
+        self.assertEqual((reference["lowerMultiple"], reference["upperMultiple"]), (17, 18))
+        self.assertEqual((reference["lowerPrice"], reference["upperPrice"]), (34_000, 36_000))
+        self.assertIsNone(_per_reference([], [{"date": "2026-10-08", "indexPer": None, "eps": None, "bps": None}]))
 
     def test_validation_rejects_short_price_history(self) -> None:
         payload = {
@@ -212,10 +244,27 @@ class MarketAnalysisTests(unittest.TestCase):
         self.assertEqual(margin["rows"], [])
         self.assertEqual(investor["rows"], [])
 
+    def test_private_valuation_history_restores_with_service_token(self) -> None:
+        prior = {"distributionMode": "private-cloud", "per": {"rows": [{"date": "2026-10-07"}]}}
+        with (
+            patch.dict("os.environ", {"PRIVATE_HISTORY_SOURCE_URL": "https://private.example.test", "PRIVATE_SERVICE_TOKEN": "secret"}),
+            patch("market_analysis.urlopen", return_value=io.BytesIO(json.dumps(prior).encode())) as remote,
+        ):
+            self.assertEqual(_load_private_previous(), prior)
+        request = remote.call_args.args[0]
+        self.assertEqual(request.get_header("X-capital-radar-service"), "secret")
+
+    def test_private_valuation_history_requires_token(self) -> None:
+        with patch.dict("os.environ", {"PRIVATE_HISTORY_SOURCE_URL": "https://private.example.test", "PRIVATE_SERVICE_TOKEN": ""}):
+            with self.assertRaises(MarketAnalysisError):
+                _load_private_previous()
+
     def test_local_private_mode_fetches_restricted_sources(self) -> None:
         per_html = b"""
         <table><tr><td>2026.07.17</td><td>17.42</td><td>22.99</td></tr></table>
         """
+        pbr_html = b"<tr><td>2026.07.17</td><td>1.6</td><td>2.1</td></tr>"
+        close_html = b"<tr><td>2026.07.17</td><td>39,900</td><td>40,100</td><td>39,800</td><td>40,000</td></tr>"
         margin_rows = [
             {
                 "weekEnd": "2026-07-17",
@@ -231,7 +280,7 @@ class MarketAnalysisTests(unittest.TestCase):
             }
         ]
         with (
-            patch("market_analysis.fetch_bytes", return_value=per_html),
+            patch("market_analysis.fetch_bytes", side_effect=[per_html, pbr_html, close_html]),
             patch(
                 "market_analysis.fetch_margin_history",
                 return_value=(margin_rows, "https://example.test/margin"),
@@ -251,6 +300,8 @@ class MarketAnalysisTests(unittest.TestCase):
                 today=date(2026, 7, 20),
             )
         self.assertEqual(per_rows[-1]["weightedPer"], 17.42)
+        self.assertEqual(per_rows[-1]["eps"], round(40_000 / 22.99, 2))
+        self.assertEqual(per_rows[-1]["bps"], round(40_000 / 2.1, 2))
         self.assertEqual(per_source["status"], "available")
         self.assertEqual(per_source["accessMode"], LOCAL_PRIVATE_DISTRIBUTION_MODE)
         self.assertEqual(margin["status"], "available")

@@ -59,6 +59,36 @@ def _expected_price_date(current: datetime) -> date:
     return expected
 
 
+def _expected_margin_date(current: datetime) -> date:
+    expected = current.date()
+    if current.weekday() >= 5 or current.time() < time(16, 0):
+        expected -= timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= timedelta(days=1)
+    return expected
+
+
+def daily_margin_freshness_issues(
+    payload: object,
+    *,
+    now: datetime | None = None,
+) -> list[str]:
+    if not isinstance(payload, dict):
+        return ["候補JSONがないため日次信用残を照合できません。"]
+    sources = payload.get("sources")
+    margin = sources.get("marginWeekly") if isinstance(sources, dict) else None
+    if not isinstance(margin, dict) or margin.get("frequency") != "daily":
+        return ["銘柄別信用残が日次取得へ切り替わっていません。"]
+    if margin.get("status") != "available":
+        return ["銘柄別信用残がavailableではありません。"]
+    current = (now or datetime.now(tz=JST)).astimezone(JST)
+    expected = _expected_margin_date(current)
+    as_of = _parse_date(margin.get("asOf"))
+    if as_of != expected:
+        return [f"銘柄別信用残の基準日が直近公表日ではありません: {as_of}"]
+    return []
+
+
 def freshness_issues(
     payload: object,
     *,
@@ -159,6 +189,22 @@ def analysis_freshness_issues(
                 "日経225分析の最終足が候補データと一致しません: "
                 f"analysis={latest_row_date} candidates={expected_as_of}"
             )
+    if isinstance(candidate_payload, dict):
+        sources = candidate_payload.get("sources")
+        margin = sources.get("marginWeekly") if isinstance(sources, dict) else None
+        if isinstance(margin, dict) and margin.get("frequency") == "daily":
+            nikkei_margin = payload.get("nikkeiMarginDaily")
+            if not isinstance(nikkei_margin, dict) or nikkei_margin.get("status") != "available":
+                issues.append("日経225の日次信用残がavailableではありません。")
+            elif _parse_date(nikkei_margin.get("asOf")) != _parse_date(margin.get("asOf")):
+                issues.append("日経225の日次信用残が銘柄別信用残の基準日と一致しません。")
+    current = (now or datetime.now(tz=JST)).astimezone(JST)
+    if payload.get("distributionMode") == "private-cloud" and current.time() >= time(19, 0):
+        per = payload.get("per")
+        if not isinstance(per, dict) or per.get("status") != "available":
+            issues.append("日経平均PER・PBRの日次データが利用可能ではありません。")
+        elif expected_as_of is not None and _parse_date(per.get("asOf")) != expected_as_of:
+            issues.append("日経平均PER・PBRの基準日が候補データと一致しません。")
     return issues
 
 
@@ -237,6 +283,7 @@ def main() -> int:
     parser.add_argument("--url", default=PUBLIC_DATA_URL)
     parser.add_argument("--analysis-url", default=PUBLIC_ANALYSIS_URL)
     parser.add_argument("--history-url", default=PUBLIC_SCORE_HISTORY_URL)
+    parser.add_argument("--require-daily-margin", action="store_true")
     parser.add_argument("--timeout", type=float, default=30.0)
     args = parser.parse_args()
     try:
@@ -248,6 +295,8 @@ def main() -> int:
         return 1
 
     issues = freshness_issues(payload)
+    if args.require_daily_margin:
+        issues.extend(daily_margin_freshness_issues(payload))
     issues.extend(
         analysis_freshness_issues(
             analysis_payload,

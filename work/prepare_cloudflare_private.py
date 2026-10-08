@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,9 +45,11 @@ def validate_private_analysis(payload: object) -> list[str]:
         errors.append("日経225分析がprivate-cloudモードではありません。")
     per = payload.get("per") if isinstance(payload.get("per"), dict) else {}
     reference = per.get("reference") if isinstance(per.get("reference"), dict) else {}
-    bands = reference.get("bandLevels") if isinstance(reference.get("bandLevels"), dict) else {}
-    if per.get("status") != "available" or not bands:
-        errors.append("本人限定版に表示するPER整数倍ラインが利用可能ではありません。")
+    if per.get("status") != "available" or any(
+        not isinstance(reference.get(key), (int, float)) or not math.isfinite(reference[key]) or reference[key] <= 0
+        for key in ("weightedPer", "weightedPbr", "indexPer", "indexPbr", "eps", "bps", "lowerPrice", "upperPrice")
+    ):
+        errors.append("本人限定版に表示する日経平均PER・PBR・EPS・BPSが利用可能ではありません。")
     return list(dict.fromkeys(errors))
 
 

@@ -555,9 +555,136 @@
 
     .analysis-detail-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
       margin-top: 16px;
+    }
+
+    .nikkei-valuation {
+      margin-top: 14px;
+      padding: 12px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .nikkei-valuation h3 { margin: 0 0 8px; font-size: 14px; }
+    .nikkei-valuation-table { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 12px; }
+    .nikkei-valuation-table th, .nikkei-valuation-table td { padding: 8px; border-bottom: 1px solid var(--line); text-align: right; }
+    .nikkei-valuation-table th:first-child, .nikkei-valuation-table td:first-child { text-align: left; }
+    .nikkei-valuation-table th:first-child { width: 46%; }
+    .nikkei-valuation-table th:nth-child(2) { width: 18%; }
+    .nikkei-valuation-table th:last-child { width: 36%; }
+    .nikkei-valuation-table th, .nikkei-valuation-table td { overflow-wrap: anywhere; }
+    .nikkei-valuation-table thead { color: var(--muted); }
+    .nikkei-valuation-trends { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+    .nikkei-valuation-trends h4 { margin: 0; font-size: 12px; }
+    @media (max-width: 680px) { .nikkei-valuation-trends { grid-template-columns: 1fr; } }
+
+    .analysis-investor-card {
+      grid-column: 1 / -1;
+      order: 3;
+    }
+
+    .analysis-investor-card .analysis-latest {
+      min-height: 0;
+    }
+
+    .analysis-investor-table-wrap {
+      max-height: 430px;
+      margin-top: 12px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+
+    .analysis-investor-table {
+      width: 100%;
+      min-width: 680px;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .analysis-investor-table th,
+    .analysis-investor-table td {
+      padding: 9px 10px;
+      border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+
+    .analysis-investor-table th:last-child,
+    .analysis-investor-table td:last-child {
+      border-right: 0;
+    }
+
+    .analysis-investor-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #eaf0f5;
+      text-align: right;
+    }
+
+    .analysis-investor-table thead th:first-child,
+    .analysis-investor-table tbody th {
+      position: sticky;
+      left: 0;
+      text-align: left;
+    }
+
+    .analysis-investor-table thead th:first-child {
+      z-index: 3;
+    }
+
+    .analysis-investor-table tbody th {
+      z-index: 1;
+      background: #f7f9fb;
+    }
+
+    .analysis-investor-table tbody td {
+      text-align: right;
+      font-weight: 700;
+    }
+
+    .analysis-investor-table .flow-positive {
+      background: #e8f6ee;
+      color: #075d41;
+    }
+
+    .analysis-investor-table .flow-negative {
+      background: #fbe9ea;
+      color: #9a2730;
+    }
+
+    .analysis-investor-table .flow-neutral {
+      background: #f7f9fb;
+      color: var(--muted);
+    }
+
+    .analysis-margin-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .analysis-margin-tabs button {
+      min-height: 34px;
+      padding: 4px 7px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #f7f9fb;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .analysis-margin-tabs button.active {
+      background: #e8f6ee;
+      border-color: #8bd8b8;
+      color: #075d41;
     }
 
     .analysis-detail-card {
@@ -621,15 +748,6 @@
       margin-top: 10px;
       border-top: 1px solid #edf1f5;
       padding-top: 8px;
-    }
-
-    .analysis-flow-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 5px 9px;
-      margin-top: 7px;
-      color: var(--muted);
-      font-size: 10px;
     }
 
     .layout {
@@ -3399,6 +3517,7 @@
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-toolbar,
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-kpis,
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-chart-wrap,
+      body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiValuationSection,
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel > .panel-header .market-card-meta,
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-body > .chart-legend,
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-body > .analysis-source-note {
@@ -3913,7 +4032,6 @@
                 <button class="active" data-nikkei-indicator="psar" type="button" aria-pressed="true">パラボリック</button>
                 <button class="active" data-nikkei-indicator="bb" type="button" aria-pressed="true">ボリンジャー</button>
                 <button data-nikkei-indicator="ichimoku" type="button" aria-pressed="false">一目均衡表</button>
-                <button data-nikkei-indicator="per" type="button" aria-pressed="false" disabled>PER整数倍（非公開版のみ）</button>
               </div>
               <div class="indicator-toggles bb-sigma-controls" aria-label="ボリンジャーバンドの幅">
                 <span class="bb-sigma-label">BB</span>
@@ -3934,32 +4052,46 @@
             </div>
             <div class="chart-legend" id="nikkeiAnalysisLegend"></div>
           </div>
-          <div class="analysis-source-note" id="nikkeiPerNote">PER整数倍ラインの利用条件とデータ状態を確認しています。</div>
+          <section class="nikkei-valuation" id="nikkeiValuationSection" aria-label="日経平均の投資指標">
+            <h3>日経平均のPER・PBR</h3>
+            <table class="nikkei-valuation-table">
+              <thead><tr><th scope="col">指標</th><th scope="col">倍率</th><th scope="col">参考価格</th></tr></thead>
+              <tbody id="nikkeiValuationRows"><tr><td colspan="3">読込中</td></tr></tbody>
+            </table>
+            <div class="nikkei-valuation-trends">
+              <div><h4 id="nikkeiEpsHeading">日経平均EPS（日次・推計）</h4><div class="analysis-mini-chart"><canvas id="nikkeiEpsChart" aria-label="日経平均EPSの日次推移"></canvas></div></div>
+              <div><h4 id="nikkeiBpsHeading">日経平均BPS（日次・推計）</h4><div class="analysis-mini-chart"><canvas id="nikkeiBpsChart" aria-label="日経平均BPSの日次推移"></canvas></div></div>
+            </div>
+            <div class="analysis-source-note" id="nikkeiPerNote">日経平均PER・PBRの取得状態を確認しています。</div>
+          </section>
 
           <div class="analysis-detail-grid">
-            <section class="analysis-detail-card" aria-label="二市場合計信用残高">
+            <section class="analysis-detail-card" aria-label="信用残高">
               <div class="analysis-detail-heading">
-                <h3>二市場合計 信用残高</h3>
+                <h3>信用残高</h3>
                 <span class="analysis-state" id="nikkeiMarginState">読込中</span>
               </div>
-              <div class="analysis-latest" id="nikkeiMarginLatest">週次データを読み込んでいます。</div>
+              <div class="analysis-margin-tabs" role="group" aria-label="信用残高の対象と頻度">
+                <button class="active" type="button" data-nikkei-margin-view="nikkei" aria-pressed="true">日経225・日次</button>
+                <button type="button" data-nikkei-margin-view="market" aria-pressed="false">二市場合計・週次</button>
+              </div>
+              <div class="analysis-latest" id="nikkeiMarginLatest">信用残高を読み込んでいます。</div>
               <div class="analysis-mini-chart">
-                <canvas id="nikkeiMarginChart" aria-label="信用売り残、買い残の週次推移"></canvas>
+                <canvas id="nikkeiMarginChart" aria-label="信用売り残、買い残の推移"></canvas>
               </div>
               <div class="analysis-source-note" id="nikkeiMarginNote">単位と基準日を確認しています。</div>
             </section>
 
-            <section class="analysis-detail-card" aria-label="投資主体別売買動向">
+            <section class="analysis-detail-card analysis-investor-card" aria-label="投資主体別売買動向">
               <div class="analysis-detail-heading">
                 <h3>投資主体別 売買動向</h3>
                 <span class="analysis-state" id="nikkeiInvestorState">読込中</span>
               </div>
               <div class="analysis-latest" id="nikkeiInvestorLatest">週次データを読み込んでいます。</div>
-              <div class="analysis-flow-list" id="nikkeiInvestorFlowList"></div>
-              <div class="analysis-mini-chart">
-                <canvas id="nikkeiInvestorChart" aria-label="投資主体別差引額の週次推移"></canvas>
+              <div class="analysis-investor-table-wrap" id="nikkeiInvestorTableWrap" tabindex="0" role="region" aria-label="投資主体別売買動向の週次表" hidden>
+                <table class="analysis-investor-table" id="nikkeiInvestorTable"></table>
               </div>
-              <div class="analysis-source-note" id="nikkeiInvestorNote">買越しをプラス、売越しをマイナスで表示します。</div>
+              <div class="analysis-source-note" id="nikkeiInvestorNote">単位は億円。買越しをプラス、売越しをマイナスで表示します。</div>
             </section>
 
             <section class="analysis-detail-card" aria-label="日経225騰落レシオ">
@@ -4440,7 +4572,6 @@
     let mobileDetailHistoryActive = false;
     let technicalChartController = null;
     let nikkeiChartController = null;
-    let nikkeiPerPreferenceInitialized = false;
     const mobileScrollPositions = {
       candidates: 0,
       market: 0,
@@ -4489,7 +4620,6 @@
         psar: true,
         bb: true,
         ichimoku: false,
-        per: false,
       },
       industryFilter: "all",
       marketCapFilter: "all",
@@ -4686,6 +4816,11 @@
       nikkeiChartExpand: document.querySelector("#nikkeiChartExpand"),
       nikkeiAnalysisLegend: document.querySelector("#nikkeiAnalysisLegend"),
       nikkeiPerNote: document.querySelector("#nikkeiPerNote"),
+      nikkeiValuationRows: document.querySelector("#nikkeiValuationRows"),
+      nikkeiEpsChart: document.querySelector("#nikkeiEpsChart"),
+      nikkeiBpsChart: document.querySelector("#nikkeiBpsChart"),
+      nikkeiEpsHeading: document.querySelector("#nikkeiEpsHeading"),
+      nikkeiBpsHeading: document.querySelector("#nikkeiBpsHeading"),
       nikkeiRangeButtons: {
         "1w": document.querySelector("#nikkeiRange1w"),
         "1m": document.querySelector("#nikkeiRange1m"),
@@ -4697,13 +4832,14 @@
       nikkeiIndicatorButtons: document.querySelectorAll("[data-nikkei-indicator]"),
       bollingerSigmaButtons: document.querySelectorAll("[data-bb-sigma]"),
       nikkeiMarginState: document.querySelector("#nikkeiMarginState"),
+      nikkeiMarginViewButtons: document.querySelectorAll("[data-nikkei-margin-view]"),
       nikkeiMarginLatest: document.querySelector("#nikkeiMarginLatest"),
       nikkeiMarginChart: document.querySelector("#nikkeiMarginChart"),
       nikkeiMarginNote: document.querySelector("#nikkeiMarginNote"),
       nikkeiInvestorState: document.querySelector("#nikkeiInvestorState"),
       nikkeiInvestorLatest: document.querySelector("#nikkeiInvestorLatest"),
-      nikkeiInvestorFlowList: document.querySelector("#nikkeiInvestorFlowList"),
-      nikkeiInvestorChart: document.querySelector("#nikkeiInvestorChart"),
+      nikkeiInvestorTableWrap: document.querySelector("#nikkeiInvestorTableWrap"),
+      nikkeiInvestorTable: document.querySelector("#nikkeiInvestorTable"),
       nikkeiInvestorNote: document.querySelector("#nikkeiInvestorNote"),
       nikkeiBreadthState: document.querySelector("#nikkeiBreadthState"),
       nikkeiBreadthLatest: document.querySelector("#nikkeiBreadthLatest"),
@@ -6098,14 +6234,6 @@
       return filtered.length >= 5 ? filtered : rows.slice(-5);
     }
 
-    function nikkeiPerBandsAvailable(payload = nikkeiAnalysis) {
-      const per = payload?.per;
-      const levels = per?.reference?.bandLevels;
-      return per?.status === "available"
-        && levels
-        && Object.values(levels).some(value => Number.isFinite(Number(value)));
-    }
-
     function prepareAnalysisCanvas(canvas, minimumHeight = 180) {
       const context = canvas.getContext("2d");
       const bounds = canvas.getBoundingClientRect();
@@ -6140,7 +6268,6 @@
         allRows.at(-1)?.date || "",
         JSON.stringify(state.nikkeiIndicators),
         state.bollingerSigma,
-        nikkeiAnalysis?.per?.reference?.date || "",
       ].join("|");
       if (nikkeiChartController?.signature === signature) return;
       disposeInteractiveChart(nikkeiChartController);
@@ -6201,22 +6328,6 @@
           lineVisible: false,
           pointMarkersVisible: true,
           pointMarkersRadius: 2,
-        });
-      }
-
-      const perReference = nikkeiAnalysis?.per?.reference;
-      if (state.nikkeiIndicators.per && nikkeiPerBandsAvailable() && perReference?.bandLevels) {
-        Object.entries(perReference.bandLevels).forEach(([multiple, rawValue]) => {
-          const price = Number(rawValue);
-          if (!Number.isFinite(price)) return;
-          candleSeries.createPriceLine({
-            price,
-            color: "#74549e",
-            lineWidth: 1,
-            lineStyle: api.LineStyle.Dashed,
-            axisLabelVisible: true,
-            title: `${multiple}倍`,
-          });
         });
       }
 
@@ -6289,15 +6400,6 @@
         "pending",
         status === "permission-required" || status === "stale-fallback" || status === "insufficient-data",
       );
-    }
-
-    function signedAnalysisValue(value, digits = 1) {
-      const number = Number(value);
-      if (!Number.isFinite(number)) return "未取得";
-      return `${number > 0 ? "+" : ""}${number.toLocaleString("ja-JP", {
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits,
-      })}`;
     }
 
     function drawAnalysisSeriesChart(
@@ -6397,38 +6499,47 @@
       context.fillText(lastLabel, Math.max(left, width - right - 34), height - 5);
     }
 
+    let nikkeiMarginView = "nikkei";
+
     function renderNikkeiMargin() {
-      const section = nikkeiAnalysis?.margin || {};
+      const daily = nikkeiMarginView === "nikkei";
+      const section = (daily ? nikkeiAnalysis?.nikkeiMarginDaily : nikkeiAnalysis?.margin) || {};
+      const dateKey = daily ? "date" : "weekEnd";
       const rows = Array.isArray(section.rows) ? section.rows : [];
+      el.nikkeiMarginViewButtons.forEach(button => {
+        const active = button.dataset.nikkeiMarginView === nikkeiMarginView;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
       setAnalysisState(el.nikkeiMarginState, section);
       if (!rows.length) {
-        el.nikkeiMarginLatest.innerHTML = `<strong>未取得</strong>${escapeHtml(section.note || "週次の信用残高データがありません。")}`;
+        el.nikkeiMarginLatest.innerHTML = `<strong>未取得</strong>${escapeHtml(section.note || "信用残高データがありません。")}`;
         el.nikkeiMarginNote.textContent = section.status === "permission-required"
           ? "公開表示に使う前に、JPX公開データの利用条件確認が必要です。"
-          : "売り残・買い残・信用倍率を週次で表示します。";
-        drawAnalysisMessage(el.nikkeiMarginChart, "週次データ未取得");
+          : `${daily ? "日経225構成銘柄の日次" : "二市場合計の週次"}データを取得できません。`;
+        drawAnalysisMessage(el.nikkeiMarginChart, "信用残高未取得");
         return;
       }
       const latest = rows.at(-1);
-      const ratio = Number(latest.marginRatio);
+      const ratio = latest.marginRatio == null ? NaN : Number(latest.marginRatio);
       const buyMillion = Number(latest.buyBalanceThousandShares) / 1000;
       const sellMillion = Number(latest.sellBalanceThousandShares) / 1000;
       el.nikkeiMarginLatest.innerHTML = `
         <strong>信用倍率 ${Number.isFinite(ratio) ? ratio.toFixed(2) + "倍" : "未取得"}</strong>
         買い残 ${Number.isFinite(buyMillion) ? buyMillion.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) : "--"}百万株 /
         売り残 ${Number.isFinite(sellMillion) ? sellMillion.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) : "--"}百万株<br>
-        基準 ${escapeHtml(formatDate(latest.weekEnd))}
+        基準 ${escapeHtml(formatDate(latest[dateKey]))}${latest.publishedAt ? ` / 公表 ${escapeHtml(formatDate(latest.publishedAt))}` : ""}
       `;
-      el.nikkeiMarginNote.textContent = section.note
-        || `緑: 買い残、赤: 売り残。${section.scope || "東京・名古屋二市場合計"}、単位は百万株です。`;
+      el.nikkeiMarginNote.textContent = `緑: 買い残、赤: 売り残。${section.scope || (daily ? "日経225現行構成銘柄の合計" : "東京・名古屋二市場合計")}、単位は百万株。${section.note || ""}`;
+      el.nikkeiMarginChart.setAttribute("aria-label", `${daily ? "日経225構成銘柄の日次" : "二市場合計の週次"}信用残高推移`);
       drawAnalysisSeriesChart(
         el.nikkeiMarginChart,
-        rows.slice(-26),
+        rows.slice(daily ? -90 : -26),
         [
           { color: "#0f8f6a", value: row => Number(row.buyBalanceThousandShares) / 1000 },
           { color: "#bc3b42", value: row => Number(row.sellBalanceThousandShares) / 1000 },
         ],
-        { dateKey: "weekEnd" },
+        { dateKey },
       );
     }
 
@@ -6438,42 +6549,42 @@
       setAnalysisState(el.nikkeiInvestorState, section);
       if (!rows.length) {
         el.nikkeiInvestorLatest.innerHTML = `<strong>未取得</strong>${escapeHtml(section.note || "投資主体別の週次データがありません。")}`;
-        el.nikkeiInvestorFlowList.innerHTML = "";
+        el.nikkeiInvestorTableWrap.hidden = true;
+        el.nikkeiInvestorTable.innerHTML = "";
         el.nikkeiInvestorNote.textContent = section.status === "permission-required"
           ? "公開表示に使う前に、JPX公開データの利用条件確認が必要です。"
-          : "買越しをプラス、売越しをマイナスで表示します。";
-        drawAnalysisMessage(el.nikkeiInvestorChart, "週次データ未取得");
+          : "単位は億円。買越しをプラス、売越しをマイナスで表示します。";
         return;
       }
       const latest = rows.at(-1);
-      const flows = latest.flows || {};
       const categoryConfig = [
-        ["foreign", "海外", "#246bce"],
-        ["individual", "個人", "#b17715"],
-        ["trustBank", "信託銀行", "#0f8f6a"],
-        ["investmentTrust", "投信", "#74549e"],
-        ["businessCorporation", "事業法人", "#bc3b42"],
+        ["foreign", "海外投資家"],
+        ["individual", "個人"],
+        ["investmentTrust", "投資信託"],
+        ["trustBank", "信託銀行"],
+        ["proprietary", "証券自己"],
       ];
-      const foreign = flows.foreign?.net100mYen;
-      const individual = flows.individual?.net100mYen;
       el.nikkeiInvestorLatest.innerHTML = `
-        <strong>海外 ${signedAnalysisValue(foreign)}億円 / 個人 ${signedAnalysisValue(individual)}億円</strong>
-        ${escapeHtml(formatDate(latest.periodStart))}から${escapeHtml(formatDate(latest.periodEnd))}
+        <strong>最新週 ${escapeHtml(formatDate(latest.periodEnd))}</strong>
+        ${escapeHtml(formatDate(latest.periodStart))}から${escapeHtml(formatDate(latest.periodEnd))} / ${Math.min(rows.length, 52)}週分
       `;
-      el.nikkeiInvestorFlowList.innerHTML = categoryConfig.map(([key, label, color]) => `
-        <span><span style="color:${color}">●</span> ${escapeHtml(label)} ${escapeHtml(signedAnalysisValue(flows[key]?.net100mYen))}億円</span>
-      `).join("");
-      el.nikkeiInvestorNote.textContent = section.note
-        || `差引額の週次推移。${section.scope || "東京・名古屋二市場合計（金額）"}です。`;
-      drawAnalysisSeriesChart(
-        el.nikkeiInvestorChart,
-        rows.slice(-26),
-        categoryConfig.map(([key, , color]) => ({
-          color,
-          value: row => row.flows?.[key]?.net100mYen,
-        })),
-        { dateKey: "periodEnd", symmetric: true },
-      );
+      const valueCell = value => {
+        if (value === null || value === undefined || value === "") return '<td class="flow-neutral">--</td>';
+        const number = Number(value);
+        if (!Number.isFinite(number)) return '<td class="flow-neutral">--</td>';
+        const category = number > 0 ? "flow-positive" : number < 0 ? "flow-negative" : "flow-neutral";
+        const label = `${number > 0 ? "+" : ""}${number.toLocaleString("ja-JP", { maximumFractionDigits: 2 })}`;
+        return `<td class="${category}">${escapeHtml(label)}</td>`;
+      };
+      el.nikkeiInvestorTable.innerHTML = `
+        <thead><tr><th scope="col">週末日</th>${categoryConfig.map(([, label]) => `<th scope="col">${escapeHtml(label)}</th>`).join("")}</tr></thead>
+        <tbody>${rows.slice(-52).reverse().map(row => `
+          <tr><th scope="row" title="${escapeHtml(formatDate(row.periodStart))}から${escapeHtml(formatDate(row.periodEnd))}">${escapeHtml(formatDate(row.periodEnd))}</th>
+          ${categoryConfig.map(([key]) => valueCell(row.flows?.[key]?.net100mYen)).join("")}</tr>
+        `).join("")}</tbody>
+      `;
+      el.nikkeiInvestorTableWrap.hidden = false;
+      el.nikkeiInvestorNote.textContent = `${section.scope || "東京・名古屋二市場合計（金額）"}。単位は億円、買越しはプラス、売越しはマイナス。${section.note || ""}`;
     }
 
     function renderNikkeiBreadth() {
@@ -6506,29 +6617,48 @@
       );
     }
 
+    function renderNikkeiValuation(payload = nikkeiAnalysis) {
+      const per = payload?.per || {};
+      const reference = per.reference;
+      const valid = reference && ["weightedPer", "weightedPbr", "indexPer", "indexPbr", "eps", "bps", "lowerPrice", "upperPrice"]
+        .every(key => Number.isFinite(Number(reference[key])) && Number(reference[key]) > 0);
+      const rows = Array.isArray(per.rows) ? per.rows.filter(row =>
+        row?.date && Number.isFinite(row.eps) && row.eps > 0 && Number.isFinite(row.bps) && row.bps > 0
+      ) : [];
+      if (valid) {
+        const multiple = value => `${Number(value).toFixed(2)}倍`;
+        const price = value => `${Number(value).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}円`;
+        el.nikkeiValuationRows.innerHTML = [
+          ["現在のPER（加重平均）", multiple(reference.weightedPer), price(reference.close)],
+          ["直下の整数倍", `${reference.lowerMultiple}倍`, price(reference.lowerPrice)],
+          ["直上の整数倍", `${reference.upperMultiple}倍`, price(reference.upperPrice)],
+          ["PER（指数ベース）", multiple(reference.indexPer), "-"],
+          ["PBR（加重平均）", multiple(reference.weightedPbr), "-"],
+          ["PBR（指数ベース）", multiple(reference.indexPbr), "-"],
+        ].map(([label, ratio, value]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(ratio)}</td><td>${escapeHtml(value)}</td></tr>`).join("");
+      } else {
+        el.nikkeiValuationRows.innerHTML = '<tr><td colspan="3">PER・PBRの同日付データを取得できていません。</td></tr>';
+      }
+      const visible = rowsForNikkeiAnalysisRange(rows);
+      el.nikkeiEpsHeading.textContent = valid ? `日経平均EPS ${Number(reference.eps).toLocaleString("ja-JP")}円（日次・推計）` : "日経平均EPS（日次・推計）";
+      el.nikkeiBpsHeading.textContent = valid ? `日経平均BPS ${Number(reference.bps).toLocaleString("ja-JP")}円（日次・推計）` : "日経平均BPS（日次・推計）";
+      drawAnalysisSeriesChart(el.nikkeiEpsChart, visible, [{ color: "#246bce", value: row => row.eps }]);
+      drawAnalysisSeriesChart(el.nikkeiBpsChart, visible, [{ color: "#0f8f6a", value: row => row.bps }]);
+      el.nikkeiPerNote.textContent = valid
+        ? `${per.status === "available" ? "" : "更新失敗・前回値。"}基準 ${formatDate(reference.date)}。整数倍価格は同日終値÷加重平均PERで換算。EPS・BPS推移は同日終値÷指数ベースPER/PBRで推計した別基準です。${rows.length}営業日分の履歴を表示できます。`
+        : per.note || "日経公式のPER・PBR・終値は本人限定版で取得します。";
+    }
+
     function renderNikkeiAnalysis(payload = nikkeiAnalysis) {
       const hasRows = Boolean(payload && Array.isArray(payload.rows) && payload.rows.length);
-      const perAvailable = hasRows && nikkeiPerBandsAvailable(payload);
-      if (hasRows && !nikkeiPerPreferenceInitialized) {
-        state.nikkeiIndicators.per = perAvailable;
-        nikkeiPerPreferenceInitialized = true;
-      }
       Object.entries(el.nikkeiRangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.nikkeiAnalysisRange === range);
       });
       el.nikkeiIndicatorButtons.forEach(button => {
         const key = button.dataset.nikkeiIndicator;
-        const available = key !== "per" || perAvailable;
-        const active = available && Boolean(state.nikkeiIndicators[key]);
+        const active = Boolean(state.nikkeiIndicators[key]);
         button.classList.toggle("active", active);
         button.setAttribute("aria-pressed", String(active));
-        if (key === "per") {
-          button.disabled = !available;
-          button.textContent = available ? "PER整数倍" : "PER整数倍（非公開版のみ）";
-          button.title = available
-            ? "日経平均のPER整数倍ラインを表示・非表示"
-            : "公開版ではPER参照値を配信していません。本人限定版または同じWi-Fiのローカル専用URLで表示できます。";
-        }
       });
       if (!payload || !Array.isArray(payload.rows) || !payload.rows.length) {
         el.nikkeiLocalPrivateNotice.hidden = true;
@@ -6540,7 +6670,7 @@
           </div>
         `;
         el.nikkeiAnalysisLegend.innerHTML = "";
-        el.nikkeiPerNote.textContent = "data/nikkei225-analysis.json を読み込めませんでした。";
+        renderNikkeiValuation(payload);
         disposeInteractiveChart(nikkeiChartController);
         nikkeiChartController = null;
         showInteractiveChartMessage(el.nikkeiAnalysisChart, el.nikkeiChartReadout, "日経225分析データ未取得");
@@ -6605,7 +6735,6 @@
           ["#246bce", "一目 基準線"],
           ["#0f8f6a", "一目 雲"],
         ] : []),
-        ...(state.nikkeiIndicators.per ? [["#74549e", "PER整数倍"]] : []),
         ["#246bce", "MACD"],
         ["#d15460", "MACDシグナル"],
         ["#74549e", "RSI14"],
@@ -6613,15 +6742,7 @@
       el.nikkeiAnalysisLegend.innerHTML = legend.map(([color, label]) => `
         <span class="legend-item"><span class="legend-line" style="background:${color}"></span>${escapeHtml(label)}</span>
       `).join("");
-      const per = payload.per || {};
-      const perPrefix = privateCloud
-        ? "Cloudflare Pages本人限定。 "
-        : localPrivate
-        ? "ローカル個人利用専用。 "
-        : "";
-      el.nikkeiPerNote.textContent = perAvailable
-        ? `${perPrefix}PER整数倍ライン: ${formatDate(per.reference.date)}の加重平均PER ${Number(per.reference.weightedPer).toFixed(2)}倍から推計したEPSを固定して表示します。日々の業績変化を反映する理論価格ではありません。`
-        : `${per.note || "PER整数倍ラインは利用条件とデータを確認できるまで表示しません。"} 公開版ではPER参照値を配信していません。本人限定版、またはPCで start-mobile-private.cmd を起動したローカル専用URLで表示できます。`;
+      renderNikkeiValuation(payload);
       requestAnimationFrame(() => {
         drawNikkeiAnalysisChart();
         renderNikkeiMargin();
@@ -9091,6 +9212,12 @@
         });
         renderNikkeiAnalysis(nikkeiAnalysis);
         render();
+      });
+    });
+    el.nikkeiMarginViewButtons.forEach(button => {
+      button.addEventListener("click", () => {
+        nikkeiMarginView = button.dataset.nikkeiMarginView;
+        renderNikkeiMargin();
       });
     });
     el.priceChartLatest.addEventListener("click", () => technicalChartController?.latest());

@@ -15,12 +15,15 @@ sys.path.insert(0, str(WORK))
 
 from jpx_weekly_connector import (  # noqa: E402
     JpxWeeklyError,
+    INVESTOR_CURRENT_PAGE,
     MARGIN_CURRENT_PAGE,
     MARGIN_HISTORY_PAGE,
     extract_xls_links,
     fetch_margin_history,
+    fetch_investor_history,
     parse_current_margin_sheet,
     parse_investor_sheet,
+    parse_investor_workbook,
     parse_margin_sheet,
     parse_margin_workbook,
 )
@@ -40,6 +43,59 @@ class FakeSheet:
 
 
 class JpxWeeklyConnectorTests(unittest.TestCase):
+    @staticmethod
+    def investor_xlsx(*, valid_unit: bool = True, valid_balance: bool = True) -> bytes:
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        sheet.cell(3, 4, "自己 Proprietary")
+        sheet.cell(6, 32, "投資信託 Investment Trusts")
+        sheet.cell(6, 52, "信託銀行 Trust BK")
+        sheet.cell(7, 3, "千株／千円" if valid_unit else "株数")
+        sheet.cell(7, 4, "売 Sales")
+        sheet.cell(7, 5, "買 Purchases")
+        sheet.cell(14, 2, "二市場 Tokyo & Nagoya Markets")
+        sheet.cell(14, 3, "株数 Shares")
+        sheet.cell(15, 3, "金額 Value")
+        for column in (4, 8, 12, 16, 20, 24, 32, 36, 52):
+            sheet.cell(15, column, 300_000)
+            sheet.cell(15, column + 1, 500_000)
+            sheet.cell(15, column + 2, 200_000)
+        if not valid_balance:
+            sheet.cell(15, 22, 300_000)
+        output = BytesIO()
+        workbook.save(output)
+        return output.getvalue()
+
+    def test_new_investor_xlsx_uses_two_market_value_and_combines_subcategories(self) -> None:
+        url = "https://www.jpx.co.jp/a/stock_1_w_20260928_20261002.xlsx"
+        result = parse_investor_workbook(self.investor_xlsx(), url)
+        self.assertEqual((result["periodStart"], result["periodEnd"]), ("2026-09-28", "2026-10-02"))
+        self.assertEqual(result["flows"]["foreign"]["net100mYen"], 4.0)
+        self.assertEqual(result["flows"]["proprietary"]["net100mYen"], 4.0)
+        self.assertEqual(result["flows"]["trustBank"]["net100mYen"], 2.0)
+
+    def test_new_investor_xlsx_rejects_wrong_unit_or_balance(self) -> None:
+        url = "https://www.jpx.co.jp/a/stock_1_w_20260928_20261002.xlsx"
+        for content in (self.investor_xlsx(valid_unit=False), self.investor_xlsx(valid_balance=False)):
+            with self.assertRaises(JpxWeeklyError):
+                parse_investor_workbook(content, url)
+
+    def test_new_investor_xlsx_is_selected_over_older_format(self) -> None:
+        new_url = "https://www.jpx.co.jp/a/stock_1_w_20260928_20261002.xlsx"
+        old_url = "https://www.jpx.co.jp/a/stock_val_1_260911.xls"
+        def fetch(url: str) -> bytes:
+            if url == INVESTOR_CURRENT_PAGE:
+                return f'<a href="{new_url}">new</a>'.encode()
+            if url.endswith("00-00-archives-00.html"):
+                return f'<a href="{old_url}">old</a>'.encode()
+            if url == new_url:
+                return self.investor_xlsx()
+            raise JpxWeeklyError("unavailable")
+        with patch("jpx_weekly_connector.fetch_bytes", side_effect=fetch):
+            rows, links = fetch_investor_history(initial_downloads=2)
+        self.assertEqual(rows[-1]["periodEnd"], "2026-10-02")
+        self.assertEqual(links, [new_url])
+
     @staticmethod
     def margin_xlsx(*, include_unit: bool = True) -> bytes:
         workbook = openpyxl.Workbook()
@@ -111,6 +167,7 @@ class JpxWeeklyConnectorTests(unittest.TestCase):
         sheet = FakeSheet(70, 11)
         sheet.set(3, 0, "2026年7月第2週 2026/7 week2 ( 7/6 - 7/10 )")
         categories = {
+            15: "自己計",
             26: "個　人",
             29: "海外投資家",
             37: "投資信託",
@@ -126,6 +183,7 @@ class JpxWeeklyConnectorTests(unittest.TestCase):
         self.assertEqual(result["flows"]["individual"]["sales100mYen"], 3.0)
         self.assertEqual(result["flows"]["individual"]["purchases100mYen"], 5.0)
         self.assertEqual(result["flows"]["individual"]["net100mYen"], 2.0)
+        self.assertEqual(result["flows"]["proprietary"]["net100mYen"], 2.0)
 
     def test_current_margin_sheet_adds_latest_week(self) -> None:
         sheet = FakeSheet(8, 15)

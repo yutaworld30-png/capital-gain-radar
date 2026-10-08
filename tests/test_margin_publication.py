@@ -9,9 +9,9 @@ from fetch_official_data import fetch_margin_file_links, JPX_MARGIN_URL, JPX_MAR
 
 
 class MarginPublicationTest(unittest.TestCase):
-    def test_daily_pdf_is_weekly_only_on_friday(self):
+    def test_daily_pdf_accepts_all_trading_days(self):
         self.assertEqual(margin_pdf_date("https://www.jpx.co.jp/20261002_mtall.pdf"), "2026-10-02")
-        self.assertIsNone(margin_pdf_date("https://www.jpx.co.jp/20261001_mtall.pdf"))
+        self.assertEqual(margin_pdf_date("https://www.jpx.co.jp/20261001_mtall.pdf"), "2026-10-01")
         self.assertEqual(margin_pdf_date("https://www.jpx.co.jp/syumatsu2026091800.pdf"), "2026-09-18")
 
     def test_daily_pdf_balance_columns(self):
@@ -35,14 +35,14 @@ class MarginPublicationTest(unittest.TestCase):
         self.assertTrue(links[0]["url"].endswith("syumatsu2026091800.pdf"))
         self.assertEqual(fetch.call_count, 2)
 
-    def test_fallback_and_no_weekly_pdf_error(self):
+    def test_fallback_and_no_dated_pdf_error(self):
         for html, valid in [('<a href="syumatsu2026091800.pdf">信用残高</a>', True),
                             ('<a href="totals.pdf">信用残高</a>', False)]:
             with patch("fetch_official_data.fetch_text", side_effect=lambda url: html if url == JPX_MARGIN_URL else ""):
                 if valid:
                     self.assertEqual(len(fetch_margin_file_links()), 1)
                 else:
-                    with self.assertRaisesRegex(ValueError, "weekly margin PDFs not found"):
+                    with self.assertRaisesRegex(ValueError, "margin PDFs not found"):
                         fetch_margin_file_links()
 
     def test_header_dates(self):

@@ -10,19 +10,22 @@ WORKFLOW = ROOT / ".github" / "workflows" / "deploy-pages.yml"
 
 
 class NikkeiAnalysisUiTests(unittest.TestCase):
-    def test_frontend_contains_analysis_controls_and_charts(self) -> None:
+    def test_frontend_contains_analysis_controls_charts_and_investor_matrix(self) -> None:
         source = HTML.read_text(encoding="utf-8")
         for expected in (
             'fetch("data/nikkei225-analysis.json"',
             'id="nikkeiAnalysisChart"',
             'id="nikkeiMarginChart"',
-            'id="nikkeiInvestorChart"',
+            'id="nikkeiInvestorTable"',
+            'id="nikkeiInvestorTableWrap"',
             'id="nikkeiBreadthChart"',
             'data-nikkei-indicator="ma"',
             'data-nikkei-indicator="psar"',
             'data-nikkei-indicator="bb"',
             'data-nikkei-indicator="ichimoku"',
-            'data-nikkei-indicator="per"',
+            'id="nikkeiValuationRows"',
+            'id="nikkeiEpsChart"',
+            'id="nikkeiBpsChart"',
             'id="nikkeiRange3y"',
             "row.macdHistogram",
             '"rsi14"',
@@ -31,20 +34,18 @@ class NikkeiAnalysisUiTests(unittest.TestCase):
             'id="nikkeiLocalPrivateNotice"',
             'payload.distributionMode === "local-private"',
             'payload.distributionMode === "private-cloud"',
-            'function nikkeiPerBandsAvailable(payload = nikkeiAnalysis)',
-            'state.nikkeiIndicators.per = perAvailable;',
-            'button.disabled = !available;',
-            'PER整数倍（非公開版のみ）',
-            'start-mobile-private.cmd',
-            "ローカル個人利用専用。",
-            "Cloudflare Pages本人限定。",
+            'function renderNikkeiValuation(payload = nikkeiAnalysis)',
+            '直下の整数倍',
+            '直上の整数倍',
         ):
             self.assertIn(expected, source)
+        self.assertNotIn('data-nikkei-indicator="per"', source)
+        self.assertNotIn('PER整数倍ライン', source)
 
     def test_frontend_keeps_permission_required_state_explicit(self) -> None:
         source = HTML.read_text(encoding="utf-8")
         self.assertIn("利用条件確認中", source)
-        self.assertIn("PER整数倍ラインは利用条件とデータを確認できるまで表示しません。", source)
+        self.assertIn("日経公式のPER・PBR・終値は本人限定版で取得します。", source)
         self.assertNotIn("サンプル信用倍率", source)
 
     def test_workflow_generates_analysis_before_validation(self) -> None:

@@ -12,6 +12,7 @@ sys.path.insert(0, str(WORK))
 
 from check_published_freshness import (  # noqa: E402
     analysis_freshness_issues,
+    daily_margin_freshness_issues,
     freshness_issues,
     history_freshness_issues,
 )
@@ -113,6 +114,42 @@ class PublishedFreshnessTests(unittest.TestCase):
             ),
             [],
         )
+
+    def test_daily_margin_needs_current_publication_date(self) -> None:
+        payload = sample_payload()
+        payload["sources"]["marginWeekly"] = {
+            "status": "available", "frequency": "daily", "asOf": "2026-08-13",
+        }
+        self.assertEqual(daily_margin_freshness_issues(payload, now=self.now), [])
+        payload["sources"]["marginWeekly"]["asOf"] = "2026-08-12"
+        self.assertTrue(daily_margin_freshness_issues(payload, now=self.now))
+        before_release = datetime(2026, 8, 13, 15, 45, tzinfo=JST)
+        self.assertEqual(daily_margin_freshness_issues(payload, now=before_release), [])
+
+    def test_nikkei_daily_margin_matches_candidate_date(self) -> None:
+        payload = sample_payload()
+        payload["sources"]["marginWeekly"] = {
+            "status": "available", "frequency": "daily", "asOf": "2026-08-13",
+        }
+        analysis = sample_analysis()
+        analysis["nikkeiMarginDaily"] = {"status": "available", "asOf": "2026-08-12"}
+        self.assertTrue(any("日次信用残" in item for item in analysis_freshness_issues(
+            analysis, candidate_payload=payload, now=self.now,
+        )))
+        analysis["nikkeiMarginDaily"]["asOf"] = "2026-08-13"
+        self.assertEqual(analysis_freshness_issues(analysis, candidate_payload=payload, now=self.now), [])
+
+    def test_private_evening_valuation_requires_same_day(self) -> None:
+        analysis = sample_analysis()
+        analysis["distributionMode"] = "private-cloud"
+        analysis["per"] = {"status": "available", "asOf": "2026-08-12"}
+        self.assertTrue(any("PER・PBR" in item for item in analysis_freshness_issues(
+            analysis, candidate_payload=sample_payload(), now=self.now,
+        )))
+        analysis["per"]["asOf"] = "2026-08-13"
+        self.assertEqual(analysis_freshness_issues(
+            analysis, candidate_payload=sample_payload(), now=self.now,
+        ), [])
 
     def test_analysis_older_than_candidate_requests_refresh(self) -> None:
         analysis = sample_analysis()
