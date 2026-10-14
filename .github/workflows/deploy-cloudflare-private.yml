@@ -2,6 +2,11 @@ name: Update data and deploy private Cloudflare Pages
 
 on:
   workflow_dispatch:
+    inputs:
+      force_refresh:
+        description: Force a full refresh (disable for the Cloudflare watchdog)
+        type: boolean
+        default: true
   schedule:
     # 16:10 JST on weekdays. Scheduled runs stay disabled until setup is complete.
     - cron: "10 7 * * 1-5"
@@ -51,10 +56,11 @@ jobs:
         id: decision
         env:
           EVENT_NAME: ${{ github.event_name }}
+          FORCE_REFRESH: ${{ inputs.force_refresh }}
           PRIVATE_SITE_URL: ${{ vars.CLOUDFLARE_PRIVATE_SITE_URL }}
           PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$FORCE_REFRESH" != "false" ]; then
             echo "Manual run: force refresh"
             echo "should_refresh=true" >> "$GITHUB_OUTPUT"
           elif python3 work/check_published_freshness.py \

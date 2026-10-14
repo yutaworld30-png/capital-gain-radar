@@ -97,6 +97,21 @@ Required repository variables:
 - `CLOUDFLARE_PRIVATE_DEPLOYMENT_ENABLED`: keep unset until Pages secrets are ready; set to `true` to enable manual and scheduled deployment.
 - `NIKKEI_PRIVATE_CLOUD_USE_CONFIRMED` and `JPX_PRIVATE_CLOUD_USE_CONFIRMED`: restricted-data confirmation gates described above.
 
+### Independent update backup
+
+GitHub's scheduled event may be delayed or dropped before the workflow starts. The optional
+`cloudflare/update-watchdog/` Worker is an independent backup, scheduled for 18:30 and 21:30 JST
+on weekdays (its cron expressions are UTC). It dispatches the same private workflow with
+`force_refresh=false`; the workflow's authenticated freshness check skips a build if all required
+data is already current. The existing manual button retains `force_refresh=true` by default.
+
+To activate the backup, create a fine-grained GitHub personal access token restricted to this
+repository with **Actions: Read and write** (and the required default metadata access). Store it
+only as the encrypted Cloudflare Worker secret `GITHUB_DISPATCH_TOKEN`. Deploy the Worker from
+`cloudflare/update-watchdog/` with Wrangler after reviewing its cron schedule. Do not add this
+token to repository variables, source files, or Pages secrets. The Worker has no public HTTP route.
+Check its scheduled invocation log and the resulting Actions run before relying on the backup.
+
 Migration order:
 
 1. Create the Cloudflare Pages Direct Upload project.
