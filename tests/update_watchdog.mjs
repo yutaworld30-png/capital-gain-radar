@@ -46,6 +46,7 @@ test("backup schedule and workflow input stay aligned", () => {
     new URL("../cloudflare/update-watchdog/wrangler.jsonc", import.meta.url), "utf8",
   ));
   assert.equal(config.workers_dev, false);
+  assert.deepEqual(config.secrets.required, ["GITHUB_DISPATCH_TOKEN"]);
   assert.deepEqual(config.triggers.crons, ["30 9 * * 1-5", "30 12 * * 1-5"]);
   const workflow = readFileSync(
     new URL("../.github/workflows/deploy-cloudflare-private.yml", import.meta.url), "utf8",

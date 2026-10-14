@@ -107,10 +107,13 @@ data is already current. The existing manual button retains `force_refresh=true`
 
 To activate the backup, create a fine-grained GitHub personal access token restricted to this
 repository with **Actions: Read and write** (and the required default metadata access). Store it
-only as the encrypted Cloudflare Worker secret `GITHUB_DISPATCH_TOKEN`. Deploy the Worker from
-`cloudflare/update-watchdog/` with Wrangler after reviewing its cron schedule. Do not add this
-token to repository variables, source files, or Pages secrets. The Worker has no public HTTP route.
-Check its scheduled invocation log and the resulting Actions run before relying on the backup.
+as the encrypted GitHub Actions secret `WATCHDOG_GITHUB_TOKEN`, not in source or a repository
+variable. Run `Deploy independent update watchdog` manually. It deploys the completed Worker code
+and its encrypted `GITHUB_DISPATCH_TOKEN` binding together, without giving Cloudflare's GitHub
+app broad repository administration permissions. The existing `CLOUDFLARE_API_TOKEN` is tried
+first; if it lacks Workers permissions, create a Cloudflare token scoped to this account for
+Workers deployment and store it as `CLOUDFLARE_WORKERS_API_TOKEN`. The Worker has no public HTTP
+route. Check the scheduled invocation log and resulting Actions run before relying on the backup.
 
 Migration order:
 

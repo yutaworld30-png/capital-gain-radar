@@ -3,6 +3,9 @@
   "main": "worker.mjs",
   "compatibility_date": "2026-10-14",
   "workers_dev": false,
+  "secrets": {
+    "required": ["GITHUB_DISPATCH_TOKEN"]
+  },
   "triggers": {
     "crons": ["30 9 * * 1-5", "30 12 * * 1-5"]
   }
