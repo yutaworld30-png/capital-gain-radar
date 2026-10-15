@@ -40,15 +40,15 @@ const server = http.createServer((req, res) => {
       await page.setViewportSize({width,height:900});
       // Open detail using the app's own tab handlers, independent of mobile screen routing.
       await page.locator('#marginHistoryTab').evaluate(button => button.click());
-      await page.waitForSelector('#marginHistoryContent svg', {state:'attached'});
-      assert.equal(await page.locator('#marginHistoryContent svg').count(),2);
+      await page.waitForSelector('#marginHistoryContent table', {state:'attached'});
+      assert.equal(await page.locator('#marginHistoryContent th').first().textContent(),'基準日');
       await page.locator('[data-margin-months="12"]').evaluate(button => button.click());
       await page.waitForFunction(() => document.querySelector('#marginHistoryContent').textContent.includes('20観測日'));
       await page.locator('#fundamentalTab').evaluate(button => button.click());
       assert.equal(await page.locator('#marginHistoryPanel').evaluate(panel => panel.hidden),true);
       await page.locator('#scoreHistoryTab').evaluate(button => button.click());
       await page.locator('#marginHistoryTab').evaluate(button => button.click());
-      await page.waitForSelector('#marginHistoryContent svg', {state:'attached'});
+      await page.waitForSelector('#marginHistoryContent table', {state:'attached'});
       // Isolate the real detail panel for responsive visual QA without modifying source.
       await page.evaluate(() => {
         document.body.classList.add('mobile-detail-open');
@@ -82,6 +82,6 @@ const server = http.createServer((req, res) => {
       console.log('PASS: official five-week data and publication dates rendered');
     }
     assert.deepEqual(errors, []);
-    console.log('PASS: inline syntax, charts, ranges, mobile/desktop tab transitions; no page errors');
+    console.log('PASS: inline syntax, margin tables, ranges, mobile/desktop tab transitions; no page errors');
   } finally {if(browser) await browser.close(); await new Promise(resolve => server.close(resolve));}
 })().catch(error => {console.error(error);process.exitCode=1;});

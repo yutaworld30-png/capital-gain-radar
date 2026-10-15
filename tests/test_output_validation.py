@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 WORK = ROOT / "work"
 sys.path.insert(0, str(WORK))
 
-from validate_output import validate_dataset, validate_history  # noqa: E402
+from validate_output import validate_dataset, validate_history, validate_industry_market  # noqa: E402
 
 
 class OutputValidationTest(unittest.TestCase):
@@ -73,7 +73,8 @@ class OutputValidationTest(unittest.TestCase):
             "rowFormat": [
                 "code", "score", "theme", "supply", "technical", "relative",
                 "earnings", "liquidity", "valuation", "risk", "isNewHigh52w",
-                "dataQuality", "historySource",
+                "dataQuality", "historySource", "per", "pbr", "dividendYield",
+                "dividendYieldKind", "fundamentalsAsOf",
             ],
             "snapshotCount": 1,
             "restoredSnapshotCount": 0,
@@ -131,6 +132,17 @@ class OutputValidationTest(unittest.TestCase):
 
     def test_valid_history_passes(self) -> None:
         self.assertEqual(validate_history(self.valid_history(), self.valid_dataset()), [])
+
+    def test_industry_market_rejects_mismatched_price_date(self) -> None:
+        dataset = self.valid_dataset()
+        payload = {
+            "schemaVersion": 1, "generatedAt": dataset["generatedAt"],
+            "status": "available", "asOf": "2026-07-13",
+            "rows": [{"industry": "機械", "changeRate": 0.01}],
+        }
+        self.assertTrue(validate_industry_market(payload, dataset))
+        payload["asOf"] = "2026-07-14"
+        self.assertEqual(validate_industry_market(payload, dataset), [])
 
     def test_history_rejects_snapshot_loss(self) -> None:
         history = self.valid_history()

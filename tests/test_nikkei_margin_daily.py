@@ -38,3 +38,25 @@ class NikkeiMarginDailyTests(unittest.TestCase):
         result = build_nikkei_margin_daily(self.history, self.components, today=date(2026, 10, 8))
         self.assertEqual(result["status"], "stale-fallback")
         self.assertEqual(build_nikkei_margin_daily(self.history, self.components[:224])["status"], "unavailable")
+
+    def test_yen_balances_use_same_day_stock_closes(self):
+        self.add_day("2026-10-06")
+        prices = {item["code"]: {"2026-10-06": 1000.0} for item in self.components}
+        result = build_nikkei_margin_daily(
+            self.history, self.components, price_closes=prices, today=date(2026, 10, 7)
+        )
+        row = result["rows"][0]
+        self.assertEqual(row["buyBalance100mYen"], 4.5)
+        self.assertEqual(row["sellBalance100mYen"], 2.25)
+        self.assertEqual(row["marginRatio"], 2)
+        self.assertEqual(row["valueCoveredCount"], 225)
+
+    def test_insufficient_price_coverage_does_not_show_partial_yen_balance(self):
+        self.add_day("2026-10-06")
+        prices = {item["code"]: {"2026-10-06": 1000.0} for item in self.components[:210]}
+        row = build_nikkei_margin_daily(
+            self.history, self.components, price_closes=prices, today=date(2026, 10, 7)
+        )["rows"][0]
+        self.assertIsNone(row["buyBalance100mYen"])
+        self.assertIsNone(row["sellBalance100mYen"])
+        self.assertEqual(row["marginRatio"], 2)

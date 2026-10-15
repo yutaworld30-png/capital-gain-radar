@@ -578,6 +578,30 @@
     .nikkei-valuation-trends { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
     .nikkei-valuation-trends h4 { margin: 0; font-size: 12px; }
     @media (max-width: 680px) { .nikkei-valuation-trends { grid-template-columns: 1fr; } }
+    .history-table-wrap { max-height: 440px; overflow: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 6px; }
+    .history-table { width: 100%; min-width: 560px; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+    #nikkeiValuationHistory { min-width: 690px; }
+    .history-table th, .history-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+    .history-table th:first-child, .history-table td:first-child { text-align: left; }
+    .history-table thead th { position: sticky; top: 0; z-index: 1; background: #eaf0f5; }
+    .history-table tbody tr:nth-child(even) { background: #f7fafc; }
+    .sector-market-body { padding: 12px 16px 16px; }
+    .sector-market-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .sector-market-grid h3 { margin: 0 0 7px; font-size: 14px; }
+    .sector-market-list { margin: 0; padding: 0; list-style: none; }
+    .sector-market-list li { display: grid; grid-template-columns: 70px minmax(0, 1fr) 48px; gap: 8px; padding: 7px 4px; border-bottom: 1px solid var(--line); align-items: center; font-size: 12px; }
+    .sector-market-list .change { text-align: center; padding: 5px 2px; border-radius: 4px; color: #fff; font-weight: 800; }
+    .sector-market-list .change.up { background: #168b51; }
+    .sector-market-list .change.down { background: #c2454e; }
+    .sector-market-list small { color: var(--muted); text-align: right; }
+    .vix-chart-wrap { height: 430px; margin: 12px 16px 16px; border: 1px solid var(--line); border-radius: 8px; }
+    #vixChart { width: 100%; height: 100%; }
+    .valuation-history { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+    .valuation-history h3 { margin: 0 0 8px; font-size: 14px; }
+    .valuation-history-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .valuation-history-grid h4 { margin: 0 0 5px; font-size: 12px; }
+    .valuation-history-grid .analysis-mini-chart { height: 120px; }
+    @media (max-width: 680px) { .sector-market-grid, .valuation-history-grid { grid-template-columns: 1fr; } }
 
     .analysis-investor-card {
       grid-column: 1 / -1;
@@ -2077,6 +2101,8 @@
 
     body[data-app-view="portfolio"] #guideSection,
     body[data-app-view="portfolio"] #marketPanel,
+    body[data-app-view="portfolio"] #industryMarketPanel,
+    body[data-app-view="portfolio"] #vixPanel,
     body[data-app-view="portfolio"] #nikkeiAnalysisPanel,
     body[data-app-view="portfolio"] #backtestPanel,
     body[data-app-view="portfolio"] #candidateSummary,
@@ -3002,6 +3028,8 @@
 
       #guideSection,
       #marketPanel,
+      #industryMarketPanel,
+      #vixPanel,
       #nikkeiAnalysisPanel,
       #backtestPanel,
       #candidateSummary,
@@ -3028,6 +3056,8 @@
       body[data-mobile-page="watch"][data-mobile-portfolio-view="watchlist"] #rankingPanel,
       body[data-mobile-page="compare"] #comparePanel,
       body[data-mobile-page="market"][data-mobile-market-view="summary"] #marketPanel,
+      body[data-mobile-page="market"][data-mobile-market-view="industry"] #industryMarketPanel,
+      body[data-mobile-page="market"][data-mobile-market-view="vix"] #vixPanel,
       body[data-mobile-page="market"][data-mobile-market-view="technical"] #nikkeiAnalysisPanel,
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel,
       body[data-mobile-page="more"][data-mobile-more-view="backtest"] #backtestPanel,
@@ -3467,6 +3497,8 @@
       }
 
       body[data-mobile-page="market"] #marketPanel,
+      body[data-mobile-page="market"] #industryMarketPanel,
+      body[data-mobile-page="market"] #vixPanel,
       body[data-mobile-page="market"] #nikkeiAnalysisPanel,
       body[data-mobile-page="compare"] #comparePanel,
       body[data-mobile-page="more"] #backtestPanel,
@@ -3501,17 +3533,17 @@
       }
 
       #marketPanel .market-grid {
-        display: flex;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
         gap: 9px;
-        overflow-x: auto;
+        overflow-x: hidden;
         padding: 0 12px 12px;
-        scroll-snap-type: x mandatory;
       }
 
       #marketPanel .market-card {
-        flex: 0 0 min(82vw, 320px);
-        scroll-snap-align: start;
+        width: 100%;
       }
+      #vixPanel .vix-chart-wrap { height: min(62dvh, 500px); }
 
       body[data-mobile-page="market"][data-mobile-market-view="technical"] #nikkeiAnalysisPanel .analysis-detail-grid,
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-toolbar,
@@ -3864,6 +3896,8 @@
       <section class="mobile-section-tabs" id="mobileMarketTabs" aria-label="相場環境の表示切り替え">
         <div class="mobile-scroll-tabs" role="tablist">
           <button class="active" type="button" data-mobile-market-view="summary" role="tab">相場サマリー</button>
+          <button type="button" data-mobile-market-view="industry" role="tab">業種別</button>
+          <button type="button" data-mobile-market-view="vix" role="tab">VIX</button>
           <button type="button" data-mobile-market-view="technical" role="tab">日経チャート</button>
           <button type="button" data-mobile-market-view="stats" role="tab">需給統計</button>
         </div>
@@ -3997,6 +4031,29 @@
         </div>
       </section>
 
+      <section class="panel" id="industryMarketPanel" aria-label="業種別騰落ランキング">
+        <div class="panel-header"><h2>業種別騰落ランキング</h2><span class="updated" id="industryMarketStatus">読込中</span></div>
+        <div class="sector-market-body">
+          <div class="sector-market-grid">
+            <div><h3>値上がり率 上位10業種</h3><ol class="sector-market-list" id="industryMarketUp"></ol></div>
+            <div><h3>値下がり率 上位10業種</h3><ol class="sector-market-list" id="industryMarketDown"></ol></div>
+          </div>
+          <div class="analysis-source-note" id="industryMarketNote">業種別データを読み込んでいます。</div>
+        </div>
+      </section>
+
+      <section class="panel" id="vixPanel" aria-label="VIXの日足チャート">
+        <div class="panel-header"><h2>VIX ローソク足・MACD</h2><span class="updated" id="vixStatus">読込中</span></div>
+        <div class="range-tabs" style="margin:12px 16px 0" aria-label="VIXの表示期間">
+          <button type="button" data-vix-range="1m">1ヶ月</button>
+          <button type="button" class="active" data-vix-range="3m">3ヶ月</button>
+          <button type="button" data-vix-range="6m">6ヶ月</button>
+        </div>
+        <div class="interactive-chart-readout" id="vixReadout" style="padding:8px 16px">読込中</div>
+        <div class="vix-chart-wrap"><div id="vixChart" role="img" aria-label="VIX日足ローソク足とMACD"></div></div>
+        <div class="analysis-source-note" id="vixNote" style="padding:0 16px 16px"></div>
+      </section>
+
       <section class="panel nikkei-analysis-panel" id="nikkeiAnalysisPanel" aria-label="日経225テクニカル分析">
         <div class="panel-header">
           <div>
@@ -4062,6 +4119,9 @@
               <div><h4 id="nikkeiEpsHeading">日経平均EPS（日次・推計）</h4><div class="analysis-mini-chart"><canvas id="nikkeiEpsChart" aria-label="日経平均EPSの日次推移"></canvas></div></div>
               <div><h4 id="nikkeiBpsHeading">日経平均BPS（日次・推計）</h4><div class="analysis-mini-chart"><canvas id="nikkeiBpsChart" aria-label="日経平均BPSの日次推移"></canvas></div></div>
             </div>
+            <div class="history-table-wrap" role="region" tabindex="0" aria-label="日経平均PER・PBRの日次履歴">
+              <table class="history-table" id="nikkeiValuationHistory"><thead><tr><th>日付</th><th>日経平均</th><th>前日差</th><th>PER</th><th>PBR</th><th>EPS（推計）</th><th>BPS（推計）</th></tr></thead><tbody><tr><td colspan="7">読込中</td></tr></tbody></table>
+            </div>
             <div class="analysis-source-note" id="nikkeiPerNote">日経平均PER・PBRの取得状態を確認しています。</div>
           </section>
 
@@ -4076,8 +4136,8 @@
                 <button type="button" data-nikkei-margin-view="market" aria-pressed="false">二市場合計・週次</button>
               </div>
               <div class="analysis-latest" id="nikkeiMarginLatest">信用残高を読み込んでいます。</div>
-              <div class="analysis-mini-chart">
-                <canvas id="nikkeiMarginChart" aria-label="信用売り残、買い残の推移"></canvas>
+              <div class="history-table-wrap" role="region" tabindex="0" aria-label="日経225信用残高の履歴">
+                <table class="history-table" id="nikkeiMarginTable"></table>
               </div>
               <div class="analysis-source-note" id="nikkeiMarginNote">単位と基準日を確認しています。</div>
             </section>
@@ -4340,6 +4400,15 @@
               </div>
               <div id="fundamentalPanel">
                 <div class="fundamental-grid" id="fundamentalGrid"></div>
+                <section class="valuation-history" aria-label="個別銘柄のバリュエーション推移">
+                  <h3>PER・PBR・予想配当利回りの推移</h3>
+                  <div class="valuation-history-grid">
+                    <div><h4 id="stockPerHistoryLabel">PER</h4><div class="analysis-mini-chart"><canvas id="stockPerHistoryChart" aria-label="PERの履歴"></canvas></div></div>
+                    <div><h4 id="stockPbrHistoryLabel">PBR</h4><div class="analysis-mini-chart"><canvas id="stockPbrHistoryChart" aria-label="PBRの履歴"></canvas></div></div>
+                    <div><h4 id="stockYieldHistoryLabel">予想配当利回り</h4><div class="analysis-mini-chart"><canvas id="stockYieldHistoryChart" aria-label="予想配当利回りの履歴"></canvas></div></div>
+                  </div>
+                  <div class="analysis-source-note" id="stockValuationHistoryNote">履歴を読み込んでいます。</div>
+                </section>
                 <div class="decision-support">
                   <section class="decision-section">
                     <h3>上位加点理由</h3>
@@ -4563,6 +4632,7 @@
     let backtestSummary = null;
     let marketEnvironment = null;
     let marketHistory = null;
+    let industryMarket = null;
     let nikkeiAnalysis = null;
     let weeklyAccuracySummary = null;
     let weeklyAccuracyLoadStatus = "not-loaded";
@@ -4572,6 +4642,7 @@
     let mobileDetailHistoryActive = false;
     let technicalChartController = null;
     let nikkeiChartController = null;
+    let vixChartController = null;
     const mobileScrollPositions = {
       candidates: 0,
       market: 0,
@@ -4605,6 +4676,7 @@
       chartRange: "6m",
       scoreHistoryRange: "1w",
       marketHistoryRange: "1m",
+      vixRange: "3m",
       nikkeiAnalysisRange: "6m",
       bollingerSigma: 2,
       mobilePage: "candidates",
@@ -4794,6 +4866,14 @@
       marketSummary: document.querySelector("#marketSummary"),
       marketUsage: document.querySelector("#marketUsage"),
       marketGrid: document.querySelector("#marketGrid"),
+      industryMarketStatus: document.querySelector("#industryMarketStatus"),
+      industryMarketUp: document.querySelector("#industryMarketUp"),
+      industryMarketDown: document.querySelector("#industryMarketDown"),
+      industryMarketNote: document.querySelector("#industryMarketNote"),
+      vixStatus: document.querySelector("#vixStatus"),
+      vixChart: document.querySelector("#vixChart"),
+      vixReadout: document.querySelector("#vixReadout"),
+      vixNote: document.querySelector("#vixNote"),
       marketScoreChart: document.querySelector("#marketScoreChart"),
       marketHistoryMeta: document.querySelector("#marketHistoryMeta"),
       marketRangeButtons: {
@@ -4817,6 +4897,7 @@
       nikkeiAnalysisLegend: document.querySelector("#nikkeiAnalysisLegend"),
       nikkeiPerNote: document.querySelector("#nikkeiPerNote"),
       nikkeiValuationRows: document.querySelector("#nikkeiValuationRows"),
+      nikkeiValuationHistory: document.querySelector("#nikkeiValuationHistory"),
       nikkeiEpsChart: document.querySelector("#nikkeiEpsChart"),
       nikkeiBpsChart: document.querySelector("#nikkeiBpsChart"),
       nikkeiEpsHeading: document.querySelector("#nikkeiEpsHeading"),
@@ -4834,8 +4915,15 @@
       nikkeiMarginState: document.querySelector("#nikkeiMarginState"),
       nikkeiMarginViewButtons: document.querySelectorAll("[data-nikkei-margin-view]"),
       nikkeiMarginLatest: document.querySelector("#nikkeiMarginLatest"),
-      nikkeiMarginChart: document.querySelector("#nikkeiMarginChart"),
+      nikkeiMarginTable: document.querySelector("#nikkeiMarginTable"),
       nikkeiMarginNote: document.querySelector("#nikkeiMarginNote"),
+      stockPerHistoryChart: document.querySelector("#stockPerHistoryChart"),
+      stockPbrHistoryChart: document.querySelector("#stockPbrHistoryChart"),
+      stockYieldHistoryChart: document.querySelector("#stockYieldHistoryChart"),
+      stockPerHistoryLabel: document.querySelector("#stockPerHistoryLabel"),
+      stockPbrHistoryLabel: document.querySelector("#stockPbrHistoryLabel"),
+      stockYieldHistoryLabel: document.querySelector("#stockYieldHistoryLabel"),
+      stockValuationHistoryNote: document.querySelector("#stockValuationHistoryNote"),
       nikkeiInvestorState: document.querySelector("#nikkeiInvestorState"),
       nikkeiInvestorLatest: document.querySelector("#nikkeiInvestorLatest"),
       nikkeiInvestorTableWrap: document.querySelector("#nikkeiInvestorTableWrap"),
@@ -4936,9 +5024,10 @@
         if (state.mobilePage === "market" && state.mobileMarketView === "summary") {
           renderMarketEnvironment(marketEnvironment);
         }
-        if (state.mobilePage === "market" && state.mobileMarketView !== "summary") {
+        if (state.mobilePage === "market" && ["technical", "stats"].includes(state.mobileMarketView)) {
           renderNikkeiAnalysis(nikkeiAnalysis);
         }
+        if (state.mobilePage === "market" && state.mobileMarketView === "vix") renderVixChart();
         if (state.mobileDetailOpen) renderTechnical(currentRows());
       });
     }
@@ -5072,7 +5161,7 @@
     }
 
     function setMobileMarketView(view) {
-      if (!["summary", "technical", "stats"].includes(view)) return;
+      if (!["summary", "industry", "vix", "technical", "stats"].includes(view)) return;
       state.mobileMarketView = view;
       syncMobileShell();
       requestVisibleMobileCharts();
@@ -5981,10 +6070,85 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         marketEnvironment = await response.json();
         renderMarketEnvironment(marketEnvironment);
+        requestAnimationFrame(renderVixChart);
       } catch (error) {
         marketEnvironment = null;
         renderMarketEnvironment(null);
+        renderVixChart();
       }
+    }
+
+    function renderIndustryMarket() {
+      const rows = Array.isArray(industryMarket?.rows) ? industryMarket.rows.filter(row =>
+        row?.industry && Number.isFinite(Number(row.changeRate))
+      ) : [];
+      el.industryMarketStatus.textContent = rows.length ? `基準 ${formatDate(industryMarket.asOf)}` : "未取得";
+      const draw = (target, selected, tone) => {
+        target.innerHTML = selected.length ? selected.map(row => `
+          <li><span class="change ${tone}">${Number(row.changeRate) >= 0 ? "+" : ""}${(Number(row.changeRate) * 100).toFixed(2)}%</span>
+          <span>${escapeHtml(row.industry)}</span><small>${Number(row.coveredCount)}/${Number(row.componentCount)}銘柄</small></li>
+        `).join("") : "<li>該当する業種データがありません。</li>";
+      };
+      draw(el.industryMarketUp, rows.filter(row => Number(row.changeRate) > 0).slice(0, 10), "up");
+      draw(el.industryMarketDown, rows.filter(row => Number(row.changeRate) < 0).slice(-10).reverse(), "down");
+      el.industryMarketNote.textContent = rows.length
+        ? `${industryMarket.basis || "TOPIX対象銘柄の平均騰落率"} 基準日 ${formatDate(industryMarket.asOf)}、${rows.length}業種。指数水準ではありません。`
+        : "業種別の同日価格と前日終値が揃っていません。";
+    }
+
+    async function loadIndustryMarket() {
+      try {
+        const response = await fetch("data/industry-market.json", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        industryMarket = await response.json();
+      } catch {
+        industryMarket = null;
+      }
+      renderIndustryMarket();
+    }
+
+    function renderVixChart() {
+      const section = marketEnvironment?.vixTechnical || {};
+      const rows = Array.isArray(section.rows) ? section.rows.filter(row =>
+        row?.date && [row.open, row.high, row.low, row.close].every(value => Number.isFinite(Number(value)) && Number(value) > 0)
+      ) : [];
+      el.vixStatus.textContent = rows.length >= 35 ? `基準 ${formatDate(section.asOf)}` : "OHLC未取得";
+      el.vixNote.textContent = section.note || "VIXの確定済み日足OHLCを取得できていません。";
+      document.querySelectorAll("[data-vix-range]").forEach(button => {
+        button.classList.toggle("active", button.dataset.vixRange === state.vixRange);
+      });
+      if (isMobileLayout() && (state.mobilePage !== "market" || state.mobileMarketView !== "vix")) return;
+      const api = lightweightChartsApi();
+      const signature = `${state.vixRange}|${rows.length}|${rows.at(-1)?.date || ""}`;
+      if (vixChartController?.signature === signature) return;
+      disposeInteractiveChart(vixChartController);
+      vixChartController = null;
+      if (!api || rows.length < 35) {
+        showInteractiveChartMessage(el.vixChart, el.vixReadout, "VIXの確定済み日足が不足しています。");
+        return;
+      }
+      const chart = createInteractiveChart(el.vixChart);
+      if (!chart) return;
+      const candles = chart.addSeries(api.CandlestickSeries, {
+        upColor: "#ffffff", downColor: "#bc3b42", borderUpColor: "#0f8f6a",
+        borderDownColor: "#bc3b42", wickUpColor: "#0f8f6a", wickDownColor: "#bc3b42",
+        priceLineVisible: false,
+      }, 0);
+      candles.setData(rows.map(row => ({time: row.date, open: Number(row.open), high: Number(row.high), low: Number(row.low), close: Number(row.close)})));
+      const histogram = chart.addSeries(api.HistogramSeries, {priceLineVisible: false, lastValueVisible: false, base: 0}, 1);
+      histogram.setData(rows.filter(row => Number.isFinite(Number(row.macdHistogram))).map(row => ({
+        time: row.date, value: Number(row.macdHistogram),
+        color: Number(row.macdHistogram) >= 0 ? "rgba(15, 143, 106, .55)" : "rgba(188, 59, 66, .55)",
+      })));
+      addChartLine(chart, rows, "macd", "#246bce", 1, {lineWidth: 2});
+      addChartLine(chart, rows, "macdSignal", "#d15460", 1, {lineWidth: 2});
+      setChartPaneFactors(chart, [4, 1.7]);
+      bindOhlcReadout(chart, candles, null, el.vixReadout, "VIX", rows.at(-1));
+      const days = {"1m": 31, "3m": 93, "6m": 186}[state.vixRange] || 93;
+      const last = Date.parse(rows.at(-1).date);
+      const visible = rows.filter(row => Date.parse(row.date) >= last - days * 86400000);
+      setChartVisibleRows(chart, visible);
+      vixChartController = {chart, signature};
     }
 
     function lightweightChartsApi() {
@@ -6517,30 +6681,32 @@
         el.nikkeiMarginNote.textContent = section.status === "permission-required"
           ? "公開表示に使う前に、JPX公開データの利用条件確認が必要です。"
           : `${daily ? "日経225構成銘柄の日次" : "二市場合計の週次"}データを取得できません。`;
-        drawAnalysisMessage(el.nikkeiMarginChart, "信用残高未取得");
+        el.nikkeiMarginTable.innerHTML = "";
         return;
       }
       const latest = rows.at(-1);
       const ratio = latest.marginRatio == null ? NaN : Number(latest.marginRatio);
-      const buyMillion = Number(latest.buyBalanceThousandShares) / 1000;
-      const sellMillion = Number(latest.sellBalanceThousandShares) / 1000;
+      const display = (value, digits = 1) => typeof value === "number" && Number.isFinite(value)
+        ? value.toLocaleString("ja-JP", {maximumFractionDigits: digits}) : "未算出";
+      const buy = daily ? latest.buyBalance100mYen : latest.buyBalanceThousandShares;
+      const sell = daily ? latest.sellBalance100mYen : latest.sellBalanceThousandShares;
+      const unit = daily ? "億円" : "千株";
       el.nikkeiMarginLatest.innerHTML = `
         <strong>信用倍率 ${Number.isFinite(ratio) ? ratio.toFixed(2) + "倍" : "未取得"}</strong>
-        買い残 ${Number.isFinite(buyMillion) ? buyMillion.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) : "--"}百万株 /
-        売り残 ${Number.isFinite(sellMillion) ? sellMillion.toLocaleString("ja-JP", { maximumFractionDigits: 1 }) : "--"}百万株<br>
+        買い残 ${display(buy)}${unit} / 売り残 ${display(sell)}${unit}<br>
         基準 ${escapeHtml(formatDate(latest[dateKey]))}${latest.publishedAt ? ` / 公表 ${escapeHtml(formatDate(latest.publishedAt))}` : ""}
       `;
-      el.nikkeiMarginNote.textContent = `緑: 買い残、赤: 売り残。${section.scope || (daily ? "日経225現行構成銘柄の合計" : "東京・名古屋二市場合計")}、単位は百万株。${section.note || ""}`;
-      el.nikkeiMarginChart.setAttribute("aria-label", `${daily ? "日経225構成銘柄の日次" : "二市場合計の週次"}信用残高推移`);
-      drawAnalysisSeriesChart(
-        el.nikkeiMarginChart,
-        rows.slice(daily ? -90 : -26),
-        [
-          { color: "#0f8f6a", value: row => Number(row.buyBalanceThousandShares) / 1000 },
-          { color: "#bc3b42", value: row => Number(row.sellBalanceThousandShares) / 1000 },
-        ],
-        { dateKey },
-      );
+      const visible = rows.slice(daily ? -90 : -26).reverse();
+      el.nikkeiMarginTable.innerHTML = `<thead><tr><th scope="col">基準日</th><th scope="col">信用倍率</th><th scope="col">売り残（${unit}）</th><th scope="col">買い残（${unit}）</th><th scope="col">カバー数</th></tr></thead><tbody>${visible.map(row => `
+        <tr><th scope="row">${escapeHtml(formatDate(row[dateKey]))}</th>
+        <td>${typeof row.marginRatio === "number" && Number.isFinite(row.marginRatio) ? row.marginRatio.toFixed(2) + "倍" : "算出不可"}</td>
+        <td>${display(daily ? row.sellBalance100mYen : row.sellBalanceThousandShares, daily ? 2 : 1)}</td>
+        <td>${display(daily ? row.buyBalance100mYen : row.buyBalanceThousandShares, daily ? 2 : 1)}</td>
+        <td>${daily ? `${Number(row.valueCoveredCount || 0)}/${Number(row.componentCount || 225)}` : "-"}</td></tr>
+      `).join("")}</tbody>`;
+      el.nikkeiMarginNote.textContent = daily
+        ? `倍率は株数ベース、残高金額は同日終値×株数の参考換算です。価格確認率95%未満の日は金額を非算出。${section.note || ""}`
+        : `${section.scope || "東京・名古屋二市場合計"}。週次・単位は千株。${section.note || ""}`;
     }
 
     function renderNikkeiInvestorFlows() {
@@ -6640,12 +6806,24 @@
         el.nikkeiValuationRows.innerHTML = '<tr><td colspan="3">PER・PBRの同日付データを取得できていません。</td></tr>';
       }
       const visible = rowsForNikkeiAnalysisRange(rows);
+      const historyRows = rows.slice(-60);
+      el.nikkeiValuationHistory.querySelector("tbody").innerHTML = historyRows.length
+        ? [...historyRows].reverse().map(row => {
+          const previous = rows[rows.indexOf(row) - 1];
+          const delta = previous && Number.isFinite(previous.close) ? row.close - previous.close : null;
+          const number = value => Number.isFinite(value) ? value.toLocaleString("ja-JP", {maximumFractionDigits: 2}) : "-";
+          return `<tr><th scope="row">${escapeHtml(formatDate(row.date))}</th><td>${number(row.close)}</td>
+            <td>${delta == null ? "-" : `${delta >= 0 ? "+" : ""}${number(delta)}`}</td>
+            <td>${number(row.weightedPer)}</td><td>${number(row.weightedPbr)}</td>
+            <td>${number(row.eps)}</td><td>${number(row.bps)}</td></tr>`;
+        }).join("")
+        : '<tr><td colspan="7">同日付のPER・PBR履歴がありません。</td></tr>';
       el.nikkeiEpsHeading.textContent = valid ? `日経平均EPS ${Number(reference.eps).toLocaleString("ja-JP")}円（日次・推計）` : "日経平均EPS（日次・推計）";
       el.nikkeiBpsHeading.textContent = valid ? `日経平均BPS ${Number(reference.bps).toLocaleString("ja-JP")}円（日次・推計）` : "日経平均BPS（日次・推計）";
       drawAnalysisSeriesChart(el.nikkeiEpsChart, visible, [{ color: "#246bce", value: row => row.eps }]);
       drawAnalysisSeriesChart(el.nikkeiBpsChart, visible, [{ color: "#0f8f6a", value: row => row.bps }]);
       el.nikkeiPerNote.textContent = valid
-        ? `${per.status === "available" ? "" : "更新失敗・前回値。"}基準 ${formatDate(reference.date)}。整数倍価格は同日終値÷加重平均PERで換算。EPS・BPS推移は同日終値÷指数ベースPER/PBRで推計した別基準です。${rows.length}営業日分の履歴を表示できます。`
+        ? `${per.status === "available" ? "" : "更新失敗・前回値。"}基準 ${formatDate(reference.date)}。履歴表のPER/PBRは加重平均。整数倍価格は同日終値÷加重平均PERで換算。EPS・BPSは同日終値÷指数ベースPER/PBRで推計した別基準です。${rows.length}営業日分の履歴を表示できます。`
         : per.note || "日経公式のPER・PBR・終値は本人限定版で取得します。";
     }
 
@@ -6889,6 +7067,7 @@
           loadBacktestSummary(),
           loadMarketHistory(),
           loadMarketEnvironment(),
+          loadIndustryMarket(),
           loadNikkeiAnalysis(),
           loadWeeklyAccuracy(),
         ]);
@@ -7660,6 +7839,37 @@
       renderDecisionSupport(item, priceMetrics);
       renderDetailQuality(item);
       el.fundamentalNote.textContent = `株価は${formatDate(priceAsOf)}時点の取得値です。予想配当利回りはYahoo Financeの会社予想を優先します。予想DPSと実績EPSが混在する場合、配当性向は非算出にします。未取得項目は「未取得」と表示します。`;
+      if (state.detailTab === "fundamental") renderValuationHistory(item);
+    }
+
+    function renderValuationHistory(item) {
+      if (scoreHistoryStatus === "not-loaded") void ensureScoreHistoryLoaded();
+      const snapshots = scoreHistoryByCode.get(String(item.code)) || [];
+      const measures = [
+        {key: "per", label: el.stockPerHistoryLabel, canvas: el.stockPerHistoryChart, title: "PER", scale: 1, ceiling: 1000, color: "#246bce"},
+        {key: "pbr", label: el.stockPbrHistoryLabel, canvas: el.stockPbrHistoryChart, title: "PBR", scale: 1, ceiling: 100, color: "#0f8f6a"},
+        {key: "dividendYield", label: el.stockYieldHistoryLabel, canvas: el.stockYieldHistoryChart, title: "会社予想配当利回り", scale: 100, ceiling: 0.25, color: "#b17715"},
+      ];
+      measures.forEach(measure => {
+        const points = snapshots.filter(row => {
+          const value = row[measure.key];
+          return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= measure.ceiling &&
+            (measure.key !== "dividendYield" || row.dividendYieldKind === "forecast");
+        }).map(row => ({date: row.date, value: row[measure.key] * measure.scale}));
+        const average = points.length >= 20 ? points.reduce((sum, row) => sum + row.value, 0) / points.length : null;
+        measure.label.textContent = `${measure.title} / ${average == null ? "過去平均: 履歴不足" : `観測平均: ${average.toFixed(2)}${measure.key === "dividendYield" ? "%" : "倍"}`}`;
+        requestAnimationFrame(() => {
+          if (state.selectedCode !== String(item.code) || state.detailTab !== "fundamental") return;
+          drawAnalysisSeriesChart(measure.canvas, points, [{color: measure.color, value: row => row.value}]);
+        });
+      });
+      const first = snapshots[0]?.date;
+      const last = snapshots.at(-1)?.date;
+      el.stockValuationHistoryNote.textContent = scoreHistoryStatus === "loading"
+        ? "履歴を読み込んでいます。"
+        : snapshots.length
+        ? `保存済みスナップショット ${snapshots.length}日分（${formatDate(first)}〜${formatDate(last)}）。平均は同じ期間の有効な観測値20件以上で算出。欠損と予想・実績の混在は除外します。過去に未保存だった財務値は復元しません。`
+        : "保存されたPER・PBR・会社予想配当利回りの履歴はまだありません。今後の更新から蓄積します。";
     }
 
     function scoreRowsFor(item) {
@@ -9184,6 +9394,12 @@
       button.addEventListener("click", () => {
         state.marketHistoryRange = range;
         renderMarketEnvironment(marketEnvironment);
+      });
+    });
+    document.querySelectorAll("[data-vix-range]").forEach(button => {
+      button.addEventListener("click", () => {
+        state.vixRange = button.dataset.vixRange;
+        renderVixChart();
       });
     });
     Object.entries(el.nikkeiRangeButtons).forEach(([range, button]) => {

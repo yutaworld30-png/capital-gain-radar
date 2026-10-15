@@ -15,7 +15,7 @@ class NikkeiAnalysisUiTests(unittest.TestCase):
         for expected in (
             'fetch("data/nikkei225-analysis.json"',
             'id="nikkeiAnalysisChart"',
-            'id="nikkeiMarginChart"',
+            'id="nikkeiMarginTable"',
             'id="nikkeiInvestorTable"',
             'id="nikkeiInvestorTableWrap"',
             'id="nikkeiBreadthChart"',
@@ -24,6 +24,7 @@ class NikkeiAnalysisUiTests(unittest.TestCase):
             'data-nikkei-indicator="bb"',
             'data-nikkei-indicator="ichimoku"',
             'id="nikkeiValuationRows"',
+            'id="nikkeiValuationHistory"',
             'id="nikkeiEpsChart"',
             'id="nikkeiBpsChart"',
             'id="nikkeiRange3y"',

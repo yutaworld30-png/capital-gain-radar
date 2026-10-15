@@ -35,6 +35,10 @@ Daily TOPIX stock screening app for capital gain candidates.
 
 - `work/market_analysis.py` generates `outputs/data/nikkei225-analysis.json`.
 - The daily chart contains candlesticks, MA 5/25/75, Parabolic SAR, Bollinger Bands, Ichimoku, MACD, and RSI. Indicator values are calculated in Python and the browser only renders them.
+- Mobile market summary uses a vertical card list; VIX has a separate confirmed daily OHLC candlestick/MACD view. An incomplete current US session is not used as a completed candle.
+- `industry-market.json` ranks the equal-weight daily close-to-close return of currently covered TOPIX members by industry. It is a proxy, not the official JPX 33-sector index; industries with under 70% same-day coverage are omitted.
+- Individual margin history is a dated table of share balances and share-based ratio. Nikkei 225 daily margin uses the current 225 members; its yen balances are shares multiplied by each stock's same-day unadjusted close and remain uncalculated when price coverage is below 95%. Older weekly observations are not filled into missing daily dates.
+- Individual PER/PBR and company-forecast dividend-yield charts use only values saved in score snapshots from this release onward. Older missing values are not backfilled; observed averages require at least 20 valid points.
 - The 25-day advance-decline ratio is derived from the current 225 components. It is marked as a reference because historical membership is not reconstructed.
 - JPX weekly margin/investor data and Nikkei weighted PER stay in `permission-required` state until their public display and processing terms are confirmed.
 - After confirmation, repository variables `JPX_PUBLIC_DATA_USE_CONFIRMED=1` and `NIKKEI_INDEX_DATA_USE_CONFIRMED=1` enable those sources in the Pages workflow.

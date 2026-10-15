@@ -15,6 +15,8 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from market_technical import build_technical_rows
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "outputs" / "data" / "market-environment.json"
@@ -172,18 +174,26 @@ def fetch_yahoo_point(key: str, label: str, symbols: list[str], *, unit: str = "
                 close = quote.get("close", [])[index]
                 if close in (None, 0):
                     continue
-                rows.append({
+                row = {
                     "date": timestamp_date(
                         timestamp,
                         meta.get("exchangeTimezoneName") or meta.get("timezone"),
                     ),
                     "value": float(close) * scale,
-                })
+                }
+                if key == "vix":
+                    for field_name in ("open", "high", "low"):
+                        values = quote.get(field_name, [])
+                        raw = values[index] if index < len(values) else None
+                        if isinstance(raw, (int, float)) and math.isfinite(raw) and raw > 0:
+                            row[field_name] = float(raw) * scale
+                    row["close"] = float(close) * scale
+                rows.append(row)
             value, previous, as_of = latest_pair(rows)
             value, previous, as_of, used_meta = apply_meta_quote(value, previous, as_of, meta, scale=scale)
             if value is None:
                 raise MarketEnvironmentError("有効な終値がありません。")
-            if used_meta and as_of:
+            if used_meta and as_of and key != "vix":
                 rows = [row for row in rows if row.get("date") != as_of]
                 rows.append({"date": as_of, "value": value})
                 rows.sort(key=lambda row: str(row.get("date") or ""))
@@ -542,6 +552,11 @@ def main() -> None:
         "retentionDays": HISTORY_MAX_DAYS,
         "snapshots": snapshots,
     }
+    vix_history = indicators["vix"].history
+    new_york_now = datetime.now(timezone.utc).astimezone(ZoneInfo("America/New_York"))
+    if new_york_now.time() < time(16, 15):
+        vix_history = [row for row in vix_history if row.get("date") != new_york_now.date().isoformat()]
+    vix_rows = build_technical_rows(vix_history)
     payload = {
         "schemaVersion": 1,
         "generatedAt": generated_at,
@@ -552,6 +567,14 @@ def main() -> None:
             "usage": "表示専用です。銘柄ランキングの総合スコアには反映していません。",
         },
         "indicators": {key: point.to_dict() for key, point in indicators.items()},
+        "vixTechnical": {
+            "status": "available" if len(vix_rows) >= 35 else "unavailable",
+            "asOf": vix_rows[-1]["date"] if vix_rows else None,
+            "source": indicators["vix"].source,
+            "url": indicators["vix"].url,
+            "note": "確定済みの日足OHLCからMACD(12,26,9)を計算。場中値はローソク足に混ぜません。",
+            "rows": vix_rows[-260:],
+        },
         "groups": {
             "japanTrend": ["nikkei225", "topix", "growth250"],
             "futures": ["nikkei225Futures"],

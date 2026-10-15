@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import sys
+import json
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +15,7 @@ sys.path.insert(0, str(WORK))
 from market_environment import (  # noqa: E402
     MarketPoint,
     apply_meta_quote,
+    fetch_yahoo_point,
     label_for_score,
     merge_history_snapshots,
     point_at_date,
@@ -92,6 +96,23 @@ class MarketEnvironmentPolicyTest(unittest.TestCase):
 
         self.assertEqual([row["date"] for row in merged], ["2026-07-01", "2026-07-10"])
         self.assertEqual(merged[0]["score"], 60)
+
+    def test_vix_history_keeps_ohlc_and_does_not_invent_meta_candle(self) -> None:
+        stamp = lambda day: int(datetime(2026, 10, day, 20, tzinfo=timezone.utc).timestamp())
+        payload = {"chart": {"result": [{
+            "timestamp": [stamp(13), stamp(14)],
+            "meta": {"exchangeTimezoneName": "America/New_York",
+                     "regularMarketPrice": 25.0, "regularMarketPreviousClose": 20.0,
+                     "regularMarketTime": stamp(15)},
+            "indicators": {"quote": [{"open": [20.0, 21.0], "high": [22.0, 23.0],
+                                      "low": [19.0, 20.0], "close": [21.0, 22.0]}]},
+        }]}}
+        with patch("market_environment.fetch_bytes", return_value=json.dumps(payload).encode()):
+            point = fetch_yahoo_point("vix", "VIX", ["^VIX"])
+        self.assertEqual(len(point.history), 2)
+        self.assertEqual(point.history[-1]["high"], 23.0)
+        self.assertEqual(point.history[-1]["close"], 22.0)
+        self.assertEqual(point.as_of, "2026-10-15")
 
 
 if __name__ == "__main__":

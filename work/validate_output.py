@@ -14,6 +14,7 @@ from margin_history import validate_files as validate_margin_files
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATASET = ROOT / "outputs" / "data" / "latest-candidates.json"
 DEFAULT_HISTORY = ROOT / "outputs" / "data" / "score-history-v2.json"
+DEFAULT_INDUSTRY_MARKET = ROOT / "outputs" / "data" / "industry-market.json"
 DEFAULT_ANALYSIS = ROOT / "outputs" / "data" / "nikkei225-analysis.json"
 DEFAULT_WEEKLY_PREDICTIONS = ROOT / "outputs" / "data" / "weekly-predictions-v1.json"
 DEFAULT_WEEKLY_ACCURACY = ROOT / "outputs" / "data" / "weekly-accuracy-summary-v1.json"
@@ -32,6 +33,11 @@ SCORE_HISTORY_ROW_FIELDS = (
     "isNewHigh52w",
     "dataQuality",
     "historySource",
+    "per",
+    "pbr",
+    "dividendYield",
+    "dividendYieldKind",
+    "fundamentalsAsOf",
 )
 TOPIX_MIN_COMPONENTS = 1500
 TOPIX_MAX_COMPONENTS = 2000
@@ -287,10 +293,34 @@ def validate_history(payload: object, dataset: dict[str, object]) -> list[str]:
     return errors
 
 
+def validate_industry_market(payload: object, dataset: dict[str, object]) -> list[str]:
+    if not isinstance(payload, dict) or payload.get("schemaVersion") != 1:
+        return ["業種別騰落JSONの形式が不正です。"]
+    errors = []
+    if payload.get("generatedAt") != dataset.get("generatedAt"):
+        errors.append("業種別騰落JSONの生成日時が候補データと一致しません。")
+    rows = payload.get("rows")
+    if not isinstance(rows, list) or payload.get("status") not in ("available", "unavailable"):
+        errors.append("業種別騰落JSONの状態または行形式が不正です。")
+        return errors
+    sources = dataset.get("sources") if isinstance(dataset.get("sources"), dict) else {}
+    price = sources.get("priceHistory") if isinstance(sources.get("priceHistory"), dict) else {}
+    if payload.get("status") == "available" and (
+        not rows or payload.get("asOf") != price.get("asOf")
+    ):
+        errors.append("業種別騰落JSONの基準日が株価基準日と一致しません。")
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("industry"), str) or not isinstance(row.get("changeRate"), (int, float)):
+            errors.append("業種別騰落JSONに不正な行があります。")
+            break
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="GitHub Pages公開前の生成JSON品質チェック")
     parser.add_argument("dataset", nargs="?", type=Path, default=DEFAULT_DATASET)
     parser.add_argument("--history", type=Path, default=DEFAULT_HISTORY)
+    parser.add_argument("--industry-market", type=Path, default=DEFAULT_INDUSTRY_MARKET)
     parser.add_argument("--analysis", type=Path, default=DEFAULT_ANALYSIS)
     parser.add_argument("--weekly-predictions", type=Path, default=DEFAULT_WEEKLY_PREDICTIONS)
     parser.add_argument("--weekly-accuracy", type=Path, default=DEFAULT_WEEKLY_ACCURACY)
@@ -312,6 +342,11 @@ def main() -> int:
         errors.extend(validate_history(history, dataset))
     except (OSError, json.JSONDecodeError) as error:
         errors.append(f"スコア履歴JSONを読み込めません: {error}")
+    try:
+        industry_market = json.loads(args.industry_market.read_text(encoding="utf-8"))
+        errors.extend(validate_industry_market(industry_market, dataset))
+    except (OSError, json.JSONDecodeError) as error:
+        errors.append(f"業種別騰落JSONを読み込めません: {error}")
     try:
         analysis = json.loads(args.analysis.read_text(encoding="utf-8"))
         errors.extend(

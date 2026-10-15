@@ -4,37 +4,6 @@
   const valid = value => typeof value === "number" && Number.isFinite(value) && value >= 0;
   const fmt = value => valid(value) ? value.toLocaleString("ja-JP", {maximumFractionDigits: 2}) : "算出不可";
   const esc = value => String(value ?? "未取得").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  function chart(rows, balances) {
-    const w = Math.max(320, document.querySelector("#marginHistoryContent").clientWidth), h = 220, left = 62, right = w - 20, bottom = 185;
-    const start = Date.parse(rows[0].date), end = Date.parse(rows.at(-1).date);
-    const x = row => end === start ? (left + right) / 2 : left + (Date.parse(row.date) - start) / (end - start) * (right - left);
-    const values = rows.flatMap(row => balances ? [row.buy, row.sell] : [row.ratio]).filter(valid);
-    const max = Math.max(1, ...values) * 1.1, y = value => bottom - value / max * 155;
-    let body = `<path d="M${left} 20V${bottom}H${right}" fill="none" stroke="#8796a8"/>`;
-    for (let i = 0; i <= 4; i++) {
-      const value = max * i / 4;
-      body += `<text x="${left - 5}" y="${y(value) + 4}" text-anchor="end" font-size="11">${balances ? fmt(value / 1000) : fmt(value)}</text>`;
-    }
-    body += `<text x="${left}" y="12" font-size="11">${balances ? "千株" : "倍"}</text>`;
-    let previous = null;
-    const barWidth = Math.min(12, (right - left) / Math.max(rows.length, 1) / 3);
-    rows.forEach(row => {
-      const title = esc(`${row.date} 信用倍率 ${fmt(row.ratio)} / 買い残 ${fmt(row.buy)}株 / 売り残 ${fmt(row.sell)}株`);
-      if (balances) {
-        [[row.buy, "#0f8f6a", -barWidth], [row.sell, "#bc3b42", 0]].forEach(([value, color, offset]) => {
-          if (valid(value)) body += `<rect x="${x(row) + offset}" y="${y(value)}" width="${barWidth}" height="${bottom - y(value)}" fill="${color}"><title>${title}</title></rect>`;
-        });
-      } else {
-        if (valid(row.ratio)) {
-          if (previous && Date.parse(row.date) - Date.parse(previous.date) <= 10 * 86400000) body += `<path d="M${x(previous)} ${y(previous.ratio)}L${x(row)} ${y(row.ratio)}" stroke="#286bc4" stroke-width="2"/>`;
-          body += `<circle cx="${x(row)}" cy="${y(row.ratio)}" r="4" fill="#286bc4"><title>${title}</title></circle>`;
-          previous = row;
-        } else previous = null;
-      }
-    });
-    body += `<text x="${left}" y="210" font-size="12">${esc(rows[0].date)}</text><text x="${right}" y="210" text-anchor="end" font-size="12">${esc(rows.at(-1).date)}</text>`;
-    return `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${balances ? "信用買い残と売り残" : "信用倍率"}の観測日別推移" style="width:100%;display:block">${body}</svg>`;
-  }
   function draw(payload) {
     const panel = document.querySelector("#marginHistoryContent");
     const all = payload.rows;
@@ -48,10 +17,8 @@
       <p>買い残 ${fmt(last.buy)}株 / 売り残 ${fmt(last.sell)}株</p>
       <p>基準日 ${esc(last.date)} / 公表日 ${esc(last.publishedAt)}</p>
       ${Date.now() - Date.parse(last.date) > 7 * 86400000 ? '<p role="status">注意：最新の保存データは7日以上前です。</p>' : ''}
-      ${chart(rows, false)}${chart(rows, true)}
-      <p>緑：買い残　赤：売り残（棒グラフは千株）</p>
-      <p>${rows.length}観測日を表示。日次へ移行する前の期間には週次観測が含まれます。未取得日は補間しません。売り残ゼロの倍率は算出不可です。</p>
-      <details><summary>観測データ一覧</summary><div style="overflow-x:auto"><table><thead><tr><th>基準日</th><th>倍率</th><th>買い残（株）</th><th>売り残（株）</th><th>公表日</th></tr></thead><tbody>${[...rows].reverse().map(row => `<tr><td>${esc(row.date)}</td><td>${fmt(row.ratio)}</td><td>${fmt(row.buy)}</td><td>${fmt(row.sell)}</td><td>${esc(row.publishedAt)}</td></tr>`).join("")}</tbody></table></div></details>`;
+      <div class="history-table-wrap" role="region" tabindex="0" aria-label="信用需給の日次履歴"><table class="history-table"><thead><tr><th scope="col">基準日</th><th scope="col">信用倍率</th><th scope="col">売り残（株）</th><th scope="col">買い残（株）</th><th scope="col">公表日</th></tr></thead><tbody>${[...rows].reverse().map(row => `<tr><th scope="row">${esc(row.date)}</th><td>${valid(row.ratio) ? fmt(row.ratio) + "倍" : "算出不可"}</td><td>${fmt(row.sell)}</td><td>${fmt(row.buy)}</td><td>${esc(row.publishedAt)}</td></tr>`).join("")}</tbody></table></div>
+      <p>${rows.length}観測日。日次へ移行する前の期間には週次観測が含まれます。未取得日は補間せず、売り残ゼロの倍率は算出不可です。</p>`;
   }
   async function show(code) {
     selected = String(code);

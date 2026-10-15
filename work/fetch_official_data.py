@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import time
@@ -60,6 +61,7 @@ from weekly_prediction import build_accuracy_summary, update_prediction_ledger
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "outputs" / "data" / "latest-candidates.json"
 SCORE_HISTORY_OUTPUT = ROOT / "outputs" / "data" / "score-history-v2.json"
+INDUSTRY_MARKET_OUTPUT = ROOT / "outputs" / "data" / "industry-market.json"
 WEEKLY_PREDICTIONS_OUTPUT = ROOT / "outputs" / "data" / "weekly-predictions-v1.json"
 WEEKLY_ACCURACY_OUTPUT = ROOT / "outputs" / "data" / "weekly-accuracy-summary-v1.json"
 MARKET_ENVIRONMENT_OUTPUT = ROOT / "outputs" / "data" / "market-environment.json"
@@ -92,6 +94,11 @@ SCORE_HISTORY_ROW_FIELDS = (
     "isNewHigh52w",
     "dataQuality",
     "historySource",
+    "per",
+    "pbr",
+    "dividendYield",
+    "dividendYieldKind",
+    "fundamentalsAsOf",
 )
 SCORE_HISTORY_MAX_SNAPSHOTS = 300
 CHART_HISTORY_CALENDAR_DAYS = 1200
@@ -1745,11 +1752,25 @@ def _attach_history_changes(
 
 
 def _compact_score_row(row: dict[str, object]) -> dict[str, object]:
-    return {
+    compact = {
         key: row[key]
         for key in SCORE_HISTORY_ROW_FIELDS
         if key in row and row[key] is not None
     }
+    fundamentals = row.get("fundamentals")
+    if isinstance(fundamentals, dict):
+        compact["fundamentalsAsOf"] = fundamentals.get("asOf") or fundamentals.get("submitDateTime")
+    for key, upper in (("per", 1000), ("pbr", 100), ("dividendYield", 0.25)):
+        value = _numeric_value(row, key)
+        if value is not None and math.isfinite(value) and 0 < value <= upper:
+            compact[key] = round(value, 6)
+        else:
+            compact.pop(key, None)
+    if compact.get("dividendYield") is not None:
+        compact["dividendYieldKind"] = row.get("dividendYieldKind") or (
+            fundamentals.get("dividendYieldKind") if isinstance(fundamentals, dict) else None
+        )
+    return compact
 
 
 def _encode_score_history_row(row: dict[str, object]) -> list[object]:
@@ -2305,6 +2326,62 @@ def write_price_history_shards(
         )
         temporary.replace(target)
     return bundle
+
+
+def build_industry_market(dataset: dict[str, object], generated_at: str) -> dict[str, object]:
+    components = dataset.get("topixComponents")
+    prices = dataset.get("topixPrices")
+    if not isinstance(components, list) or not isinstance(prices, list):
+        return {"schemaVersion": 1, "generatedAt": generated_at, "status": "unavailable", "rows": []}
+    industry_by_code = {
+        str(item.get("code")): str(item.get("industry") or "")
+        for item in components if isinstance(item, dict) and item.get("code")
+    }
+    industry_counts: dict[str, int] = {}
+    for industry in industry_by_code.values():
+        if industry:
+            industry_counts[industry] = industry_counts.get(industry, 0) + 1
+    date_counts: dict[str, int] = {}
+    for item in prices:
+        if isinstance(item, dict) and isinstance(item.get("asOf"), str):
+            day = item["asOf"]
+            date_counts[day] = date_counts.get(day, 0) + 1
+    eligible_dates = [day for day, count in date_counts.items() if count >= len(prices) * 0.7]
+    as_of = max(eligible_dates) if eligible_dates else None
+    if not as_of:
+        return {"schemaVersion": 1, "generatedAt": generated_at, "status": "unavailable", "rows": []}
+    grouped: dict[str, list[float]] = {}
+    for item in prices:
+        if not isinstance(item, dict) or item.get("asOf") != as_of:
+            continue
+        industry = industry_by_code.get(str(item.get("code")))
+        history = item.get("chartHistory")
+        if not industry or not isinstance(history, list) or len(history) < 2:
+            continue
+        latest, previous = history[-1], history[-2]
+        if not isinstance(latest, dict) or not isinstance(previous, dict) or latest.get("date") != as_of:
+            continue
+        latest_close = _numeric_value(latest, "close")
+        previous_close = _numeric_value(previous, "close")
+        if not latest_close or not previous_close or not math.isfinite(latest_close / previous_close):
+            continue
+        grouped.setdefault(industry, []).append(latest_close / previous_close - 1)
+    rows = [
+        {"industry": industry, "changeRate": round(sum(changes) / len(changes), 6),
+         "coveredCount": len(changes), "componentCount": industry_counts[industry]}
+        for industry, changes in grouped.items()
+        if len(changes) >= 2 and len(changes) / industry_counts[industry] >= 0.7
+    ]
+    rows.sort(key=lambda row: (-row["changeRate"], row["industry"]))
+    return {
+        "schemaVersion": 1,
+        "generatedAt": generated_at,
+        "asOf": as_of,
+        "status": "available" if rows else "unavailable",
+        "basis": "TOPIX現行構成銘柄の前日終値比を業種ごとに等ウェイト平均。東証業種別株価指数ではありません。",
+        "source": dataset.get("sources", {}).get("priceHistory", {}).get("provider"),
+        "rows": rows,
+    }
 
 
 def _compact_weekly_target(value: object) -> object:
@@ -3010,6 +3087,10 @@ def main() -> None:
     }
     score_history = update_score_history(dataset, generated_at)
     weekly_predictions, weekly_accuracy = update_weekly_prediction_outputs(dataset, generated_at)
+    industry_market = build_industry_market(dataset, generated_at)
+    INDUSTRY_MARKET_OUTPUT.write_text(
+        json.dumps(industry_market, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+    )
     dataset["priceHistoryBundle"] = write_price_history_shards(dataset, generated_at)
     compact_dataset_for_output(dataset)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
