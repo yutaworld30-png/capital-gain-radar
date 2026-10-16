@@ -29,6 +29,13 @@ const server = http.createServer((req, res) => {
     const page = await browser.newPage({viewport: {width: 1280, height: 900}});
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
+    const market = JSON.parse(fs.readFileSync(path.join(root, 'data/market-environment.json'), 'utf8'));
+    market.indicators.topixFutures = {label: 'TOPIX先物', value: 4081.5, previous: 4070,
+      change: 11.5, changeRate: 11.5 / 4070, asOf: '2026-10-16', status: 'available',
+      source: 'JPX / 大阪取引所', note: '大阪取引所 / 2026年12月限 / 清算値'};
+    market.groups.futures = ['nikkei225Futures', 'topixFutures'];
+    market.indicators.nikkei225.value = 65324.29;
+    await page.route('**/data/market-environment.json', route => route.fulfill({json: market}));
     const analysis = JSON.parse(fs.readFileSync(path.join(root, 'data/nikkei225-analysis.json'), 'utf8'));
     analysis.distributionMode = 'private-cloud';
     const valuationBasis = 'nikkei-weighted-average';
@@ -106,23 +113,34 @@ const server = http.createServer((req, res) => {
     await page.setViewportSize({width: 390, height: 844});
     await page.locator('#mobileBottomNav [data-mobile-page="market"]').click();
     await page.locator('button[data-mobile-market-view="summary"]').click();
-    await page.waitForSelector('#marketGrid tbody tr');
+    await page.waitForSelector('#marketGrid .market-index-row');
     assert.equal(await page.locator('#marketGrid canvas').count(), 0);
-    assert.equal(await page.locator('#marketGrid tbody tr').count(), 13);
+    assert.equal(await page.locator('#marketGrid .market-index-row').count(), 9);
+    assert.deepEqual(await page.locator('#marketGrid [data-market-key]').evaluateAll(rows => rows.map(row => row.dataset.marketKey)),
+      ['nikkei225', 'topix', 'nikkei225Futures', 'topixFutures', 'sp500', 'nasdaq', 'vix', 'usdJpy', 'wtiCrudeOil']);
+    const future = page.locator('#marketGrid [data-market-key="topixFutures"]');
+    assert.match(await future.textContent(), /4,081.50/);
+    assert.match(await future.textContent(), /OSE 清算値.*2026年12月限/);
+    assert.equal(await future.locator('.market-change-amount').isVisible(), true);
+    assert.match(await page.locator('#marketGrid [data-market-key="nikkei225"] .market-indicator-value').textContent(), /65,324.29/);
+    await page.locator('#marketMoreButton').click();
+    assert.equal(await page.locator('#marketGrid .market-index-row').count(), 14);
+    assert.equal(await page.locator('#marketMoreButton').getAttribute('aria-expanded'), 'true');
+    await page.locator('#marketMoreButton').click();
+    assert.equal(await page.locator('#marketGrid .market-index-row').count(), 9);
     assert.equal(await page.locator('#mobilePortfolioTabs').isVisible(), false);
-    for (const height of [844, 700]) {
-      await page.setViewportSize({width: 390, height});
+    for (const width of [390, 320, 768, 1280]) {
+      await page.setViewportSize({width, height: 844});
       const bounds = await page.evaluate(() => ({
-        tableBottom: document.querySelector('#marketGrid table').getBoundingClientRect().bottom,
-        navTop: document.querySelector('#mobileBottomNav').getBoundingClientRect().top,
         contentWidth: document.documentElement.scrollWidth, viewportWidth: innerWidth,
         overflowing: Array.from(document.querySelectorAll('body *')).filter(element => {
           const rect = element.getBoundingClientRect(); return rect.width && rect.right > innerWidth + 1;
         }).slice(0, 12).map(element => ({id: element.id, tag: element.tagName, className: element.className, width: element.getBoundingClientRect().width})),
       }));
-      assert(bounds.tableBottom <= bounds.navTop, `summary requires scroll: ${JSON.stringify(bounds)}`);
       assert(bounds.contentWidth <= bounds.viewportWidth, `horizontal overflow: ${JSON.stringify(bounds)}`);
+      assert(await page.locator('#marketGrid .market-indicator-value').first().evaluate(e => parseFloat(getComputedStyle(e).fontSize) >= 20));
     }
+    await page.setViewportSize({width: 390, height: 844});
     await page.screenshot({path: path.join(screenshots, 'market-summary-mobile.png')});
     await page.setViewportSize({width: 390, height: 844});
     await page.locator('button[data-mobile-market-view="technical"]').click();

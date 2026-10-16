@@ -97,6 +97,9 @@ jobs:
         run: python -m unittest discover -s tests -v
 
       - name: Refresh market environment
+        env:
+          PRIVATE_MARKET_ENVIRONMENT_URL: ${{ vars.PRIVATE_HISTORY_SOURCE_URL }}/data/market-environment.json
+          PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
         run: python work/market_environment.py
 
       - name: Refresh market data and persistent histories

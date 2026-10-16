@@ -8,10 +8,11 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from io import StringIO
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -28,6 +29,7 @@ YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
 FRED_CSV_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
 JPX_SHORT_SELLING_URL = "https://www.jpx.co.jp/markets/statistics-equities/short-selling/index.html"
 JPX_INVESTOR_TYPE_URL = "https://www.jpx.co.jp/markets/statistics-equities/investor-type/index.html"
+JPX_SETTLEMENT_URL = "https://www.jpx.co.jp/markets/derivatives/settlement-price/index.html"
 
 
 class MarketEnvironmentError(RuntimeError):
@@ -47,6 +49,7 @@ class MarketPoint:
     unit: str = ""
     note: str = ""
     history: list[dict[str, Any]] = field(default_factory=list, repr=False)
+    contract: str = ""
 
     @property
     def change(self) -> float | None:
@@ -61,7 +64,7 @@ class MarketPoint:
         return self.value / self.previous - 1
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "key": self.key,
             "label": self.label,
             "value": self.value,
@@ -75,6 +78,10 @@ class MarketPoint:
             "unit": self.unit,
             "note": self.note,
         }
+        if self.contract:
+            result.update({"contract": self.contract, "priceBasis": "ose-settlement",
+                           "settlementHistory": self.history})
+        return result
 
 
 def fetch_bytes(url: str) -> bytes:
@@ -96,6 +103,87 @@ def fetch_bytes(url: str) -> bytes:
 
 def unix_seconds(day: date) -> int:
     return int(datetime.combine(day, time.min, tzinfo=timezone.utc).timestamp())
+
+
+class SettlementLinks(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        href = dict(attrs).get("href") or ""
+        if tag == "a" and re.search(r"/rb\d{8}\.csv$", href):
+            url = urljoin(JPX_SETTLEMENT_URL, href)
+            if urlparse(url).hostname == "www.jpx.co.jp":
+                self.links.append(url)
+
+
+def parse_topix_settlement(data: bytes, *, contract: str | None = None) -> tuple[str, float]:
+    rows = list(csv.reader(StringIO(data.decode("cp932"))))
+    header_index = next((i for i, row in enumerate(rows) if row and row[0] == "銘柄コード"), None)
+    if header_index is None:
+        raise MarketEnvironmentError("清算値CSVの列を確認できません。")
+    records = (dict(zip(rows[header_index], row)) for row in rows[header_index + 1:])
+    futures = []
+    for row in records:
+        if not re.fullmatch(r"FUT_TPX_\d{6}", row.get("銘柄名称", "")):
+            continue
+        month = row.get("限月", "")
+        if not re.fullmatch(r"\d{6}", month) or (contract and month != contract):
+            continue
+        try:
+            value = float(row.get("清算価格", ""))
+        except (ValueError, TypeError):
+            continue
+        if math.isfinite(value) and value > 0:
+            futures.append((month, value))
+    if not futures:
+        raise MarketEnvironmentError("TOPIX先物の清算値を確認できません。")
+    return min(futures)
+
+
+def fetch_topix_futures(previous_point: dict[str, Any] | None = None) -> MarketPoint:
+    point = MarketPoint("topixFutures", "TOPIX先物", None, None, None,
+                        "JPX / 大阪取引所", JPX_SETTLEMENT_URL, status="unavailable")
+    try:
+        links = SettlementLinks()
+        links.feed(fetch_bytes(JPX_SETTLEMENT_URL).decode("utf-8"))
+        if not links.links:
+            raise MarketEnvironmentError("清算値CSVが見つかりません。")
+        url = max(links.links)
+        stamp = re.search(r"rb(\d{8})\.csv$", url).group(1)
+        day = datetime.strptime(stamp, "%Y%m%d").date()
+        contract, value = parse_topix_settlement(fetch_bytes(url))
+        point.contract = contract
+        point.value, point.as_of, point.url = value, day.isoformat(), url
+        point.status = "available"
+        point.note = f"大阪取引所 / {contract[:4]}年{contract[4:]}月限 / 清算値（リアルタイム価格ではありません）"
+        previous_point = previous_point or {}
+        saved_rows = previous_point.get("settlementHistory") or []
+        # Only observations of the same contract and price basis are comparable.
+        if previous_point.get("contract") != contract or previous_point.get("priceBasis") != "ose-settlement":
+            saved_rows = []
+        history = {}
+        for row in saved_rows:
+            stamp_date = str(row.get("date") or "")
+            saved_value = row.get("value")
+            if (re.fullmatch(r"\d{4}-\d{2}-\d{2}", stamp_date) and stamp_date < point.as_of
+                    and isinstance(saved_value, (int, float)) and math.isfinite(saved_value) and saved_value > 0):
+                history[stamp_date] = {"date": stamp_date, "value": saved_value}
+        point.history = [history[key] for key in sorted(history)][-HISTORY_MAX_DAYS:]
+        if point.history:
+            previous = point.history[-1]
+            point.previous = previous["value"]
+            point.note += f" / 比較日 {previous['date']}（同一限月・前回記録比）"
+        point.history.append({"date": point.as_of, "value": value})
+        if point.previous is None:
+            point.note += " / 比較日の清算値は未取得"
+        if (date.today() - day).days > 4:
+            point.status = "stale"
+        return point
+    except (MarketEnvironmentError, ValueError, UnicodeError) as error:
+        point.note = str(error)
+        return point
 
 
 def latest_pair(rows: list[dict[str, Any]]) -> tuple[float | None, float | None, str | None]:
@@ -506,11 +594,22 @@ def build_summary(score: int, indicators: dict[str, MarketPoint]) -> str:
 
 def main() -> None:
     generated_at = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+    previous_market: dict[str, Any] = {}
+    previous_url = os.environ.get("PRIVATE_MARKET_ENVIRONMENT_URL", "").strip()
+    try:
+        if previous_url:
+            from check_published_freshness import fetch_payload
+            previous_market = fetch_payload(previous_url)
+        elif OUTPUT.exists():
+            previous_market = json.loads(OUTPUT.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RuntimeError):
+        print("Previous market observations unavailable; comparisons remain unknown.")
     points = [
         fetch_yahoo_point("nikkei225", "日経225", ["^N225"], unit="円"),
         fetch_yahoo_point("topix", "TOPIX連動ETF", ["1306.T"]),
         fetch_yahoo_point("growth250", "グロース250連動ETF", ["2516.T", "1563.T"]),
         fetch_yahoo_point("nikkei225Futures", "CME日経平均先物", ["NIY=F", "NKD=F"], unit="円"),
+        fetch_topix_futures((previous_market.get("indicators") or {}).get("topixFutures")),
         fetch_yahoo_point("sp500", "S&P500", ["^GSPC"]),
         fetch_yahoo_point("nasdaq", "NASDAQ", ["^IXIC"]),
         fetch_yahoo_point("sox", "SOX", ["^SOX"]),
@@ -528,7 +627,7 @@ def main() -> None:
         {
             "label": "数値取得",
             "status": "available" if len(available) >= 8 else "partial",
-            "message": f"{len(available)}/11指標の数値を取得しました。JPX需給系は公開ページの更新確認を先に表示します。",
+            "message": f"{len(available)}/12指標の数値を取得しました。JPX需給系は公開ページの更新確認を先に表示します。",
         },
         {
             "label": "日経平均先物",
@@ -577,7 +676,7 @@ def main() -> None:
         },
         "groups": {
             "japanTrend": ["nikkei225", "topix", "growth250"],
-            "futures": ["nikkei225Futures"],
+            "futures": ["nikkei225Futures", "topixFutures"],
             "usMarket": ["sp500", "nasdaq", "sox"],
             "risk": ["vix", "us10y", "usdJpy"],
             "commodity": ["wtiCrudeOil"],

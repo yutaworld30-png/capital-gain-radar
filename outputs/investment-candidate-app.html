@@ -368,39 +368,26 @@
       padding: 0 16px;
     }
 
-    .market-indicators {
-      width: 100%;
-      min-width: 0;
-      border-collapse: collapse;
-      table-layout: fixed;
-      font-size: 13px;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .market-indicators col:nth-child(1) { width: 34%; }
-    .market-indicators col:nth-child(2) { width: 27%; }
-    .market-indicators col:nth-child(3) { width: 24%; }
-    .market-indicators col:nth-child(4) { width: 15%; }
-
-    .market-indicators th,
-    .market-indicators td {
-      padding: 7px 6px;
+    .market-index-list { list-style: none; margin: 0; padding: 0; font-variant-numeric: tabular-nums; }
+    .market-index-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(76px, .65fr);
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
       border-bottom: 1px solid var(--line);
-      text-align: right;
-      overflow-wrap: anywhere;
       line-height: 1.3;
-      font-size: inherit;
     }
-
-    .market-indicators th:first-child { text-align: left; }
-    .market-indicators thead th { color: var(--muted); font-size: 11px; font-weight: 600; }
-    .market-indicators tbody th { font-weight: 600; color: var(--ink); white-space: normal; }
-    .market-indicators tbody tr { cursor: default; }
-    .market-indicator-value { font-weight: 700; }
+    .market-index-name { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
+    .market-indicator-value { font-size: 24px; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+    .market-indicator-change { text-align: right; font-size: 14px; font-weight: 600; }
     .market-indicator-change.up { color: var(--green); }
     .market-indicator-change.down { color: var(--red); }
-    .market-change-amount { display: block; color: var(--muted); font-size: 11px; }
-    .market-indicator-date { color: var(--muted); font-size: 11px; }
+    .market-change-amount { display: block; }
+    .market-indicator-date { display: block; color: var(--muted); font-size: 11px; font-weight: 400; margin-top: 3px; }
+    .market-index-basis { display: block; color: var(--muted); font-size: 10px; font-weight: 400; }
+    .market-more { display: block; margin: 10px auto; min-height: 40px; padding: 8px 16px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); cursor: pointer; }
+    .market-more[hidden] { display: none; }
     .market-indicator-stale { display: block; color: var(--amber); font-size: 11px; }
     .market-details { margin-top: 6px; }
     .market-details > summary { padding: 10px 16px; cursor: pointer; color: var(--muted); font-size: 12px; }
@@ -3549,11 +3536,10 @@
       #marketPanel .panel-header { padding: 6px 10px; }
       #marketPanel .panel-header h2 { display: none; }
       #marketPanel .panel-header .updated { font-size: 11px; }
-      #marketPanel .market-indicators { font-size: 12px; }
-      #marketPanel .market-indicators th,
-      #marketPanel .market-indicators td { padding: 5px 2px; line-height: 1.25; }
-      #marketPanel .market-indicators tbody th { font-size: 11px; }
-      #marketPanel .market-change-amount { display: none; }
+      #marketPanel .market-index-row { gap: 6px; padding: 7px 0; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 70px; }
+      #marketPanel .market-index-name { font-size: 13px; }
+      #marketPanel .market-indicator-value { font-size: 20px; }
+      #marketPanel .market-indicator-change { font-size: 12px; }
       #marketPanel .market-details > summary { padding: 8px 10px; font-size: 11px; }
       #marketPanel .market-details-body { padding: 0 10px 10px; }
       #vixPanel .vix-chart-wrap { height: min(62dvh, 500px); }
@@ -4023,6 +4009,7 @@
         <div class="market-grid" id="marketGrid" aria-live="polite">
           <p class="market-card-meta">主要指標を読み込んでいます。</p>
         </div>
+        <button type="button" class="market-more" id="marketMoreButton" aria-expanded="false" aria-controls="marketGrid" hidden>すべて表示</button>
         <details class="market-details" id="marketDetails">
           <summary>判定の詳細・相場環境スコア推移</summary>
           <div class="market-details-body">
@@ -4686,6 +4673,7 @@
       chartRange: "6m",
       scoreHistoryRange: "1w",
       marketHistoryRange: "1m",
+      marketExpanded: false,
       vixRange: "3m",
       nikkeiAnalysisRange: "6m",
       bollingerSigma: 2,
@@ -4876,6 +4864,7 @@
       marketSummary: document.querySelector("#marketSummary"),
       marketUsage: document.querySelector("#marketUsage"),
       marketGrid: document.querySelector("#marketGrid"),
+      marketMoreButton: document.querySelector("#marketMoreButton"),
       marketDetails: document.querySelector("#marketDetails"),
       industryMarketStatus: document.querySelector("#industryMarketStatus"),
       industryMarketUp: document.querySelector("#industryMarketUp"),
@@ -5862,9 +5851,9 @@
       if (value === null) return "未取得";
       const unit = point?.unit || "";
       if (unit === "%") return `${value.toFixed(2)}%`;
-      if (unit === "円") return value >= 1000 ? `${Math.round(value).toLocaleString("ja-JP")}円` : `${value.toFixed(2)}円`;
+      if (unit === "円") return `${value.toLocaleString("ja-JP", { maximumFractionDigits: 2 })}円`;
       if (unit === "ドル") return `${value.toFixed(2)}ドル`;
-      return value >= 1000 ? Math.round(value).toLocaleString("ja-JP") : value.toFixed(2);
+      return value.toLocaleString("ja-JP", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function formatMarketChange(point) {
@@ -6013,6 +6002,8 @@
     function marketCardKeys(payload) {
       const groups = payload?.groups || {};
       return [
+        "nikkei225", "topix", "nikkei225Futures", "topixFutures",
+        "sp500", "nasdaq", "vix", "usdJpy", "wtiCrudeOil",
         ...(groups.japanTrend || []),
         ...(groups.futures || []),
         ...(groups.usMarket || []),
@@ -6032,12 +6023,17 @@
       el.marketSummary.textContent = environment.summary || "相場環境データを読み込めませんでした。";
       el.marketUsage.textContent = environment.usage || "表示専用です。銘柄ランキングの総合スコアには反映しません。";
       const keys = payload ? marketCardKeys(payload) : [];
+      const uniqueKeys = [...new Set(keys)];
+      const extraCount = Math.max(0, uniqueKeys.length - 9);
+      el.marketMoreButton.hidden = extraCount === 0;
+      el.marketMoreButton.setAttribute("aria-expanded", String(state.marketExpanded));
+      el.marketMoreButton.textContent = state.marketExpanded ? "主要指標だけ表示" : `すべて表示（残り${extraCount}指標）`;
       if (!keys.length) {
         el.marketGrid.innerHTML = '<p class="market-card-meta" role="status">相場情報を取得できませんでした。更新ボタンから再読み込みできます。</p>';
         renderMarketHistoryCharts();
         return;
       }
-      const rows = [...new Set(keys)].map(key => {
+      const rows = (state.marketExpanded ? uniqueKeys : uniqueKeys.slice(0, 9)).map(key => {
         const point = indicators[key] || {};
         const hasValue = finiteMarketNumber(point.value) !== null;
         const rate = finiteMarketNumber(point.changeRate);
@@ -6046,17 +6042,20 @@
         const rateText = rate !== null ? `${rate > 0 ? "+" : ""}${(rate * 100).toFixed(2)}%` : "未取得";
         const changeText = change !== null ? `${change > 0 ? "+" : ""}${change.toFixed(2)}` : "";
         const asOf = point.asOf ? formatDate(point.asOf) : "未取得";
-        const shortDate = /^\d{4}\/\d{2}\/\d{2}$/.test(asOf) ? asOf.slice(5) : asOf;
+        const label = point.label || (key === "topixFutures" ? "TOPIX先物" : key);
+        const settlement = key === "topixFutures";
+        const contract = settlement ? (point.note || "").match(/\d{4}年\d{2}月限/)?.[0] : "";
+        const basis = settlement ? `OSE 清算値${contract ? ` / ${contract}` : ""}` : key === "nikkei225Futures" ? "CME" : "";
+        const comparison = settlement ? (point.note || "").match(/比較日 (\d{4}-\d{2}-\d{2})/)?.[1] : "";
         return `
-          <tr data-market-key="${escapeHtml(key)}" title="${escapeHtml([point.source, point.note].filter(Boolean).join(' / '))}">
-            <th scope="row">${escapeHtml(point.label || key)}</th>
-            <td class="market-indicator-value">${escapeHtml(formatMarketValue(point))}${hasValue && point.status !== "available" ? '<span class="market-indicator-stale">前回値</span>' : ""}</td>
-            <td class="market-indicator-change ${tone}" aria-label="${escapeHtml(formatMarketChange(point))}" title="${escapeHtml(formatMarketChange(point))}">${escapeHtml(rateText)}${changeText ? `<span class="market-change-amount">${escapeHtml(changeText)}</span>` : ""}</td>
-            <td class="market-indicator-date" title="${escapeHtml(asOf)}">${escapeHtml(shortDate)}</td>
-          </tr>
+          <li class="market-index-row" data-market-key="${escapeHtml(key)}" title="${escapeHtml([point.source, point.note].filter(Boolean).join(' / '))}">
+            <div class="market-index-name">${escapeHtml(label)}<span class="market-indicator-date">${escapeHtml(asOf)}</span>${basis ? `<span class="market-index-basis">${escapeHtml(basis)}</span>` : ""}</div>
+            <div class="market-indicator-value">${escapeHtml(formatMarketValue(point))}${hasValue && point.status !== "available" ? '<span class="market-indicator-stale">前回値</span>' : ""}</div>
+            <div class="market-indicator-change ${tone}" aria-label="${escapeHtml(settlement ? `前回記録比 ${changeText} / ${rateText}` : formatMarketChange(point))}"><span class="market-change-amount">${escapeHtml(changeText || "差 未取得")}</span>${escapeHtml(rateText)}${comparison ? `<span class="market-index-basis">${escapeHtml(formatDate(comparison).slice(5))}比</span>` : ""}</div>
+          </li>
         `;
       }).join("");
-      el.marketGrid.innerHTML = `<table class="market-indicators" aria-label="主要指数・相場指標一覧"><colgroup><col><col><col><col></colgroup><thead><tr><th scope="col">指数・指標</th><th scope="col">現在値</th><th scope="col">前日比</th><th scope="col">基準日</th></tr></thead><tbody>${rows}</tbody></table>`;
+      el.marketGrid.innerHTML = `<ul class="market-index-list" aria-label="主要指数・相場指標一覧">${rows}</ul>`;
       renderMarketHistoryCharts();
     }
 
@@ -9408,6 +9407,10 @@
         state.marketHistoryRange = range;
         renderMarketEnvironment(marketEnvironment);
       });
+    });
+    el.marketMoreButton.addEventListener("click", () => {
+      state.marketExpanded = !state.marketExpanded;
+      renderMarketEnvironment(marketEnvironment);
     });
     el.marketDetails.addEventListener("toggle", () => {
       if (el.marketDetails.open) requestAnimationFrame(renderMarketHistoryCharts);
