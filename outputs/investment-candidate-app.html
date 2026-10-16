@@ -318,26 +318,18 @@
     }
 
     .market-overview {
-      display: grid;
-      grid-template-columns: 220px minmax(0, 1fr);
-      gap: 16px;
-      padding: 16px;
+      padding: 10px 16px;
       border-bottom: 1px solid var(--line);
     }
 
     .market-score {
-      display: grid;
-      gap: 8px;
-      align-content: center;
-      min-height: 136px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 16px;
-      background: #fbfcfe;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .market-score-value {
-      font-size: 42px;
+      font-size: 24px;
       font-weight: 900;
       line-height: 1;
     }
@@ -366,19 +358,54 @@
       padding-top: 10px;
     }
 
-    .market-score-chart-wrap canvas,
-    .market-mini-chart canvas {
+    .market-score-chart-wrap canvas {
       display: block;
       width: 100%;
       height: 100%;
     }
 
     .market-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      padding: 16px;
+      padding: 0 16px;
     }
+
+    .market-indicators {
+      width: 100%;
+      min-width: 0;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .market-indicators col:nth-child(1) { width: 34%; }
+    .market-indicators col:nth-child(2) { width: 27%; }
+    .market-indicators col:nth-child(3) { width: 24%; }
+    .market-indicators col:nth-child(4) { width: 15%; }
+
+    .market-indicators th,
+    .market-indicators td {
+      padding: 7px 6px;
+      border-bottom: 1px solid var(--line);
+      text-align: right;
+      overflow-wrap: anywhere;
+      line-height: 1.3;
+      font-size: inherit;
+    }
+
+    .market-indicators th:first-child { text-align: left; }
+    .market-indicators thead th { color: var(--muted); font-size: 11px; font-weight: 600; }
+    .market-indicators tbody th { font-weight: 600; color: var(--ink); white-space: normal; }
+    .market-indicators tbody tr { cursor: default; }
+    .market-indicator-value { font-weight: 700; }
+    .market-indicator-change.up { color: var(--green); }
+    .market-indicator-change.down { color: var(--red); }
+    .market-change-amount { display: block; color: var(--muted); font-size: 11px; }
+    .market-indicator-date { color: var(--muted); font-size: 11px; }
+    .market-indicator-stale { display: block; color: var(--amber); font-size: 11px; }
+    .market-details { margin-top: 6px; }
+    .market-details > summary { padding: 10px 16px; cursor: pointer; color: var(--muted); font-size: 12px; }
+    .market-details-body { padding: 0 16px 14px; }
+    .market-detail-tools { margin-top: 10px; }
 
     .market-card {
       border: 1px solid var(--line);
@@ -404,13 +431,6 @@
       color: var(--muted);
       font-size: 12px;
       line-height: 1.4;
-    }
-
-    .market-mini-chart {
-      height: 58px;
-      margin-top: 10px;
-      border-top: 1px solid #edf1f5;
-      padding-top: 8px;
     }
 
     .nikkei-analysis-panel {
@@ -2489,8 +2509,6 @@
       .layout,
       .summary-grid,
       .score-guide-grid,
-      .market-overview,
-      .market-grid,
       .nikkei-analysis-kpis,
       .analysis-detail-grid,
       .backtest-grid,
@@ -2542,8 +2560,6 @@
       .layout,
       .summary-grid,
       .score-guide-grid,
-      .market-overview,
-      .market-grid,
       .nikkei-analysis-kpis,
       .analysis-detail-grid,
       .backtest-grid,
@@ -2836,7 +2852,7 @@
 
       body[data-mobile-page="candidates"] .mobile-candidate-controls,
       body[data-mobile-page="watch"][data-mobile-portfolio-view="watchlist"] .mobile-candidate-controls,
-      body[data-mobile-page="market"] .mobile-section-tabs,
+      body[data-mobile-page="market"] #mobileMarketTabs,
       body[data-mobile-page="more"] .mobile-more-menu {
         display: block;
       }
@@ -3515,13 +3531,7 @@
       }
 
       #marketPanel .market-overview {
-        grid-template-columns: 112px minmax(0, 1fr);
-        gap: 10px;
-        padding: 12px;
-      }
-
-      #marketPanel .market-score {
-        padding: 10px;
+        padding: 7px 10px;
       }
 
       #marketPanel .market-summary {
@@ -3533,16 +3543,19 @@
       }
 
       #marketPanel .market-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr);
-        gap: 9px;
-        overflow-x: hidden;
-        padding: 0 12px 12px;
+        padding: 0 8px;
       }
 
-      #marketPanel .market-card {
-        width: 100%;
-      }
+      #marketPanel .panel-header { padding: 6px 10px; }
+      #marketPanel .panel-header h2 { display: none; }
+      #marketPanel .panel-header .updated { font-size: 11px; }
+      #marketPanel .market-indicators { font-size: 12px; }
+      #marketPanel .market-indicators th,
+      #marketPanel .market-indicators td { padding: 5px 2px; line-height: 1.25; }
+      #marketPanel .market-indicators tbody th { font-size: 11px; }
+      #marketPanel .market-change-amount { display: none; }
+      #marketPanel .market-details > summary { padding: 8px 10px; font-size: 11px; }
+      #marketPanel .market-details-body { padding: 0 10px 10px; }
       #vixPanel .vix-chart-wrap { height: min(62dvh, 500px); }
 
       body[data-mobile-page="market"][data-mobile-market-view="technical"] #nikkeiAnalysisPanel .analysis-detail-grid,
@@ -3997,15 +4010,8 @@
 
       <section class="panel market-panel" id="marketPanel" aria-label="今日の相場環境">
         <div class="panel-header">
-          <h2>今日の相場環境</h2>
-          <div class="market-header-tools">
-            <div class="range-tabs market-range-tabs" aria-label="相場環境の表示期間">
-              <button id="marketRange1w" type="button">1週間</button>
-              <button id="marketRange1m" class="active" type="button">1ヶ月</button>
-              <button id="marketRange3m" type="button">3ヶ月</button>
-            </div>
-            <span class="updated" id="marketStatus">JSON読込待ち</span>
-          </div>
+          <h2>相場サマリー</h2>
+          <span class="updated" id="marketStatus">JSON読込待ち</span>
         </div>
         <div class="market-overview">
           <div class="market-score">
@@ -4013,22 +4019,26 @@
             <div class="market-score-value" id="marketScore">--</div>
             <div class="market-label" id="marketLabel">確認中</div>
           </div>
-          <div>
+        </div>
+        <div class="market-grid" id="marketGrid" aria-live="polite">
+          <p class="market-card-meta">主要指標を読み込んでいます。</p>
+        </div>
+        <details class="market-details" id="marketDetails">
+          <summary>判定の詳細・相場環境スコア推移</summary>
+          <div class="market-details-body">
             <div class="market-summary" id="marketSummary">market-environment.json を読み込んでいます。相場環境は表示専用で、銘柄ランキングの総合スコアには反映しません。</div>
             <div class="market-card-meta" id="marketUsage">表示専用</div>
+            <div class="range-tabs market-range-tabs market-detail-tools" aria-label="相場環境スコアの表示期間">
+              <button id="marketRange1w" type="button">1週間</button>
+              <button id="marketRange1m" class="active" type="button">1ヶ月</button>
+              <button id="marketRange3m" type="button">3ヶ月</button>
+            </div>
             <div class="market-score-chart-wrap">
               <canvas id="marketScoreChart" aria-label="相場環境スコア推移"></canvas>
             </div>
             <div class="market-card-meta" id="marketHistoryMeta">相場環境の履歴を読み込んでいます。</div>
           </div>
-        </div>
-        <div class="market-grid" id="marketGrid">
-          <div class="market-card">
-            <div class="market-card-title">状態</div>
-            <div class="market-card-value">読込中</div>
-            <div class="market-card-meta">主要指標を確認しています。</div>
-          </div>
-        </div>
+        </details>
       </section>
 
       <section class="panel" id="industryMarketPanel" aria-label="業種別騰落ランキング">
@@ -4110,17 +4120,17 @@
             <div class="chart-legend" id="nikkeiAnalysisLegend"></div>
           </div>
           <section class="nikkei-valuation" id="nikkeiValuationSection" aria-label="日経平均の投資指標">
-            <h3>日経平均のPER・PBR</h3>
+            <h3>日経平均の投資指標（加重平均）</h3>
             <table class="nikkei-valuation-table">
               <thead><tr><th scope="col">指標</th><th scope="col">倍率</th><th scope="col">参考価格</th></tr></thead>
               <tbody id="nikkeiValuationRows"><tr><td colspan="3">読込中</td></tr></tbody>
             </table>
             <div class="nikkei-valuation-trends">
-              <div><h4 id="nikkeiEpsHeading">日経平均EPS（日次・推計）</h4><div class="analysis-mini-chart"><canvas id="nikkeiEpsChart" aria-label="日経平均EPSの日次推移"></canvas></div></div>
-              <div><h4 id="nikkeiBpsHeading">日経平均BPS（日次・推計）</h4><div class="analysis-mini-chart"><canvas id="nikkeiBpsChart" aria-label="日経平均BPSの日次推移"></canvas></div></div>
+              <div><h4 id="nikkeiEpsHeading">EPS（加重平均PER換算）</h4><div class="analysis-mini-chart"><canvas id="nikkeiEpsChart" aria-label="EPS・加重平均PER換算の日次推移"></canvas></div></div>
+              <div><h4 id="nikkeiBpsHeading">BPS（加重平均PBR換算）</h4><div class="analysis-mini-chart"><canvas id="nikkeiBpsChart" aria-label="BPS・加重平均PBR換算の日次推移"></canvas></div></div>
             </div>
             <div class="history-table-wrap" role="region" tabindex="0" aria-label="日経平均PER・PBRの日次履歴">
-              <table class="history-table" id="nikkeiValuationHistory"><thead><tr><th>日付</th><th>日経平均</th><th>前日差</th><th>PER</th><th>PBR</th><th>EPS（推計）</th><th>BPS（推計）</th></tr></thead><tbody><tr><td colspan="7">読込中</td></tr></tbody></table>
+              <table class="history-table" id="nikkeiValuationHistory"><thead><tr><th>日付</th><th>日経平均</th><th>前日差</th><th>PER（加重）</th><th>PBR（加重）</th><th>EPS（換算）</th><th>BPS（換算）</th></tr></thead><tbody><tr><td colspan="7">読込中</td></tr></tbody></table>
             </div>
             <div class="analysis-source-note" id="nikkeiPerNote">日経平均PER・PBRの取得状態を確認しています。</div>
           </section>
@@ -4128,15 +4138,15 @@
           <div class="analysis-detail-grid">
             <section class="analysis-detail-card" aria-label="信用残高">
               <div class="analysis-detail-heading">
-                <h3>信用残高</h3>
+                <h3 id="nikkeiMarginHeading">日経225の信用残高（日次・億円）</h3>
                 <span class="analysis-state" id="nikkeiMarginState">読込中</span>
               </div>
               <div class="analysis-margin-tabs" role="group" aria-label="信用残高の対象と頻度">
-                <button class="active" type="button" data-nikkei-margin-view="nikkei" aria-pressed="true">日経225・日次</button>
-                <button type="button" data-nikkei-margin-view="market" aria-pressed="false">二市場合計・週次</button>
+                <button class="active" type="button" data-nikkei-margin-view="nikkei" aria-pressed="true">日経225（日次・億円）</button>
+                <button type="button" data-nikkei-margin-view="market" aria-pressed="false">二市場合計（週次・千株）</button>
               </div>
               <div class="analysis-latest" id="nikkeiMarginLatest">信用残高を読み込んでいます。</div>
-              <div class="history-table-wrap" role="region" tabindex="0" aria-label="日経225信用残高の履歴">
+              <div class="history-table-wrap" id="nikkeiMarginTableWrap" role="region" tabindex="0" aria-label="日経225信用残高の履歴・億円">
                 <table class="history-table" id="nikkeiMarginTable"></table>
               </div>
               <div class="analysis-source-note" id="nikkeiMarginNote">単位と基準日を確認しています。</div>
@@ -4866,6 +4876,7 @@
       marketSummary: document.querySelector("#marketSummary"),
       marketUsage: document.querySelector("#marketUsage"),
       marketGrid: document.querySelector("#marketGrid"),
+      marketDetails: document.querySelector("#marketDetails"),
       industryMarketStatus: document.querySelector("#industryMarketStatus"),
       industryMarketUp: document.querySelector("#industryMarketUp"),
       industryMarketDown: document.querySelector("#industryMarketDown"),
@@ -4913,9 +4924,11 @@
       nikkeiIndicatorButtons: document.querySelectorAll("[data-nikkei-indicator]"),
       bollingerSigmaButtons: document.querySelectorAll("[data-bb-sigma]"),
       nikkeiMarginState: document.querySelector("#nikkeiMarginState"),
+      nikkeiMarginHeading: document.querySelector("#nikkeiMarginHeading"),
       nikkeiMarginViewButtons: document.querySelectorAll("[data-nikkei-margin-view]"),
       nikkeiMarginLatest: document.querySelector("#nikkeiMarginLatest"),
       nikkeiMarginTable: document.querySelector("#nikkeiMarginTable"),
+      nikkeiMarginTableWrap: document.querySelector("#nikkeiMarginTableWrap"),
       nikkeiMarginNote: document.querySelector("#nikkeiMarginNote"),
       stockPerHistoryChart: document.querySelector("#stockPerHistoryChart"),
       stockPbrHistoryChart: document.querySelector("#stockPbrHistoryChart"),
@@ -5986,18 +5999,12 @@
       Object.entries(el.marketRangeButtons).forEach(([range, button]) => {
         button.classList.toggle("active", state.marketHistoryRange === range);
       });
-      drawMarketLineChart(el.marketScoreChart, snapshots.map(row => ({
-        date: row.date,
-        value: finiteMarketNumber(row.score),
-      })), { scoreChart: true });
-      document.querySelectorAll("[data-market-chart]").forEach(canvas => {
-        const key = canvas.dataset.marketChart;
-        const rows = snapshots.map(row => ({
+      if (el.marketDetails.open) {
+        drawMarketLineChart(el.marketScoreChart, snapshots.map(row => ({
           date: row.date,
-          value: finiteMarketNumber(row?.indicators?.[key]?.value),
-        }));
-        drawMarketLineChart(canvas, rows);
-      });
+          value: finiteMarketNumber(row.score),
+        })), { scoreChart: true });
+      }
       el.marketHistoryMeta.textContent = snapshots.length
         ? `${marketHistoryRangeLabel()} / ${snapshots.length}営業日分の推移（終値ベース）`
         : "履歴がたまると相場環境の推移を表示します。";
@@ -6026,30 +6033,30 @@
       el.marketUsage.textContent = environment.usage || "表示専用です。銘柄ランキングの総合スコアには反映しません。";
       const keys = payload ? marketCardKeys(payload) : [];
       if (!keys.length) {
-        el.marketGrid.innerHTML = `
-          <div class="market-card">
-            <div class="market-card-title">状態</div>
-            <div class="market-card-value">未取得</div>
-            <div class="market-card-meta">data/market-environment.json を確認してください。</div>
-          </div>
-        `;
+        el.marketGrid.innerHTML = '<p class="market-card-meta" role="status">相場情報を取得できませんでした。更新ボタンから再読み込みできます。</p>';
         renderMarketHistoryCharts();
         return;
       }
-      el.marketGrid.innerHTML = [...new Set(keys)].map(key => {
+      const rows = [...new Set(keys)].map(key => {
         const point = indicators[key] || {};
         const hasValue = finiteMarketNumber(point.value) !== null;
-        const statusText = point.status === "available" && hasValue ? formatMarketChange(point) : (point.note || "数値未取得");
+        const rate = finiteMarketNumber(point.changeRate);
+        const change = finiteMarketNumber(point.change);
+        const tone = (rate ?? change ?? 0) > 0 ? "up" : (rate ?? change ?? 0) < 0 ? "down" : "";
+        const rateText = rate !== null ? `${rate > 0 ? "+" : ""}${(rate * 100).toFixed(2)}%` : "未取得";
+        const changeText = change !== null ? `${change > 0 ? "+" : ""}${change.toFixed(2)}` : "";
+        const asOf = point.asOf ? formatDate(point.asOf) : "未取得";
+        const shortDate = /^\d{4}\/\d{2}\/\d{2}$/.test(asOf) ? asOf.slice(5) : asOf;
         return `
-          <div class="market-card">
-            <div class="market-card-title">${escapeHtml(point.label || key)}</div>
-            <div class="market-card-value">${escapeHtml(formatMarketValue(point))}</div>
-            <div class="market-card-meta">${escapeHtml(statusText)}</div>
-            <div class="market-card-meta">${escapeHtml(point.asOf ? "更新 " + formatDate(point.asOf) : point.source || "")}</div>
-            <div class="market-mini-chart"><canvas data-market-chart="${escapeHtml(key)}" aria-label="${escapeHtml(point.label || key)}の推移"></canvas></div>
-          </div>
+          <tr data-market-key="${escapeHtml(key)}" title="${escapeHtml([point.source, point.note].filter(Boolean).join(' / '))}">
+            <th scope="row">${escapeHtml(point.label || key)}</th>
+            <td class="market-indicator-value">${escapeHtml(formatMarketValue(point))}${hasValue && point.status !== "available" ? '<span class="market-indicator-stale">前回値</span>' : ""}</td>
+            <td class="market-indicator-change ${tone}" aria-label="${escapeHtml(formatMarketChange(point))}" title="${escapeHtml(formatMarketChange(point))}">${escapeHtml(rateText)}${changeText ? `<span class="market-change-amount">${escapeHtml(changeText)}</span>` : ""}</td>
+            <td class="market-indicator-date" title="${escapeHtml(asOf)}">${escapeHtml(shortDate)}</td>
+          </tr>
         `;
       }).join("");
+      el.marketGrid.innerHTML = `<table class="market-indicators" aria-label="主要指数・相場指標一覧"><colgroup><col><col><col><col></colgroup><thead><tr><th scope="col">指数・指標</th><th scope="col">現在値</th><th scope="col">前日比</th><th scope="col">基準日</th></tr></thead><tbody>${rows}</tbody></table>`;
       renderMarketHistoryCharts();
     }
 
@@ -6668,6 +6675,8 @@
     function renderNikkeiMargin() {
       const daily = nikkeiMarginView === "nikkei";
       const section = (daily ? nikkeiAnalysis?.nikkeiMarginDaily : nikkeiAnalysis?.margin) || {};
+      el.nikkeiMarginHeading.textContent = daily ? "日経225の信用残高（日次・億円）" : "二市場合計の信用残高（週次・千株）";
+      el.nikkeiMarginTableWrap.setAttribute("aria-label", daily ? "日経225信用残高の履歴・億円" : "二市場合計信用残高の履歴・千株");
       const dateKey = daily ? "date" : "weekEnd";
       const rows = Array.isArray(section.rows) ? section.rows : [];
       el.nikkeiMarginViewButtons.forEach(button => {
@@ -6688,16 +6697,18 @@
       const ratio = latest.marginRatio == null ? NaN : Number(latest.marginRatio);
       const display = (value, digits = 1) => typeof value === "number" && Number.isFinite(value)
         ? value.toLocaleString("ja-JP", {maximumFractionDigits: digits}) : "未算出";
+      const displayWithUnit = value => typeof value === "number" && Number.isFinite(value)
+        ? `${display(value, daily ? 2 : 1)}${daily ? "億円" : "千株"}` : "未算出";
       const buy = daily ? latest.buyBalance100mYen : latest.buyBalanceThousandShares;
       const sell = daily ? latest.sellBalance100mYen : latest.sellBalanceThousandShares;
       const unit = daily ? "億円" : "千株";
       el.nikkeiMarginLatest.innerHTML = `
         <strong>信用倍率 ${Number.isFinite(ratio) ? ratio.toFixed(2) + "倍" : "未取得"}</strong>
-        買い残 ${display(buy)}${unit} / 売り残 ${display(sell)}${unit}<br>
+        買い残 ${displayWithUnit(buy)} / 売り残 ${displayWithUnit(sell)}<br>
         基準 ${escapeHtml(formatDate(latest[dateKey]))}${latest.publishedAt ? ` / 公表 ${escapeHtml(formatDate(latest.publishedAt))}` : ""}
       `;
       const visible = rows.slice(daily ? -90 : -26).reverse();
-      el.nikkeiMarginTable.innerHTML = `<thead><tr><th scope="col">基準日</th><th scope="col">信用倍率</th><th scope="col">売り残（${unit}）</th><th scope="col">買い残（${unit}）</th><th scope="col">カバー数</th></tr></thead><tbody>${visible.map(row => `
+      el.nikkeiMarginTable.innerHTML = `<thead><tr><th scope="col">基準日</th><th scope="col">信用倍率</th><th scope="col">売り残（${unit}）</th><th scope="col">買い残（${unit}）</th><th scope="col">${daily ? "価格確認" : "カバー数"}</th></tr></thead><tbody>${visible.map(row => `
         <tr><th scope="row">${escapeHtml(formatDate(row[dateKey]))}</th>
         <td>${typeof row.marginRatio === "number" && Number.isFinite(row.marginRatio) ? row.marginRatio.toFixed(2) + "倍" : "算出不可"}</td>
         <td>${display(daily ? row.sellBalance100mYen : row.sellBalanceThousandShares, daily ? 2 : 1)}</td>
@@ -6786,21 +6797,21 @@
     function renderNikkeiValuation(payload = nikkeiAnalysis) {
       const per = payload?.per || {};
       const reference = per.reference;
-      const valid = reference && ["weightedPer", "weightedPbr", "indexPer", "indexPbr", "eps", "bps", "lowerPrice", "upperPrice"]
+      const correctBasis = per.valuationBasis === "nikkei-weighted-average" && per.calculationVersion === 2;
+      const valid = correctBasis && reference?.valuationBasis === "nikkei-weighted-average" && ["weightedPer", "weightedPbr", "eps", "bps", "lowerPrice", "upperPrice"]
         .every(key => Number.isFinite(Number(reference[key])) && Number(reference[key]) > 0);
-      const rows = Array.isArray(per.rows) ? per.rows.filter(row =>
-        row?.date && Number.isFinite(row.eps) && row.eps > 0 && Number.isFinite(row.bps) && row.bps > 0
+      const rows = correctBasis && Array.isArray(per.rows) ? per.rows.filter(row =>
+        row?.date && row.valuationBasis === "nikkei-weighted-average" &&
+        [row.close, row.weightedPer, row.weightedPbr, row.eps, row.bps].every(value => typeof value === "number" && Number.isFinite(value) && value > 0)
       ) : [];
       if (valid) {
         const multiple = value => `${Number(value).toFixed(2)}倍`;
         const price = value => `${Number(value).toLocaleString("ja-JP", { maximumFractionDigits: 2 })}円`;
         el.nikkeiValuationRows.innerHTML = [
           ["現在のPER（加重平均）", multiple(reference.weightedPer), price(reference.close)],
+          ["PBR（加重平均）", multiple(reference.weightedPbr), "-"],
           ["直下の整数倍", `${reference.lowerMultiple}倍`, price(reference.lowerPrice)],
           ["直上の整数倍", `${reference.upperMultiple}倍`, price(reference.upperPrice)],
-          ["PER（指数ベース）", multiple(reference.indexPer), "-"],
-          ["PBR（加重平均）", multiple(reference.weightedPbr), "-"],
-          ["PBR（指数ベース）", multiple(reference.indexPbr), "-"],
         ].map(([label, ratio, value]) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(ratio)}</td><td>${escapeHtml(value)}</td></tr>`).join("");
       } else {
         el.nikkeiValuationRows.innerHTML = '<tr><td colspan="3">PER・PBRの同日付データを取得できていません。</td></tr>';
@@ -6818,13 +6829,15 @@
             <td>${number(row.eps)}</td><td>${number(row.bps)}</td></tr>`;
         }).join("")
         : '<tr><td colspan="7">同日付のPER・PBR履歴がありません。</td></tr>';
-      el.nikkeiEpsHeading.textContent = valid ? `日経平均EPS ${Number(reference.eps).toLocaleString("ja-JP")}円（日次・推計）` : "日経平均EPS（日次・推計）";
-      el.nikkeiBpsHeading.textContent = valid ? `日経平均BPS ${Number(reference.bps).toLocaleString("ja-JP")}円（日次・推計）` : "日経平均BPS（日次・推計）";
+      el.nikkeiEpsHeading.textContent = valid ? `EPS ${Number(reference.eps).toLocaleString("ja-JP")}円（加重平均PER換算）` : "EPS（加重平均PER換算）";
+      el.nikkeiBpsHeading.textContent = valid ? `BPS ${Number(reference.bps).toLocaleString("ja-JP")}円（加重平均PBR換算）` : "BPS（加重平均PBR換算）";
       drawAnalysisSeriesChart(el.nikkeiEpsChart, visible, [{ color: "#246bce", value: row => row.eps }]);
       drawAnalysisSeriesChart(el.nikkeiBpsChart, visible, [{ color: "#0f8f6a", value: row => row.bps }]);
       el.nikkeiPerNote.textContent = valid
-        ? `${per.status === "available" ? "" : "更新失敗・前回値。"}基準 ${formatDate(reference.date)}。履歴表のPER/PBRは加重平均。整数倍価格は同日終値÷加重平均PERで換算。EPS・BPSは同日終値÷指数ベースPER/PBRで推計した別基準です。${rows.length}営業日分の履歴を表示できます。`
-        : per.note || "日経公式のPER・PBR・終値は本人限定版で取得します。";
+        ? `${per.status === "available" ? "" : "更新失敗・前回値。"}基準 ${formatDate(reference.date)}。PER/PBRは日経公式の加重平均。EPS＝同日終値÷加重平均PER、BPS＝同日終値÷加重平均PBRの参考換算値です。整数倍価格も同じEPSを使用します。公表倍率が小数第2位のため丸め誤差を含みます。${rows.length}営業日分。`
+        : !correctBasis && per.rows?.length
+          ? "投資指標の計算基準を更新しています。データ更新後に加重平均PER/PBRと同じ基準のEPS/BPSを表示します。"
+          : per.note || "日経公式のPER・PBR・終値は本人限定版で取得します。";
     }
 
     function renderNikkeiAnalysis(payload = nikkeiAnalysis) {
@@ -9395,6 +9408,9 @@
         state.marketHistoryRange = range;
         renderMarketEnvironment(marketEnvironment);
       });
+    });
+    el.marketDetails.addEventListener("toggle", () => {
+      if (el.marketDetails.open) requestAnimationFrame(renderMarketHistoryCharts);
     });
     document.querySelectorAll("[data-vix-range]").forEach(button => {
       button.addEventListener("click", () => {

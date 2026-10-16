@@ -23,6 +23,7 @@ from market_analysis import (  # noqa: E402
     MarketAnalysisError,
     _per_data,
     _per_reference,
+    _valuation_row,
     _load_private_previous,
     _timestamp_date,
     _weekly_data,
@@ -182,7 +183,11 @@ class MarketAnalysisTests(unittest.TestCase):
         )
         self.assertEqual(payload["analysisVersion"], ANALYSIS_VERSION)
         self.assertEqual(validate_analysis(payload), [])
-        self.assertEqual(payload["per"]["reference"]["indexPer"], 25.0)
+        self.assertEqual(payload["per"]["reference"]["eps"], 2009.45)
+        self.assertEqual(payload["per"]["reference"]["bps"], 20094.5)
+        self.assertEqual(payload["per"]["valuationBasis"], "nikkei-weighted-average")
+        payload["per"]["rows"][0]["eps"] = 1607.56
+        self.assertTrue(any("EPS/BPS" in error for error in validate_analysis(payload)))
         self.assertEqual(payload["per"]["reference"]["lowerMultiple"], 20)
         self.assertEqual(payload["per"]["reference"]["upperMultiple"], 21)
         self.assertEqual(payload["per"]["reference"]["lowerPrice"], 40_189.0)
@@ -204,14 +209,34 @@ class MarketAnalysisTests(unittest.TestCase):
         self.assertEqual(rows, [])
         self.assertEqual(source["status"], "unavailable")
 
-    def test_adjacent_per_multiples_use_same_day_index_eps(self) -> None:
+    def test_adjacent_per_multiples_use_same_day_weighted_eps(self) -> None:
         rows = [{"date": "2026-10-08", "weightedPer": 17.4, "weightedPbr": 1.5,
                  "indexPer": 20.0, "indexPbr": 2.0,
                  "close": 34_800.0, "eps": 1_740.0, "bps": 17_400.0}]
         reference = _per_reference([], rows)
         self.assertEqual((reference["lowerMultiple"], reference["upperMultiple"]), (17, 18))
         self.assertEqual((reference["lowerPrice"], reference["upperPrice"]), (34_000, 36_000))
+        self.assertEqual((reference["eps"], reference["bps"]), (2000, 23200))
         self.assertIsNone(_per_reference([], [{"date": "2026-10-08", "indexPer": None, "eps": None, "bps": None}]))
+
+    def test_weighted_valuation_matches_official_20261015_and_recalculates_legacy(self) -> None:
+        row = {"date": "2026-10-15", "close": 64425.95, "weightedPer": 16.79,
+               "weightedPbr": 1.83, "indexPer": 21.34, "indexPbr": 2.64,
+               "eps": 3019.02, "bps": 24403.77}
+        corrected = _valuation_row(row)
+        self.assertEqual(corrected["eps"], 3837.16)
+        self.assertEqual(corrected["bps"], 35205.44)
+        self.assertEqual(corrected["weightedPbr"], 1.83)
+        self.assertEqual(_per_reference([], [row])["eps"], 3837.16)
+        with patch("market_analysis.fetch_bytes", side_effect=MarketAnalysisError("offline")):
+            rows, source = _per_data({"per": {"rows": [row]}}, distribution_mode=LOCAL_PRIVATE_DISTRIBUTION_MODE)
+        self.assertEqual(source["status"], "stale-fallback")
+        self.assertEqual(rows[0]["eps"], 3837.16)
+        for invalid in (None, 0, float("nan"), float("inf"), -1):
+            with self.subTest(invalid=invalid):
+                result = _valuation_row({**row, "weightedPer": invalid})
+                self.assertIsNone(result["eps"])
+                self.assertEqual(result["bps"], 35205.44)
 
     def test_validation_rejects_short_price_history(self) -> None:
         payload = {
@@ -300,8 +325,8 @@ class MarketAnalysisTests(unittest.TestCase):
                 today=date(2026, 7, 20),
             )
         self.assertEqual(per_rows[-1]["weightedPer"], 17.42)
-        self.assertEqual(per_rows[-1]["eps"], round(40_000 / 22.99, 2))
-        self.assertEqual(per_rows[-1]["bps"], round(40_000 / 2.1, 2))
+        self.assertEqual(per_rows[-1]["eps"], round(40_000 / 17.42, 2))
+        self.assertEqual(per_rows[-1]["bps"], round(40_000 / 1.6, 2))
         self.assertEqual(per_source["status"], "available")
         self.assertEqual(per_source["accessMode"], LOCAL_PRIVATE_DISTRIBUTION_MODE)
         self.assertEqual(margin["status"], "available")

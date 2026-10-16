@@ -12,6 +12,8 @@ from market_analysis import (
     PRIVATE_CLOUD_DISTRIBUTION_MODE,
     PRIVATE_OUTPUT,
     PUBLIC_DISTRIBUTION_MODE,
+    VALUATION_BASIS,
+    VALUATION_CALCULATION_VERSION,
     validate_analysis,
 )
 
@@ -45,9 +47,17 @@ def validate_private_analysis(payload: object) -> list[str]:
         errors.append("日経225分析がprivate-cloudモードではありません。")
     per = payload.get("per") if isinstance(payload.get("per"), dict) else {}
     reference = per.get("reference") if isinstance(per.get("reference"), dict) else {}
-    if per.get("status") != "available" or any(
-        not isinstance(reference.get(key), (int, float)) or not math.isfinite(reference[key]) or reference[key] <= 0
-        for key in ("weightedPer", "weightedPbr", "indexPer", "indexPbr", "eps", "bps", "lowerPrice", "upperPrice")
+    if (
+        per.get("status") != "available"
+        or per.get("valuationBasis") != VALUATION_BASIS
+        or per.get("calculationVersion") != VALUATION_CALCULATION_VERSION
+        or reference.get("valuationBasis") != VALUATION_BASIS
+        or any(
+            not isinstance(reference.get(key), (int, float))
+            or isinstance(reference.get(key), bool)
+            or not math.isfinite(reference[key]) or reference[key] <= 0
+            for key in ("weightedPer", "weightedPbr", "eps", "bps", "lowerPrice", "upperPrice")
+        )
     ):
         errors.append("本人限定版に表示する日経平均PER・PBR・EPS・BPSが利用可能ではありません。")
     return list(dict.fromkeys(errors))

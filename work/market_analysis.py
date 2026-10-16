@@ -51,6 +51,8 @@ NIKKEI_PBR_URL = "https://indexes.nikkei.co.jp/nkave/archives/data?list=pbr"
 NIKKEI_DAILY_URL = "https://indexes.nikkei.co.jp/nkave/archives/data?list=daily"
 SCHEMA_VERSION = 1
 ANALYSIS_VERSION = "nikkei225-analysis-v1"
+VALUATION_BASIS = "nikkei-weighted-average"
+VALUATION_CALCULATION_VERSION = 2
 PUBLIC_DISTRIBUTION_MODE = "public"
 LOCAL_PRIVATE_DISTRIBUTION_MODE = "local-private"
 PRIVATE_CLOUD_DISTRIBUTION_MODE = "private-cloud"
@@ -254,13 +256,15 @@ def parse_nikkei_daily_close_html(html: str) -> list[dict[str, Any]]:
 
 def _valuation_row(row: dict[str, Any]) -> dict[str, Any]:
     result = {key: row.get(key) for key in ("date", "weightedPer", "indexPer", "weightedPbr", "indexPbr", "close")}
-    close, per, pbr = (row.get(key) for key in ("close", "indexPer", "indexPbr"))
-    if all(isinstance(value, (int, float)) and math.isfinite(value) and value > 0 for value in (close, per, pbr)):
-        result["eps"] = round(close / per, 2)
-        result["bps"] = round(close / pbr, 2)
-    else:
-        result["eps"] = None
-        result["bps"] = None
+    close = row.get("close")
+    for output_key, ratio_key in (("eps", "weightedPer"), ("bps", "weightedPbr")):
+        ratio = row.get(ratio_key)
+        valid = all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value) and value > 0 for value in (close, ratio)
+        )
+        result[output_key] = round(close / ratio, 2) if valid else None
+    result["valuationBasis"] = VALUATION_BASIS
     return result
 
 
@@ -451,7 +455,7 @@ def _per_data(
         refreshed = {
             day: _valuation_row(row)
             for day, row in refreshed.items()
-            if row.get("indexPbr") is not None and row.get("close") is not None
+            if row.get("weightedPbr") is not None and row.get("close") is not None
         }
         if not refreshed:
             raise MarketAnalysisError("日経公式のPER・PBR・終値に同じ基準日がありません。")
@@ -479,10 +483,11 @@ def _per_data(
         }
     except MarketAnalysisError as error:
         if isinstance(prior_rows, list) and prior_rows:
-            return prior_rows, {
+            corrected_rows = [_valuation_row(row) for row in prior_rows if isinstance(row, dict)]
+            return corrected_rows, {
                 "status": "stale-fallback",
                 "url": NIKKEI_PER_URL,
-                "asOf": prior_rows[-1].get("date"),
+                "asOf": corrected_rows[-1].get("date") if corrected_rows else None,
                 "note": f"更新失敗のため前回値を維持: {error}",
             }
         return [], {"status": "unavailable", "url": NIKKEI_PER_URL, "asOf": None, "note": str(error)}
@@ -590,38 +595,35 @@ def _per_reference(
         return None
     match = next(
         (
-            row for row in reversed(per_rows)
-            if row.get("eps") is not None and row.get("bps") is not None
-            and all(
+            _valuation_row(row) for row in reversed(per_rows)
+            if all(
                 isinstance(row.get(key), (int, float))
+                and not isinstance(row.get(key), bool)
                 and math.isfinite(row[key]) and row[key] > 0
-                for key in ("weightedPer", "weightedPbr", "indexPer", "indexPbr", "close")
+                for key in ("weightedPer", "weightedPbr", "close")
             )
         ),
         None,
     )
     if not match:
         return None
-    index_per = float(match["indexPer"])
     weighted_per = float(match["weightedPer"])
     close = float(match["close"])
-    eps = close / index_per
-    band_eps = close / weighted_per
+    eps = close / weighted_per
     lower = math.floor(weighted_per)
     return {
         "date": match["date"],
         "weightedPer": round(weighted_per, 2),
         "weightedPbr": round(float(match["weightedPbr"]), 2),
-        "indexPer": round(index_per, 2),
-        "indexPbr": round(float(match["indexPbr"]), 2),
         "close": round(close, 2),
         "eps": round(eps, 2),
-        "bps": round(close / float(match["indexPbr"]), 2),
+        "bps": round(close / float(match["weightedPbr"]), 2),
+        "valuationBasis": VALUATION_BASIS,
         "lowerMultiple": lower,
-        "lowerPrice": round(band_eps * lower, 2),
+        "lowerPrice": round(eps * lower, 2),
         "upperMultiple": lower + 1,
-        "upperPrice": round(band_eps * (lower + 1), 2),
-        "basis": "整数倍価格は同日終値÷加重平均PER。EPS/BPSは同日終値÷指数ベースPER/PBR。",
+        "upperPrice": round(eps * (lower + 1), 2),
+        "basis": "同日終値を加重平均PER/PBRで割ってEPS/BPSを参考換算。整数倍価格も同じEPSで計算。",
     }
 
 
@@ -656,6 +658,21 @@ def validate_analysis(payload: object, *, public_only: bool = False) -> list[str
     for key in ("margin", "nikkeiMarginDaily", "investorFlows", "breadth", "per"):
         if not isinstance(payload.get(key), dict) or not payload[key].get("status"):
             errors.append(f"{key}の状態がありません。")
+    per = payload.get("per")
+    if isinstance(per, dict) and per.get("rows"):
+        if per.get("valuationBasis") != VALUATION_BASIS or per.get("calculationVersion") != VALUATION_CALCULATION_VERSION:
+            errors.append("日経PER/PBRの計算基準が加重平均と一致しません。")
+        valuation_rows = per["rows"]
+        if not isinstance(valuation_rows, list) or any(not isinstance(row, dict) for row in valuation_rows):
+            errors.append("日経PER/PBRの履歴形式が不正です。")
+        else:
+            for row in valuation_rows:
+                expected = _valuation_row(row)
+                if any(row.get(key) != expected[key] for key in ("eps", "bps", "valuationBasis")):
+                    errors.append("日経EPS/BPSが同日の終値と加重平均PER/PBRに一致しません。")
+                    break
+            if per.get("reference") != _per_reference([], valuation_rows):
+                errors.append("日経投資指標の最新値が加重平均の履歴と一致しません。")
     if public_only:
         for key in ("per", "margin", "investorFlows"):
             section = payload.get(key)
@@ -688,6 +705,7 @@ def build_analysis_payload(
     previous = previous or {}
     if per_rows is None or per_source is None:
         per_rows, per_source = _per_data(previous, distribution_mode=distribution_mode)
+    per_rows = [_valuation_row(row) for row in per_rows if isinstance(row, dict)]
     if margin is None or investor is None:
         margin, investor = _weekly_data(previous, distribution_mode=distribution_mode)
     if nikkei_margin_daily is None:
@@ -725,6 +743,8 @@ def build_analysis_payload(
         "latest": technical_rows[-1] if technical_rows else None,
         "per": {
             **per_source,
+            "valuationBasis": VALUATION_BASIS,
+            "calculationVersion": VALUATION_CALCULATION_VERSION,
             "rows": per_rows,
             "reference": _per_reference(technical_rows, per_rows),
         },
