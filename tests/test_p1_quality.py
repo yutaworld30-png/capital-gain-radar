@@ -107,6 +107,24 @@ class P1QualityTest(unittest.TestCase):
         self.assertEqual([item["date"] for item in updated["snapshots"]], ["2026-07-02", "2026-07-14"])
         self.assertTrue(all(item["scoreVersion"] == pipeline.SCORE_VERSION for item in updated["snapshots"]))
 
+    def test_score_history_rejects_older_prices_without_changing_saved_history(self) -> None:
+        existing = {"schemaVersion": 2, "snapshots": [{
+            "date": "2026-10-16", "scoreVersion": pipeline.SCORE_VERSION,
+            "factorVersion": pipeline.FACTOR_VERSION,
+            "rows": [{"code": "6098", "score": 70, "priceAsOf": "2026-10-16"}],
+        }]}
+        dataset = {"sources": {"priceHistory": {"asOf": "2026-10-15"}},
+                   "searchUniverse": [{"code": "6098", "score": 71, "priceAsOf": "2026-10-15"}]}
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "score-history-v2.json"
+            output.write_text(json.dumps(existing), encoding="utf-8")
+            original = output.read_bytes()
+            with (patch.object(pipeline, "SCORE_HISTORY_OUTPUT", output),
+                  patch.dict(pipeline.os.environ, {"SCORE_HISTORY_URL": "", "SCORE_HISTORY_REQUIRE_REMOTE": "false"})):
+                with self.assertRaisesRegex(RuntimeError, "保存済みスコア履歴より古い"):
+                    pipeline.update_score_history(dataset, "2026-10-17T00:10:00+09:00")
+            self.assertEqual(output.read_bytes(), original)
+
     def test_score_history_merges_public_and_local_history_by_price_date(self) -> None:
         local_history = {
             "schemaVersion": 2,

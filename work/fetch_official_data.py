@@ -724,6 +724,7 @@ def collect_free_market_metrics(
                 )
             ],
             "chartType": "ohlcv",
+            "closeSource": primary_rows[-1].get("CloseSource", "daily-close"),
             "validationDate": validation_date,
             "validationCloseYahoo": primary_close,
             "validationCloseMirror": mirror_close,
@@ -2125,6 +2126,8 @@ def update_score_history(dataset: dict[str, object], generated_at: str) -> dict[
     snapshots = [item for item in history.get("snapshots", []) if isinstance(item, dict)]
     restored_snapshot_count = len(snapshots)
     snapshot_date, snapshot_date_basis = _score_snapshot_date(dataset, typed_rows, generated_at)
+    if snapshots and snapshot_date < max(str(item.get("date") or "") for item in snapshots):
+        raise RuntimeError("最新株価が保存済みスコア履歴より古いため、履歴を変更せず更新を停止しました。")
     _attach_history_changes(typed_rows, snapshots, snapshot_date)
     compact_rows = [
         _compact_score_row(row)

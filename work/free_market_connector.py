@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import html
 import json
+import math
 import re
 import time as time_module
 from datetime import date, datetime, time, timedelta, timezone
@@ -56,6 +57,25 @@ def _intraday_quote_date(meta: object) -> str | None:
     if market_at.time() >= time(15, 30):
         return None
     return market_at.date().isoformat()
+
+
+def _confirmed_meta_close(meta: object, row_date: str) -> float | None:
+    if not isinstance(meta, dict):
+        return None
+    try:
+        stamp = float(meta["regularMarketTime"])
+        market_at = datetime.fromtimestamp(stamp, tz=timezone.utc).astimezone(
+            _market_timezone(meta.get("exchangeTimezoneName") or meta.get("timezone"))
+        )
+        value = float(meta["regularMarketPrice"])
+        session_end = ((meta.get("currentTradingPeriod") or {}).get("regular") or {}).get("end")
+        if (market_at.date().isoformat() != row_date or market_at.time() < time(15, 30)
+                or (isinstance(session_end, (int, float)) and stamp < session_end)
+                or not math.isfinite(value) or value <= 0):
+            return None
+        return value
+    except (KeyError, TypeError, ValueError, OSError):
+        return None
 
 
 def _fetch(url: str) -> bytes:
@@ -122,6 +142,15 @@ def fetch_yahoo_history(
         close = quote.get("close", [])[index]
         high = quote.get("high", [])[index]
         low = quote.get("low", [])[index]
+        close_source = "daily-close"
+        # Yahoo occasionally leaves only the final close null after the TSE close.
+        # Retain the real OHLC and use the same-day closing quote, never synthetic highs/lows.
+        if close is None and index == len(timestamps) - 1:
+            confirmed = _confirmed_meta_close(result.get("meta"), row_date)
+            if (confirmed is not None and high is not None and low is not None
+                    and float(low) <= confirmed <= float(high)):
+                close = confirmed
+                close_source = "regularMarketPrice-confirmed-close"
         volume = quote.get("volume", [])[index]
         if close in (None, 0) or open_price is None or high is None or low is None:
             continue
@@ -139,6 +168,7 @@ def fetch_yahoo_history(
             "AdjH": float(high) * factor,
             "AdjL": float(low) * factor,
             "Va": float(close) * float(volume or 0),
+            "CloseSource": close_source,
         })
     return rows, url
 
@@ -163,8 +193,11 @@ def fetch_yahoo_mirror_latest(codes: list[str]) -> dict[str, dict[str, object]]:
             code = str(item["symbol"]).removesuffix(".T")
             response = item["response"][0]
             timestamps = response["timestamp"]
-            closes = response["indicators"]["quote"][0]["close"]
+            closes = list(response["indicators"]["quote"][0]["close"])
             intraday_date = _intraday_quote_date(response.get("meta"))
+            if closes and closes[-1] is None and timestamps:
+                last_date = datetime.fromtimestamp(timestamps[-1], tz=timezone.utc).date().isoformat()
+                closes[-1] = _confirmed_meta_close(response.get("meta"), last_date)
             latest_index = next(
                 index for index in range(len(closes) - 1, -1, -1)
                 if closes[index] not in (None, 0)

@@ -110,6 +110,42 @@ class FreeMarketConnectorTests(unittest.TestCase):
         self.assertEqual(len(result["1301"]["rows"]), 252)
         self.assertEqual(result["1301"]["rows"][-1]["Date"], "2025-09-09")
 
+    def test_missing_daily_close_uses_only_same_day_confirmed_meta_inside_real_ohlc(self) -> None:
+        payload = json.loads(self._chart_payload(market_hour=16))
+        result = payload["chart"]["result"][0]
+        result["indicators"]["quote"][0]["close"][-1] = None
+        result["indicators"]["adjclose"][0]["adjclose"][-1] = None
+        result["meta"]["regularMarketPrice"] = 1252.0
+        for hour, quote_day_delta, price, expected in (
+            (16, 0, 1252.0, 253), (15, 0, 1252.0, 252),
+            (16, 1, 1252.0, 252), (16, 0, 0, 252), (16, 0, 2000, 252),
+        ):
+            with self.subTest(hour=hour, day_delta=quote_day_delta, price=price):
+                result["meta"]["regularMarketTime"] = result["timestamp"][-1] + hour * 3600 + quote_day_delta * 86400
+                result["meta"]["regularMarketPrice"] = price
+                with patch("free_market_connector._fetch", return_value=json.dumps(payload).encode()):
+                    rows, _ = fetch_yahoo_history("1301", date(2025, 1, 1), date(2026, 1, 1))
+                self.assertEqual(len(rows), expected)
+                if expected == 253:
+                    self.assertEqual(rows[-1]["C"], 1252)
+                    self.assertEqual(rows[-1]["H"], 1262)
+                    self.assertEqual(rows[-1]["L"], 1242)
+                    self.assertEqual(rows[-1]["CloseSource"], "regularMarketPrice-confirmed-close")
+
+    def test_mirror_missing_close_can_validate_confirmed_meta_quote(self) -> None:
+        payload = json.loads(self._spark_payload(market_hour=16))
+        response = payload["spark"]["result"][0]["response"][0]
+        response["indicators"]["quote"][0]["close"][-1] = None
+        response["meta"]["regularMarketPrice"] = 1252
+        with patch("free_market_connector._fetch", return_value=json.dumps(payload).encode()):
+            result = fetch_yahoo_mirror_latest(["1301"])
+        self.assertEqual(result["1301"]["date"], "2025-09-10")
+        self.assertEqual(result["1301"]["close"], 1252)
+        response["meta"]["currentTradingPeriod"] = {"regular": {"end": response["meta"]["regularMarketTime"] + 60}}
+        with patch("free_market_connector._fetch", return_value=json.dumps(payload).encode()):
+            result = fetch_yahoo_mirror_latest(["1301"])
+        self.assertEqual(result["1301"]["date"], "2025-09-09")
+
     def test_dividend_forecast_marks_dps_as_forecast(self) -> None:
         page = """
         <html><body>
