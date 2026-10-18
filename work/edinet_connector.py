@@ -595,6 +595,27 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
     if bps is None:
         bps = _ratio(equity, shares_outstanding)
 
+    def cover_text(*names: str) -> str | None:
+        for element in root.iter():
+            if _local_name(element.tag) in names:
+                text = " ".join("".join(element.itertext()).split())
+                if text:
+                    return text[:300]
+        return None
+
+    employees, employee_as_of = _find_best_value(root, contexts, (
+        "NumberOfEmployees", "NumberOfEmployeesSummaryOfBusinessResults",
+    ), duration=False)
+    company_profile = {
+        "companyName": cover_text("CompanyNameCoverPage"),
+        "englishName": cover_text("CompanyNameInEnglishCoverPage"),
+        "headquarters": cover_text("AddressOfRegisteredHeadquarterCoverPage"),
+        "employees": employees,
+        "employeesAsOf": employee_as_of,
+        "fiscalPeriodEnd": instant_as_of or equity_as_of or duration_as_of,
+        "source": "EDINET有価証券報告書",
+    }
+
     return {
         "assets": assets,
         "equity": equity,
@@ -616,6 +637,7 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         "equityRatio": _ratio(equity, assets),
         "asOf": instant_as_of or equity_as_of or duration_as_of,
         "xbrlFile": xbrl_name,
+        "companyProfile": company_profile,
     }
 
 

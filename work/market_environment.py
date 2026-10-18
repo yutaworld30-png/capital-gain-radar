@@ -17,6 +17,7 @@ from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from market_technical import build_technical_rows
+from us_sector_market import collect_us_sectors
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -674,6 +675,7 @@ def main() -> None:
             "note": "確定済みの日足OHLCからMACD(12,26,9)を計算。場中値はローソク足に混ぜません。",
             "rows": vix_rows[-260:],
         },
+        "usSectors": collect_us_sectors(fetch_yahoo_point, generated_at),
         "groups": {
             "japanTrend": ["nikkei225", "topix", "growth250"],
             "futures": ["nikkei225Futures", "topixFutures"],

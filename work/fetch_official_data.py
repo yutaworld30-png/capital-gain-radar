@@ -56,6 +56,7 @@ from market_breadth import build_nikkei225_breadth
 from margin_history import update as update_margin_history
 from weekly_target import attach_weekly_targets
 from weekly_prediction import build_accuracy_summary, update_prediction_ledger
+from valuation_history import update_valuation_history
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -3089,6 +3090,17 @@ def main() -> None:
         "generatedAt": generated_at,
     }
     score_history = update_score_history(dataset, generated_at)
+    valuation_history = update_valuation_history(
+        OUTPUT.parent, score_history, generated_at,
+        remote_base=history_base or f"{PAGES_BASE_URL}/data",
+        loader=lambda url: load_json_url(url, headers=_remote_auth_headers()),
+    )
+    dataset["valuationHistorySummary"] = {
+        "schemaVersion": 1, "basis": valuation_history["basis"],
+        "stockCount": valuation_history["stockCount"],
+        "retentionObservations": valuation_history["retentionObservations"],
+        "url": "data/valuation-history-v1.json",
+    }
     weekly_predictions, weekly_accuracy = update_weekly_prediction_outputs(dataset, generated_at)
     industry_market = build_industry_market(dataset, generated_at)
     INDUSTRY_MARKET_OUTPUT.write_text(

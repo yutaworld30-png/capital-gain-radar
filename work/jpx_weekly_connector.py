@@ -96,21 +96,51 @@ def _excel_date(value: object, datemode: int) -> str | None:
 
 
 def parse_margin_sheet(sheet: Any, *, datemode: int = 0) -> list[dict[str, Any]]:
+    header = [[_cell(sheet, row, col) for col in range(sheet.ncols)] for row in range(min(10, sheet.nrows))]
+    if not any("Tokyo & Nagoya" in str(cell) for row in header for cell in row):
+        raise JpxWeeklyError("二市場合計の見出しを確認できません。")
+    total = next((i for row in header[:5] for i, value in enumerate(row) if "Total" in str(value)), None)
+    labels = next((row for row in header if any("Shares Sold Short" in str(x) for x in row)
+                   and any("Shares Bought on Margin" in str(x) for x in row)), None)
+    if total is None or labels is None:
+        raise JpxWeeklyError("信用残高の合計列を判定できません。")
+    sell_col = next((i for i in range(total, len(labels)) if "Shares Sold Short" in str(labels[i])), None)
+    buy_col = next((i for i in range(total, len(labels)) if "Shares Bought on Margin" in str(labels[i])), None)
+    if sell_col is None or buy_col is None or not all(
+        any("thous.shs." in str(row[col]) for row in header) for col in (sell_col, buy_col)
+    ):
+        raise JpxWeeklyError("信用残高の株数単位を判定できません。")
+    value_units_ok = all(any("百万円" in str(row[col + 1]) for row in header if len(row) > col + 1)
+                         for col in (sell_col, buy_col))
     rows: list[dict[str, Any]] = []
     for row_index in range(10, sheet.nrows):
         week_end = _excel_date(_cell(sheet, row_index, 0), datemode)
-        sell_balance = _number(_cell(sheet, row_index, 9))
-        buy_balance = _number(_cell(sheet, row_index, 11))
+        sell_balance = _number(_cell(sheet, row_index, sell_col))
+        buy_balance = _number(_cell(sheet, row_index, buy_col))
         if not week_end or sell_balance is None or buy_balance is None:
             continue
-        rows.append({
+        record = {
             "weekEnd": week_end,
             "sellBalanceThousandShares": round(sell_balance, 3),
             "buyBalanceThousandShares": round(buy_balance, 3),
             "marginRatio": round(buy_balance / sell_balance, 4) if sell_balance > 0 else None,
-        })
+        }
+        if value_units_ok:
+            _attach_margin_amounts(record, _cell(sheet, row_index, sell_col + 1), _cell(sheet, row_index, buy_col + 1))
+        rows.append(record)
     by_date = {str(row["weekEnd"]): row for row in rows}
     return [by_date[key] for key in sorted(by_date)]
+
+
+def _attach_margin_amounts(record: dict[str, Any], sell: object, buy: object) -> None:
+    sell_value, buy_value = _number(sell), _number(buy)
+    if sell_value is None or buy_value is None or min(sell_value, buy_value) < 0:
+        return
+    record.update({
+        "sellBalance100mYen": round(sell_value / 100, 2),
+        "buyBalance100mYen": round(buy_value / 100, 2),
+        "amountMarginRatio": round(buy_value / sell_value, 6) if sell_value > 0 else None,
+    })
 
 
 def parse_margin_workbook(content: bytes) -> list[dict[str, Any]]:
@@ -180,12 +210,16 @@ def parse_margin_xlsx_workbook(content: bytes) -> list[dict[str, Any]]:
                 buy_balance = _number(row[buy_column])
                 if sell_balance is None or buy_balance is None:
                     continue
-                parsed.append({
+                record = {
                     "weekEnd": row[0].date().isoformat() if isinstance(row[0], datetime) else row[0].isoformat(),
                     "sellBalanceThousandShares": round(sell_balance, 3),
                     "buyBalanceThousandShares": round(buy_balance, 3),
                     "marginRatio": round(buy_balance / sell_balance, 4) if sell_balance > 0 else None,
-                })
+                }
+                if all(any("百万円" in str(r[col + 1]) for r in header if len(r) > col + 1)
+                       for col in (sell_column, buy_column)):
+                    _attach_margin_amounts(record, row[sell_column + 1], row[buy_column + 1])
+                parsed.append(record)
             if parsed:
                 by_date = {row["weekEnd"]: row for row in parsed}
                 return [by_date[key] for key in sorted(by_date)]
@@ -222,15 +256,20 @@ def parse_current_margin_sheet(sheet: Any) -> dict[str, Any]:
     buy_balance = _number(_cell(sheet, total_row, 13))
     if sell_balance is None or buy_balance is None:
         raise JpxWeeklyError("直近信用残高Excelの売残・買残が数値ではありません。")
-    return {
+    record = {
         "weekEnd": week_end,
         "sellBalanceThousandShares": round(sell_balance, 3),
         "buyBalanceThousandShares": round(buy_balance, 3),
         "marginRatio": round(buy_balance / sell_balance, 4) if sell_balance > 0 else None,
     }
+    if "金額" in str(_cell(sheet, total_row + 1, 2)) and "百万円" in heading_text:
+        _attach_margin_amounts(record, _cell(sheet, total_row + 1, 11), _cell(sheet, total_row + 1, 13))
+    return record
 
 
 def parse_current_margin_workbook(content: bytes) -> dict[str, Any]:
+    if content.startswith(b"PK"):
+        return parse_current_margin_xlsx(content)
     try:
         workbook = xlrd.open_workbook(file_contents=content)
     except xlrd.XLRDError as error:
@@ -242,6 +281,36 @@ def parse_current_margin_workbook(content: bytes) -> dict[str, Any]:
     if sheet_name is None:
         raise JpxWeeklyError("直近信用取引現在高Excelにシートがありません。")
     return parse_current_margin_sheet(workbook.sheet_by_name(sheet_name))
+
+
+def parse_current_margin_xlsx(content: bytes) -> dict[str, Any]:
+    workbook = openpyxl.load_workbook(BytesIO(content), read_only=True, data_only=True)
+    try:
+        for sheet in workbook.worksheets:
+            rows = list(sheet.iter_rows(values_only=True))
+            if len(rows) < 8:
+                continue
+            day = next((v for row in rows[:2] for v in row if isinstance(v, (date, datetime))), None)
+            scope = next((i for row in rows[:7] for i, v in enumerate(row) if "Tokyo&Nagoya" in str(v)), None)
+            total = next((i for i, row in enumerate(rows) if any("Total Outstanding Margin Trading" in str(v) for v in row)), None)
+            if day is None or scope is None or total is None or total + 1 >= len(rows):
+                continue
+            if not any("百万円" in str(v) for row in rows[:7] for v in row):
+                raise JpxWeeklyError("信用残高の金額単位を確認できません。")
+            share_row, amount_row = rows[total], rows[total + 1]
+            if not any("金額Val." in str(v) for v in amount_row):
+                raise JpxWeeklyError("信用残高の金額行を確認できません。")
+            sell, buy = _number(share_row[scope]), _number(share_row[scope + 2])
+            if sell is None or buy is None:
+                continue
+            result = {"weekEnd": day.date().isoformat() if isinstance(day, datetime) else day.isoformat(),
+                      "sellBalanceThousandShares": sell, "buyBalanceThousandShares": buy,
+                      "marginRatio": round(buy / sell, 4) if sell > 0 else None}
+            _attach_margin_amounts(result, amount_row[scope], amount_row[scope + 2])
+            return result
+        raise JpxWeeklyError("直近信用残高の二市場合計を確認できません。")
+    finally:
+        workbook.close()
 
 
 def _period_dates(sheet: Any) -> tuple[str, str]:
@@ -449,7 +518,8 @@ def fetch_margin_history(existing: object = None, *, limit: int = 160) -> tuple[
     except JpxWeeklyError:
         current_html = ""
     current_links = sorted(
-        extract_xls_links(current_html, MARGIN_CURRENT_PAGE, contains="mtseisan"),
+        [link for link in extract_xls_links(current_html, MARGIN_CURRENT_PAGE)
+         if "mtseisan" in link or "_mtcurrent" in link],
         key=_link_sort_key,
     )
     for link in current_links[-12:]:

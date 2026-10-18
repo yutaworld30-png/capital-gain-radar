@@ -29,12 +29,33 @@ const server = http.createServer((req, res) => {
     const page = await browser.newPage({viewport: {width: 1280, height: 900}});
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
+    const dataset = JSON.parse(fs.readFileSync(path.join(root, 'data/latest-candidates.json'), 'utf8'));
+    const stockRows = dataset.searchUniverse || dataset.candidates || [];
+    stockRows.forEach(row => {
+      row.fundamentals = {...row.fundamentals, companyProfile: {companyName: '企業情報テスト',
+        headquarters: '<img src=x onerror=alert(1)>', employees: 1234, employeesAsOf: '2026-03-31'}};
+    });
+    await page.route('**/data/latest-candidates.json', route => route.fulfill({json: dataset}));
+    await page.route('**/data/score-history-v2.json', route => route.fulfill({json: {
+      schemaVersion: 3, scoreVersion: dataset.scoreVersion, factorVersion: dataset.factorVersion,
+      rowFormat: ['code', 'score'], snapshots: [],
+    }}));
+    await page.route('**/data/valuation-history/*.json', route => {
+      const prefix = route.request().url().split('/').pop().slice(0, 2);
+      const stocks = Object.fromEntries(stockRows.filter(row => String(row.code).startsWith(prefix)).map(row => [String(row.code),
+        Array.from({length: 30}, (_, index) => [`2026-01-${String(index + 1).padStart(2, '0')}`, 20 + index / 10, 2, 0, 'forecast', '2025-12-31', null])]));
+      return route.fulfill({json: {schemaVersion: 1, basis: 'observed-edinet-valuation-v1',
+        rowFormat: ['date', 'per', 'pbr', 'dividendYield', 'dividendYieldKind', 'fundamentalsAsOf', 'observedAt'], stocks}});
+    });
     const market = JSON.parse(fs.readFileSync(path.join(root, 'data/market-environment.json'), 'utf8'));
     market.indicators.topixFutures = {label: 'TOPIX先物', value: 4081.5, previous: 4070,
       change: 11.5, changeRate: 11.5 / 4070, asOf: '2026-10-16', status: 'available',
       source: 'JPX / 大阪取引所', note: '大阪取引所 / 2026年12月限 / 清算値'};
     market.groups.futures = ['nikkei225Futures', 'topixFutures'];
     market.indicators.nikkei225.value = 65324.29;
+    market.usSectors = {status: 'available', asOf: '2026-10-16', basis: '米国ETFの確定終値比・公式業種指数ではありません。',
+      missingSymbols: [], rows: [{industry: '情報技術', symbol: 'XLK', changeRate: .03},
+        {industry: 'エネルギー', symbol: 'XLE', changeRate: -.02}]};
     await page.route('**/data/market-environment.json', route => route.fulfill({json: market}));
     const analysis = JSON.parse(fs.readFileSync(path.join(root, 'data/nikkei225-analysis.json'), 'utf8'));
     analysis.distributionMode = 'private-cloud';
@@ -69,11 +90,21 @@ const server = http.createServer((req, res) => {
       ],
     };
     analysis.margin = {status: 'available', scope: '東京・名古屋二市場合計', rows: [
-      {weekEnd: '2026-10-02', buyBalanceThousandShares: 3000000, sellBalanceThousandShares: 300000, marginRatio: 10},
+      {weekEnd: '2026-10-02', buyBalanceThousandShares: 3765572, sellBalanceThousandShares: 354386, marginRatio: 10.6256,
+        sellBalance100mYen: 7507.25, buyBalance100mYen: 65235.52, amountMarginRatio: 8.689669},
     ]};
     await page.route('**/data/nikkei225-analysis.json', route => route.fulfill({json: analysis}));
     await page.goto(`http://127.0.0.1:${server.address().port}/investment-candidate-app.html`);
     await page.waitForFunction(() => document.querySelectorAll('#nikkeiInvestorTable tbody tr').length === 2);
+    await page.waitForFunction(() => document.querySelector('#companyProfileGrid').textContent.includes('企業情報テスト'));
+    assert.equal(await page.locator('#companyProfileGrid img').count(), 0);
+    assert.match(await page.locator('#companyProfileGrid').textContent(), /1,234人/);
+    await page.waitForFunction(() => document.querySelector('#stockPerHistoryLabel').textContent.includes('30件'));
+    assert.match(await page.locator('#stockPerHistoryLabel').textContent(), /21\.45倍/);
+    assert.match(await page.locator('#stockYieldHistoryLabel').textContent(), /0\.00%/);
+    await page.locator('[data-valuation-range="1m"]').click();
+    assert.equal(await page.locator('[data-valuation-range="1m"]').getAttribute('aria-pressed'), 'true');
+    await page.locator('[data-valuation-range="all"]').click();
     const valuation = await page.locator('#nikkeiValuationRows').textContent();
     assert.match(valuation, /16倍/);
     assert.match(valuation, /17倍/);
@@ -101,7 +132,9 @@ const server = http.createServer((req, res) => {
     assert.equal(await cells.nth(1).getAttribute('class'), 'flow-negative');
     assert.equal(await cells.nth(3).getAttribute('class'), 'flow-neutral');
     assert.equal(await rows.nth(1).locator('td').nth(4).textContent(), '--');
-    assert.match(await page.locator('#nikkeiMarginLatest').textContent(), /2026\/10\/07/);
+    assert.match(await page.locator('#nikkeiMarginLatest').textContent(), /2026\/10\/02/);
+    assert.match(await page.locator('#nikkeiMarginLatest').textContent(), /8\.69倍/);
+    assert.match(await page.locator('#nikkeiMarginLatest').textContent(), /65,235\.52億円/);
     await page.locator('[data-nikkei-margin-view="market"]').click();
     assert.match(await page.locator('#nikkeiMarginLatest').textContent(), /2026\/10\/02/);
     assert.equal(await page.locator('[data-nikkei-margin-view="market"]').getAttribute('aria-pressed'), 'true');
@@ -109,9 +142,19 @@ const server = http.createServer((req, res) => {
     assert.match(await page.locator('#nikkeiMarginLatest').textContent(), /2026\/10\/07/);
     const screenshots = path.resolve(__dirname, '../work/tmp');
     fs.mkdirSync(screenshots, {recursive: true});
+    await page.locator('#companyProfileSection').screenshot({path: path.join(screenshots, 'company-profile-desktop.png')});
+    await page.locator('.valuation-history').screenshot({path: path.join(screenshots, 'valuation-archive-desktop.png')});
     await page.locator('.analysis-investor-card').screenshot({path: path.join(screenshots, 'investor-matrix-desktop.png')});
     await page.setViewportSize({width: 390, height: 844});
     await page.locator('#mobileBottomNav [data-mobile-page="market"]').click();
+    await page.locator('button[data-mobile-market-view="industry"]').click();
+    await page.locator('[data-sector-market="us"]').click();
+    assert.match(await page.locator('#industryMarketUp').textContent(), /情報技術.*XLK/);
+    assert.match(await page.locator('#industryMarketDown').textContent(), /エネルギー.*XLE/);
+    assert.match(await page.locator('#industryMarketNote').textContent(), /公式業種指数ではありません/);
+    await page.locator('#industryMarketPanel').screenshot({path: path.join(screenshots, 'us-sectors-mobile.png')});
+    await page.locator('[data-sector-market="japan"]').click();
+    assert.equal(await page.locator('[data-sector-market="japan"]').getAttribute('aria-pressed'), 'true');
     await page.locator('button[data-mobile-market-view="summary"]').click();
     await page.waitForSelector('#marketGrid .market-index-row');
     assert.equal(await page.locator('#marketGrid canvas').count(), 0);
@@ -164,6 +207,8 @@ const server = http.createServer((req, res) => {
     });
     await page.evaluate(() => { document.body.dataset.mobileStatView = 'margin'; });
     await page.locator('#nikkeiAnalysisPanel .analysis-detail-card').first().screenshot({path: path.join(screenshots, 'nikkei-margin-daily-mobile.png')});
+    await page.locator('[data-nikkei-margin-view="market"]').click();
+    await page.locator('#nikkeiAnalysisPanel .analysis-detail-card').first().screenshot({path: path.join(screenshots, 'market-margin-weekly-mobile.png')});
     await page.evaluate(() => { document.body.dataset.mobileStatView = 'investor'; });
     const dimensions = await page.locator('#nikkeiInvestorTableWrap').evaluate(element => ({
       content: element.scrollWidth, viewport: element.clientWidth,
@@ -178,7 +223,7 @@ const server = http.createServer((req, res) => {
     assert(!(await page.locator('#nikkeiEpsHeading').textContent()).includes('3,019'));
     assert.match(await page.locator('#nikkeiValuationRows').textContent(), /取得できていません/);
     assert.deepEqual(errors, []);
-    console.log('PASS: compact mobile summary, weighted valuation, legacy data gate, investor matrix; no page errors');
+    console.log('PASS: mobile summary, US sectors, amount-based margin, company profile, valuation archive, investor matrix; no page errors');
   } finally {
     if (browser) await browser.close();
     await new Promise(resolve => server.close(resolve));

@@ -130,6 +130,25 @@ class JpxWeeklyConnectorTests(unittest.TestCase):
         with self.assertRaises(JpxWeeklyError):
             parse_margin_workbook(self.margin_xlsx(include_unit=False))
 
+    def test_legacy_total_columns_and_amount_units_are_read_from_headers(self) -> None:
+        sheet = FakeSheet(11, 14)
+        sheet.set(3, 1, "合計 Total")
+        sheet.set(5, 1, "Shares Sold Short")
+        sheet.set(5, 3, "Shares Bought on Margin")
+        sheet.set(8, 1, "thous.shs.")
+        sheet.set(8, 3, "thous.shs.")
+        sheet.set(8, 2, "百万円")
+        sheet.set(8, 4, "百万円")
+        sheet.set(9, 0, "Tokyo & Nagoya")
+        sheet.set(10, 0, (date(2026, 10, 9) - date(1899, 12, 30)).days)
+        for column, value in {1: 366905, 2: 762053, 3: 3830621, 4: 6708057, 9: 1, 11: 2}.items():
+            sheet.set(10, column, value)
+        row = parse_margin_sheet(sheet)[0]
+        self.assertEqual(row["sellBalance100mYen"], 7620.53)
+        self.assertEqual(round(row["amountMarginRatio"], 2), 8.80)
+        sheet.set(8, 2, "unknown")
+        self.assertNotIn("sellBalance100mYen", parse_margin_sheet(sheet)[0])
+
     def test_history_survives_current_page_error(self) -> None:
         xlsx_url = "https://www.jpx.co.jp/markets/statistics-equities/margin/current.xlsx"
         html = f'<a href="{xlsx_url}">Excel</a>'.encode()
@@ -149,6 +168,12 @@ class JpxWeeklyConnectorTests(unittest.TestCase):
 
     def test_margin_columns_and_zero_sell_balance(self) -> None:
         sheet = FakeSheet(12, 22)
+        sheet.set(3, 9, "合計 Total")
+        sheet.set(5, 9, "Shares Sold Short")
+        sheet.set(5, 11, "Shares Bought on Margin")
+        sheet.set(8, 9, "thous.shs.")
+        sheet.set(8, 11, "thous.shs.")
+        sheet.set(9, 0, "Tokyo & Nagoya")
         excel_epoch = date(1899, 12, 30)
         first_date = (date(2026, 7, 10) - excel_epoch).days
         second_date = (date(2026, 7, 17) - excel_epoch).days

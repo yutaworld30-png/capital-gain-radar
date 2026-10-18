@@ -36,9 +36,9 @@ const server = http.createServer((req, res) => {
     });
     await page.goto(`http://127.0.0.1:${server.address().port}/investment-candidate-app.html`);
     await page.waitForFunction(() => document.querySelector('#selectedName').textContent.length > 1);
-    assert.match(await page.locator('#nikkeiMarginHeading').textContent(), /日経225.*億円/);
+    assert.match(await page.locator('#nikkeiMarginHeading').textContent(), /二市場合計.*億円/);
     await page.locator('[data-nikkei-margin-view="market"]').evaluate(button => button.click());
-    assert.match(await page.locator('#nikkeiMarginHeading').textContent(), /二市場合計.*千株/);
+    assert.match(await page.locator('#nikkeiMarginHeading').textContent(), /二市場合計.*億円/);
     await page.locator('[data-nikkei-margin-view="nikkei"]').evaluate(button => button.click());
     assert.match(await page.locator('#nikkeiMarginHeading').textContent(), /日経225.*億円/);
     for (const width of [1440,390]) {

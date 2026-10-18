@@ -1648,6 +1648,14 @@
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
+    #industryMarketPanel .range-tabs {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .valuation-history .range-tabs {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
     .detail-tabs button,
     .range-tabs button {
       min-height: 34px;
@@ -4031,6 +4039,10 @@
       <section class="panel" id="industryMarketPanel" aria-label="業種別騰落ランキング">
         <div class="panel-header"><h2>業種別騰落ランキング</h2><span class="updated" id="industryMarketStatus">読込中</span></div>
         <div class="sector-market-body">
+          <div class="range-tabs" role="group" aria-label="業種ランキングの市場">
+            <button type="button" class="active" data-sector-market="japan" aria-pressed="true">日本株</button>
+            <button type="button" data-sector-market="us" aria-pressed="false">米国株（11セクター）</button>
+          </div>
           <div class="sector-market-grid">
             <div><h3>値上がり率 上位10業種</h3><ol class="sector-market-list" id="industryMarketUp"></ol></div>
             <div><h3>値下がり率 上位10業種</h3><ol class="sector-market-list" id="industryMarketDown"></ol></div>
@@ -4125,12 +4137,12 @@
           <div class="analysis-detail-grid">
             <section class="analysis-detail-card" aria-label="信用残高">
               <div class="analysis-detail-heading">
-                <h3 id="nikkeiMarginHeading">日経225の信用残高（日次・億円）</h3>
+                <h3 id="nikkeiMarginHeading">二市場合計の信用残高（週次・億円）</h3>
                 <span class="analysis-state" id="nikkeiMarginState">読込中</span>
               </div>
               <div class="analysis-margin-tabs" role="group" aria-label="信用残高の対象と頻度">
-                <button class="active" type="button" data-nikkei-margin-view="nikkei" aria-pressed="true">日経225（日次・億円）</button>
-                <button type="button" data-nikkei-margin-view="market" aria-pressed="false">二市場合計（週次・千株）</button>
+                <button class="active" type="button" data-nikkei-margin-view="market" aria-pressed="true">二市場合計（週次・億円）</button>
+                <button type="button" data-nikkei-margin-view="nikkei" aria-pressed="false">日経225（日次・参考換算）</button>
               </div>
               <div class="analysis-latest" id="nikkeiMarginLatest">信用残高を読み込んでいます。</div>
               <div class="history-table-wrap" id="nikkeiMarginTableWrap" role="region" tabindex="0" aria-label="日経225信用残高の履歴・億円">
@@ -4396,9 +4408,21 @@
                 <button id="marginHistoryTab" type="button">信用需給</button>
               </div>
               <div id="fundamentalPanel">
+                <details class="decision-section" id="companyProfileSection" open>
+                  <summary>企業情報・業績概要</summary>
+                  <dl class="fundamental-grid" id="companyProfileGrid"></dl>
+                  <p class="analysis-source-note" id="companyProfileSummary"></p>
+                  <p class="analysis-source-note" id="companyProfileSources"></p>
+                </details>
                 <div class="fundamental-grid" id="fundamentalGrid"></div>
                 <section class="valuation-history" aria-label="個別銘柄のバリュエーション推移">
                   <h3>PER・PBR・予想配当利回りの推移</h3>
+                  <div class="range-tabs" role="group" aria-label="バリュエーションの表示期間">
+                    <button type="button" data-valuation-range="1m">1ヶ月</button>
+                    <button type="button" data-valuation-range="3m">3ヶ月</button>
+                    <button type="button" data-valuation-range="1y">1年</button>
+                    <button type="button" class="active" data-valuation-range="all" aria-pressed="true">全期間</button>
+                  </div>
                   <div class="valuation-history-grid">
                     <div><h4 id="stockPerHistoryLabel">PER</h4><div class="analysis-mini-chart"><canvas id="stockPerHistoryChart" aria-label="PERの履歴"></canvas></div></div>
                     <div><h4 id="stockPbrHistoryLabel">PBR</h4><div class="analysis-mini-chart"><canvas id="stockPbrHistoryChart" aria-label="PBRの履歴"></canvas></div></div>
@@ -6076,6 +6100,7 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         marketEnvironment = await response.json();
         renderMarketEnvironment(marketEnvironment);
+        renderIndustryMarket();
         requestAnimationFrame(renderVixChart);
       } catch (error) {
         marketEnvironment = null;
@@ -6084,22 +6109,30 @@
       }
     }
 
+    let sectorMarketView = "japan";
     function renderIndustryMarket() {
-      const rows = Array.isArray(industryMarket?.rows) ? industryMarket.rows.filter(row =>
-        row?.industry && Number.isFinite(Number(row.changeRate))
-      ) : [];
-      el.industryMarketStatus.textContent = rows.length ? `基準 ${formatDate(industryMarket.asOf)}` : "未取得";
+      const us = sectorMarketView === "us";
+      const payload = us ? marketEnvironment?.usSectors : industryMarket;
+      const rows = (Array.isArray(payload?.rows) ? payload.rows.filter(row =>
+        row?.industry && typeof row.changeRate === "number" && Number.isFinite(row.changeRate)
+      ) : []).sort((a, b) => b.changeRate - a.changeRate);
+      document.querySelectorAll("[data-sector-market]").forEach(button => {
+        const active = button.dataset.sectorMarket === sectorMarketView;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+      el.industryMarketStatus.textContent = rows.length ? `${us ? "米国" : "日本"} / 基準 ${formatDate(payload.asOf)}${payload.status === "stale" ? "（前回値）" : ""}` : "未取得";
       const draw = (target, selected, tone) => {
         target.innerHTML = selected.length ? selected.map(row => `
           <li><span class="change ${tone}">${Number(row.changeRate) >= 0 ? "+" : ""}${(Number(row.changeRate) * 100).toFixed(2)}%</span>
-          <span>${escapeHtml(row.industry)}</span><small>${Number(row.coveredCount)}/${Number(row.componentCount)}銘柄</small></li>
+          <span>${escapeHtml(row.industry)}</span><small>${us ? escapeHtml(row.symbol) : `${Number(row.coveredCount)}/${Number(row.componentCount)}銘柄`}</small></li>
         `).join("") : "<li>該当する業種データがありません。</li>";
       };
       draw(el.industryMarketUp, rows.filter(row => Number(row.changeRate) > 0).slice(0, 10), "up");
       draw(el.industryMarketDown, rows.filter(row => Number(row.changeRate) < 0).slice(-10).reverse(), "down");
       el.industryMarketNote.textContent = rows.length
-        ? `${industryMarket.basis || "TOPIX対象銘柄の平均騰落率"} 基準日 ${formatDate(industryMarket.asOf)}、${rows.length}業種。指数水準ではありません。`
-        : "業種別の同日価格と前日終値が揃っていません。";
+        ? `${payload.basis || "TOPIX対象銘柄の平均騰落率"} 基準日 ${formatDate(payload.asOf)}、${rows.length}${us ? "/11セクター（米国現地日付）。" : "業種。"}${us && payload.missingSymbols?.length ? ` 未取得: ${payload.missingSymbols.join("・")}` : ""}`
+        : "業種別の同じ取引日の確定終値と前日終値が揃っていません。";
     }
 
     async function loadIndustryMarket() {
@@ -6669,13 +6702,13 @@
       context.fillText(lastLabel, Math.max(left, width - right - 34), height - 5);
     }
 
-    let nikkeiMarginView = "nikkei";
+    let nikkeiMarginView = "market";
 
     function renderNikkeiMargin() {
       const daily = nikkeiMarginView === "nikkei";
       const section = (daily ? nikkeiAnalysis?.nikkeiMarginDaily : nikkeiAnalysis?.margin) || {};
-      el.nikkeiMarginHeading.textContent = daily ? "日経225の信用残高（日次・億円）" : "二市場合計の信用残高（週次・千株）";
-      el.nikkeiMarginTableWrap.setAttribute("aria-label", daily ? "日経225信用残高の履歴・億円" : "二市場合計信用残高の履歴・千株");
+      el.nikkeiMarginHeading.textContent = daily ? "日経225の信用残高（日次・億円・参考換算）" : "二市場合計の信用残高（週次・億円）";
+      el.nikkeiMarginTableWrap.setAttribute("aria-label", daily ? "日経225信用残高の履歴・億円" : "二市場合計信用残高の履歴・億円");
       const dateKey = daily ? "date" : "weekEnd";
       const rows = Array.isArray(section.rows) ? section.rows : [];
       el.nikkeiMarginViewButtons.forEach(button => {
@@ -6693,30 +6726,31 @@
         return;
       }
       const latest = rows.at(-1);
-      const ratio = latest.marginRatio == null ? NaN : Number(latest.marginRatio);
+      const ratioValue = daily ? latest.marginRatio : latest.amountMarginRatio;
+      const ratio = ratioValue == null ? NaN : Number(ratioValue);
       const display = (value, digits = 1) => typeof value === "number" && Number.isFinite(value)
         ? value.toLocaleString("ja-JP", {maximumFractionDigits: digits}) : "未算出";
       const displayWithUnit = value => typeof value === "number" && Number.isFinite(value)
-        ? `${display(value, daily ? 2 : 1)}${daily ? "億円" : "千株"}` : "未算出";
-      const buy = daily ? latest.buyBalance100mYen : latest.buyBalanceThousandShares;
-      const sell = daily ? latest.sellBalance100mYen : latest.sellBalanceThousandShares;
-      const unit = daily ? "億円" : "千株";
+        ? `${display(value, 2)}億円` : "未算出";
+      const buy = latest.buyBalance100mYen;
+      const sell = latest.sellBalance100mYen;
+      const unit = "億円";
       el.nikkeiMarginLatest.innerHTML = `
         <strong>信用倍率 ${Number.isFinite(ratio) ? ratio.toFixed(2) + "倍" : "未取得"}</strong>
         買い残 ${displayWithUnit(buy)} / 売り残 ${displayWithUnit(sell)}<br>
         基準 ${escapeHtml(formatDate(latest[dateKey]))}${latest.publishedAt ? ` / 公表 ${escapeHtml(formatDate(latest.publishedAt))}` : ""}
       `;
       const visible = rows.slice(daily ? -90 : -26).reverse();
-      el.nikkeiMarginTable.innerHTML = `<thead><tr><th scope="col">基準日</th><th scope="col">信用倍率</th><th scope="col">売り残（${unit}）</th><th scope="col">買い残（${unit}）</th><th scope="col">${daily ? "価格確認" : "カバー数"}</th></tr></thead><tbody>${visible.map(row => `
+      el.nikkeiMarginTable.innerHTML = `<thead><tr><th scope="col">基準日</th><th scope="col">信用倍率</th><th scope="col">売り残（${unit}）</th><th scope="col">買い残（${unit}）</th>${daily ? '<th scope="col">価格確認</th>' : ""}</tr></thead><tbody>${visible.map(row => `
         <tr><th scope="row">${escapeHtml(formatDate(row[dateKey]))}</th>
-        <td>${typeof row.marginRatio === "number" && Number.isFinite(row.marginRatio) ? row.marginRatio.toFixed(2) + "倍" : "算出不可"}</td>
-        <td>${display(daily ? row.sellBalance100mYen : row.sellBalanceThousandShares, daily ? 2 : 1)}</td>
-        <td>${display(daily ? row.buyBalance100mYen : row.buyBalanceThousandShares, daily ? 2 : 1)}</td>
-        <td>${daily ? `${Number(row.valueCoveredCount || 0)}/${Number(row.componentCount || 225)}` : "-"}</td></tr>
+        <td>${typeof (daily ? row.marginRatio : row.amountMarginRatio) === "number" && Number.isFinite(daily ? row.marginRatio : row.amountMarginRatio) ? (daily ? row.marginRatio : row.amountMarginRatio).toFixed(2) + "倍" : "算出不可"}</td>
+        <td>${display(row.sellBalance100mYen, 2)}</td>
+        <td>${display(row.buyBalance100mYen, 2)}</td>
+        ${daily ? `<td>${Number(row.valueCoveredCount || 0)}/${Number(row.componentCount || 225)}</td>` : ""}</tr>
       `).join("")}</tbody>`;
       el.nikkeiMarginNote.textContent = daily
         ? `倍率は株数ベース、残高金額は同日終値×株数の参考換算です。価格確認率95%未満の日は金額を非算出。${section.note || ""}`
-        : `${section.scope || "東京・名古屋二市場合計"}。週次・単位は千株。${section.note || ""}`;
+        : `${section.scope || "東京・名古屋二市場合計"}の週次・約定代金ベース。倍率＝買い残金額÷売り残金額。株数ベースの倍率とは異なります。金額未取得の旧履歴は推計しません。${section.note || ""}`;
     }
 
     function renderNikkeiInvestorFlows() {
@@ -7073,6 +7107,7 @@
     }
 
     async function loadBundledDataset() {
+      valuationArchiveCache.clear();
       try {
         const [response] = await Promise.all([
           fetch("data/latest-candidates.json", { cache: "no-store" }),
@@ -7814,7 +7849,36 @@
       ].join("<br>");
     }
 
+    function renderCompanyProfile(item) {
+      const financials = item.fundamentals || {};
+      const profile = financials.companyProfile || {};
+      const fields = [
+        ["会社名", profile.companyName || item.name], ["英文名", profile.englishName],
+        ["証券コード", item.code], ["業種", item.industry],
+        ["本店所在地", profile.headquarters],
+        ["従業員数", typeof profile.employees === "number" && Number.isFinite(profile.employees) ? `${profile.employees.toLocaleString("ja-JP")}人（${formatDate(profile.employeesAsOf)}）` : null],
+        ["直近実績の期末", profile.fiscalPeriodEnd ? formatDate(profile.fiscalPeriodEnd) : null],
+      ];
+      document.querySelector("#companyProfileGrid").innerHTML = fields.map(([label, value]) =>
+        `<div class="fundamental-item"><dt class="fundamental-label">${escapeHtml(label)}</dt><dd class="fundamental-value" style="margin:0">${escapeHtml(value == null || value === "" ? "未取得" : String(value))}</dd></div>`
+      ).join("");
+      const summaries = [];
+      for (const [key, label] of [["salesGrowth", "売上高"], ["profitGrowth", "利益"]]) {
+        const value = valueFrom(item, [key]);
+        if (typeof value === "number" && Number.isFinite(value)) summaries.push(`${label}の前年同期比は${formatPercent(value)}。`);
+      }
+      const roe = valueFrom(item, ["roe"]);
+      if (typeof roe === "number" && Number.isFinite(roe)) summaries.push(`実績ROEは${formatPercent(roe)}。`);
+      document.querySelector("#companyProfileSummary").textContent = summaries.length
+        ? `取得済み数値の自動要約：${summaries.join("")} 財務基準 ${formatDate(financials.asOf)}。将来の業績予想ではありません。`
+        : "業績概要を作成するための公式財務データは未取得です。";
+      const code = String(item.code || "");
+      const validCode = /^[0-9A-Z]{4}$/.test(code);
+      document.querySelector("#companyProfileSources").innerHTML = `企業情報の出典：EDINET有価証券報告書・JPX業種分類。未取得項目は推測しません。四季報の解説本文は転載していません。${validCode ? `<br><a href="https://www.rakuten-sec.co.jp/web/service/investment/quarterly.html" target="_blank" rel="noopener noreferrer">楽天証券の四季報閲覧案内（外部・ログインが必要）</a> / <a href="https://shikiho.toyokeizai.net/stocks/${encodeURIComponent(code)}" target="_blank" rel="noopener noreferrer">会社四季報オンライン（外部・有料部分あり）</a> / <a href="https://disclosure2.edinet-fsa.go.jp/" target="_blank" rel="noopener noreferrer">EDINETで確認</a>` : ""}`;
+    }
+
     function renderFundamentals(item, rows, priceMetrics = {}) {
+      renderCompanyProfile(item);
       const price = latestPriceInfo(item, rows, priceMetrics);
       const changeClass = price.change > 0 ? "up" : price.change < 0 ? "down" : "";
       const priceAsOf = priceMetrics.asOf || rows.at(-1)?.date || item.priceAsOf;
@@ -7854,9 +7918,59 @@
       if (state.detailTab === "fundamental") renderValuationHistory(item);
     }
 
+    const valuationArchiveCache = new Map();
+    let valuationRange = "all";
+
+    async function loadValuationArchive(item) {
+      const code = String(item.code || "");
+      if (!/^[0-9A-Z]{4}$/.test(code)) return;
+      const prefix = code.slice(0, 2);
+      if (valuationArchiveCache.has(prefix)) return;
+      valuationArchiveCache.set(prefix, {status: "loading", stocks: {}});
+      try {
+        const response = await fetch(`data/valuation-history/${prefix}.json`, {cache: "no-store"});
+        if (!response.ok) throw new Error("履歴未取得");
+        const payload = await response.json();
+        const fields = ["date", "per", "pbr", "dividendYield", "dividendYieldKind", "fundamentalsAsOf", "observedAt"];
+        if (payload.schemaVersion !== 1 || payload.basis !== "observed-edinet-valuation-v1" ||
+            JSON.stringify(payload.rowFormat) !== JSON.stringify(fields) || !payload.stocks || typeof payload.stocks !== "object") {
+          throw new Error("算出基準が不明な履歴");
+        }
+        const stocks = {};
+        Object.entries(payload.stocks).forEach(([stockCode, rows]) => {
+          if (!/^[0-9A-Z]{4}$/.test(stockCode) || !Array.isArray(rows)) return;
+          stocks[stockCode] = rows.filter(row => Array.isArray(row) && /^\d{4}-\d{2}-\d{2}$/.test(row[0]))
+            .map(row => Object.fromEntries(fields.map((field, index) => [field, row[index]])));
+        });
+        valuationArchiveCache.set(prefix, {status: "available", stocks});
+      } catch {
+        valuationArchiveCache.set(prefix, {status: "unavailable", stocks: {}});
+      }
+      if (state.detailTab === "fundamental") {
+        const selected = searchUniverse.find(row => String(row.code) === state.selectedCode) || candidates.find(row => String(row.code) === state.selectedCode);
+        if (selected && String(selected.code).startsWith(prefix)) renderValuationHistory(selected);
+      }
+    }
+
     function renderValuationHistory(item) {
       if (scoreHistoryStatus === "not-loaded") void ensureScoreHistoryLoaded();
-      const snapshots = scoreHistoryByCode.get(String(item.code)) || [];
+      void loadValuationArchive(item);
+      const archive = valuationArchiveCache.get(String(item.code).slice(0, 2));
+      const byDate = new Map();
+      for (const row of [...(archive?.stocks?.[String(item.code)] || []), ...(scoreHistoryByCode.get(String(item.code)) || [])]) {
+        byDate.set(row.date, {...byDate.get(row.date), ...row});
+      }
+      let snapshots = [...byDate.values()].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      const days = {"1m": 31, "3m": 93, "1y": 366}[valuationRange];
+      if (days && snapshots.length) {
+        const cutoff = new Date(snapshots.at(-1).date).getTime() - days * 86400000;
+        snapshots = snapshots.filter(row => new Date(row.date).getTime() >= cutoff);
+      }
+      document.querySelectorAll("[data-valuation-range]").forEach(button => {
+        const active = button.dataset.valuationRange === valuationRange;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
       const measures = [
         {key: "per", label: el.stockPerHistoryLabel, canvas: el.stockPerHistoryChart, title: "PER", scale: 1, ceiling: 1000, color: "#246bce"},
         {key: "pbr", label: el.stockPbrHistoryLabel, canvas: el.stockPbrHistoryChart, title: "PBR", scale: 1, ceiling: 100, color: "#0f8f6a"},
@@ -7865,11 +7979,11 @@
       measures.forEach(measure => {
         const points = snapshots.filter(row => {
           const value = row[measure.key];
-          return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= measure.ceiling &&
+          return typeof value === "number" && Number.isFinite(value) && (measure.key === "dividendYield" ? value >= 0 : value > 0) && value <= measure.ceiling &&
             (measure.key !== "dividendYield" || row.dividendYieldKind === "forecast");
         }).map(row => ({date: row.date, value: row[measure.key] * measure.scale}));
         const average = points.length >= 20 ? points.reduce((sum, row) => sum + row.value, 0) / points.length : null;
-        measure.label.textContent = `${measure.title} / ${average == null ? "過去平均: 履歴不足" : `観測平均: ${average.toFixed(2)}${measure.key === "dividendYield" ? "%" : "倍"}`}`;
+        measure.label.textContent = `${measure.title} / ${points.length}件 / ${average == null ? "過去平均: 履歴不足" : `観測平均: ${average.toFixed(2)}${measure.key === "dividendYield" ? "%" : "倍"}`}`;
         requestAnimationFrame(() => {
           if (state.selectedCode !== String(item.code) || state.detailTab !== "fundamental") return;
           drawAnalysisSeriesChart(measure.canvas, points, [{color: measure.color, value: row => row.value}]);
@@ -7880,7 +7994,7 @@
       el.stockValuationHistoryNote.textContent = scoreHistoryStatus === "loading"
         ? "履歴を読み込んでいます。"
         : snapshots.length
-        ? `保存済みスナップショット ${snapshots.length}日分（${formatDate(first)}〜${formatDate(last)}）。平均は同じ期間の有効な観測値20件以上で算出。欠損と予想・実績の混在は除外します。過去に未保存だった財務値は復元しません。`
+        ? `保存済み観測履歴 ${snapshots.length}日分（${formatDate(first)}〜${formatDate(last)}）。平均は表示期間の有効な20件以上で算出。PER・PBRは保存時に取得した実績EPS・BPSベース、利回りは会社予想の観測値です。未保存の過去値を現在の財務で補完しません。${archive?.status === "loading" ? " 長期履歴を読込中。" : archive?.status === "unavailable" ? " 長期保管分は未取得のため、スコア履歴に残る観測値を表示しています。" : " 長期履歴はスコアの版変更と独立して保管します。"}`
         : "保存されたPER・PBR・会社予想配当利回りの履歴はまだありません。今後の更新から蓄積します。";
     }
 
@@ -9406,6 +9520,19 @@
       button.addEventListener("click", () => {
         state.marketHistoryRange = range;
         renderMarketEnvironment(marketEnvironment);
+      });
+    });
+    document.querySelectorAll("[data-sector-market]").forEach(button => {
+      button.addEventListener("click", () => {
+        sectorMarketView = button.dataset.sectorMarket;
+        renderIndustryMarket();
+      });
+    });
+    document.querySelectorAll("[data-valuation-range]").forEach(button => {
+      button.addEventListener("click", () => {
+        valuationRange = button.dataset.valuationRange;
+        const item = searchUniverse.find(row => String(row.code) === state.selectedCode) || candidates.find(row => String(row.code) === state.selectedCode);
+        if (item) renderValuationHistory(item);
       });
     });
     el.marketMoreButton.addEventListener("click", () => {
