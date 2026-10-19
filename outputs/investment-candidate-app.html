@@ -602,7 +602,7 @@
     .sector-market-list .change.down { background: #c2454e; }
     .sector-market-list small { color: var(--muted); text-align: right; }
     .vix-chart-wrap { height: 430px; margin: 12px 16px 16px; border: 1px solid var(--line); border-radius: 8px; }
-    #vixChart { width: 100%; height: 100%; }
+    #vixChart { position: relative; width: 100%; height: 100%; }
     .valuation-history { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
     .valuation-history h3 { margin: 0 0 8px; font-size: 14px; }
     .valuation-history-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -1646,6 +1646,16 @@
 
     .range-tabs {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .segmented[aria-label="対象銘柄"] {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .segmented[aria-label="対象銘柄"] button {
+      padding-inline: 4px;
+      font-size: 13px;
+      overflow-wrap: anywhere;
     }
 
     #industryMarketPanel .range-tabs {
@@ -3756,16 +3766,18 @@
         <div class="mark">CG</div>
         <div>
           <h1>Capital Gain Radar</h1>
-          <p class="subhead">TOPIX候補スクリーナー</p>
+          <p class="subhead">TOPIX・スタンダード候補スクリーナー</p>
         </div>
       </div>
 
-      <div class="control-group">
+      <div class="control-group mobile-filter-control">
         <div class="control-title">
           <strong>対象銘柄</strong>
         </div>
-        <div class="segmented one" aria-label="対象銘柄">
-          <button id="topixUniverse" class="active" type="button">TOPIX</button>
+        <div class="segmented" aria-label="対象銘柄">
+          <button id="allUniverse" class="active" type="button">全対象</button>
+          <button id="topixUniverse" type="button">TOPIX</button>
+          <button id="standardUniverse" type="button">スタンダード</button>
         </div>
       </div>
 
@@ -3942,7 +3954,7 @@
           </div>
           <div class="guide-body">
             <ol class="guide-list">
-              <li>対象はTOPIX構成銘柄です。JPX公式一覧の基準日時点の構成銘柄からランキング候補を確認します。</li>
+              <li>対象はTOPIX構成銘柄と東証スタンダードの内国株式です。「全対象／TOPIX／スタンダード」で絞り込めます。重複は1銘柄として扱い、価格未検証の銘柄はランキングに含めません。</li>
               <li>総合、週5%候補、新高値ブレイク、テーマ別ランキング、業種別ランキング、保有株、ウォッチリストを切り替えて確認します。</li>
               <li>週5%候補では、20万円を元手に100株単位で買える銘柄を、1銘柄運用・2銘柄運用ごとに確認できます。条件一致がなければ無理に買わず、未達理由を確認します。</li>
               <li>新高値ブレイクは、厳選・標準・予備軍の3段階で条件を切り替えて確認できます。</li>
@@ -3977,7 +3989,7 @@
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">相対強度</div><span class="formula-weight">13%</span></div>
-                  <div class="factor-text">20営業日騰落率を、TOPIX全体40%・同業種60%の順位に直して比較します。</div>
+                  <div class="factor-text">20営業日騰落率を、取得済みの対象全体40%・同業種60%の順位に直して比較します。画面の市場切替では再計算しません。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">業績</div><span class="formula-weight">13%</span></div>
@@ -3985,7 +3997,7 @@
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">流動性</div><span class="formula-weight">7%</span></div>
-                  <div class="factor-text">20営業日平均売買代金を、TOPIX全体40%・同業種60%の順位に直して比較します。</div>
+                  <div class="factor-text">20営業日平均売買代金を、取得済みの対象全体40%・同業種60%の順位に直して比較します。</div>
                 </div>
                 <div class="factor">
                   <div class="score-factor-title"><div class="factor-title">割安・収益性</div><span class="formula-weight">8%</span></div>
@@ -4533,7 +4545,7 @@
 
       <section class="source-strip" id="sourceStrip" aria-label="データ取得状況">
         <div class="source-card">
-          <div class="source-label">TOPIX構成・市場・業種</div>
+          <div class="source-label">対象銘柄・市場・業種</div>
           <div class="source-value" id="topixStatus">未読込</div>
         </div>
         <div class="source-card">
@@ -4563,7 +4575,7 @@
       </section>
 
       <p class="note" id="footerNote">
-        この画面では、JPX公式一覧で確認したTOPIX構成銘柄だけを表示します。構成判定、価格、ニュース、信用取引残高、決算情報を取得し、取得元リンクと更新日時を候補ごとに保存します。最終的な売買判断はご自身の確認が必要です。
+        JPX公式一覧で確認したTOPIX構成銘柄と東証スタンダード内国株式が対象です。株価、ニュース、信用残、財務の取得元と基準日を保存し、未取得の信用残・財務は警告とスコアに反映します。対象拡大前後の異なる計算版のスコアは比較しません。最終的な売買判断はご自身の確認が必要です。
       </p>
     </main>
   </div>
@@ -4681,7 +4693,7 @@
       view: "overall",
       limit: 10,
       sortBy: "score",
-      universe: "topix",
+      universe: "all",
       query: "",
       selectedCode: "",
       compareCodes: [],
@@ -4786,6 +4798,8 @@
       liquidityFilter: document.querySelector("#liquidityFilter"),
       filterReset: document.querySelector("#filterReset"),
       topixUniverse: document.querySelector("#topixUniverse"),
+      allUniverse: document.querySelector("#allUniverse"),
+      standardUniverse: document.querySelector("#standardUniverse"),
       searchBox: document.querySelector("#searchBox"),
       searchSuggestions: document.querySelector("#searchSuggestions"),
       mobileSearchBox: document.querySelector("#mobileSearchBox"),
@@ -5032,6 +5046,7 @@
 
     function activeFilterDetails() {
       const details = [];
+      if (state.universe !== "all") details.push(`対象: ${state.universe === "standard" ? "スタンダード" : "TOPIX"}`);
       if (state.industryFilter !== "all") details.push(`業種: ${state.industryFilter}`);
       if (state.marketCapFilter !== "all") {
         details.push(`時価総額: ${el.marketCapFilter.selectedOptions[0]?.textContent || state.marketCapFilter}`);
@@ -5502,7 +5517,7 @@
         item.name &&
         Array.isArray(item.themes) &&
         Number.isFinite(item.theme) &&
-        Number.isFinite(item.margin) &&
+        (item.margin === null || Number.isFinite(item.margin)) &&
         Number.isFinite(item.monthsFromHigh) &&
         Number.isFinite(item.technical) &&
         Number.isFinite(item.liquidity) &&
@@ -5567,7 +5582,7 @@
       const existing = Array.isArray(dataset?.qualityChecks) ? dataset.qualityChecks : [];
       const checks = existing.length ? [...existing] : [
         {
-          label: "TOPIX構成・市場・業種情報",
+          label: "対象銘柄・市場・業種情報",
           status: dataStatus.topixLoaded ? "available" : "not-connected",
           required: true,
           message: dataStatus.topixLoaded
@@ -5699,8 +5714,9 @@
     function priceHistoryShardEntry(code) {
       const bundle = officialDataset?.priceHistoryBundle;
       const shards = Array.isArray(bundle?.shards) ? bundle.shards : [];
-      const key = String(code || "").trim().charAt(0).toUpperCase();
-      return shards.find(item => String(item?.key || "").toUpperCase() === key) || null;
+      const normalizedCode = String(code || "").trim().toUpperCase();
+      return shards.filter(item => item?.key && normalizedCode.startsWith(String(item.key).toUpperCase()))
+        .sort((a, b) => String(b.key).length - String(a.key).length)[0] || null;
     }
 
     function priceHistoryStateFor(code) {
@@ -5735,7 +5751,7 @@
       }
       loaded.prices.forEach(item => {
         const code = String(item?.code || "");
-        if (code.charAt(0).toUpperCase() === key && Array.isArray(item?.chartHistory)) {
+        if (code.toUpperCase().startsWith(key) && Array.isArray(item?.chartHistory)) {
           priceMetricsByCode.set(code, item);
         }
       });
@@ -7035,18 +7051,14 @@
 
       const sourceIsCurrent = source => source?.status === "available" && source?.refreshStatus !== "error";
       const expectedCount = Number(dataset?.universe?.expectedCount || 0);
-      dataStatus.topixLoaded = sourceIsCurrent(topix)
-        && expectedCount >= 1500
-        && expectedCount <= 2000
-        && Array.isArray(dataset?.topixComponents)
-        && dataset.topixComponents.length === expectedCount;
+      dataStatus.topixLoaded = sourceIsCurrent(topix) && validListingContract(dataset);
       dataStatus.marginLoaded = sourceIsCurrent(margin) && (margin.scope === "per-issue" || margin.hasPerIssueData === true);
       dataStatus.priceLoaded = sourceIsCurrent(price) && priceDeliveryValid;
       dataStatus.themeLoaded = sourceIsCurrent(theme);
       dataStatus.fundamentalsLoaded = sourceIsCurrent(fundamentals);
       dataStatus.scoreContractLoaded = Boolean(
         Number(dataset?.schemaVersion) >= 2 &&
-        dataset?.universe?.id === "topix" &&
+        ["topix", "topix-standard"].includes(dataset?.universe?.id) &&
         dataset?.scoreVersion &&
         dataset?.factorVersion &&
         dataset?.priceBasis === "adjusted-ohlc" &&
@@ -7060,7 +7072,7 @@
         && dataStatus.fundamentalsLoaded
         && dataStatus.scoreContractLoaded;
       dataStatus.message = dataStatus.liveConnected
-        ? `TOPIXの検証済みデータ表示中（${loadedSearchUniverse.length}銘柄）`
+        ? `${dataset.universe.id === "topix-standard" ? "TOPIX・スタンダード" : "TOPIX"}の検証済みデータ表示中（${loadedSearchUniverse.length}/${expectedCount}銘柄）`
         : (dataStatus.scoreContractLoaded ? "候補算出に必要なデータ待ち" : "スコア定義を確認できないため非表示");
       candidates = dataStatus.liveConnected ? loadedCandidates : [];
       searchUniverse = dataStatus.liveConnected ? loadedSearchUniverse : [];
@@ -7082,7 +7094,7 @@
       };
 
       el.topixStatus.innerHTML = dataStatus.topixLoaded
-        ? `<a class="source-link" href="${escapeHtml(topix.url)}" target="_blank" rel="noreferrer">公式</a> / ${dataset.topixComponents.length}銘柄 / 基準 ${escapeHtml(formatDate(topix.asOf))}`
+        ? `<a class="source-link" href="${escapeHtml(topix.url)}" target="_blank" rel="noreferrer">公式</a> / TOPIX ${dataset.topixComponents.length}銘柄${dataset.standardComponents ? `・スタンダード ${dataset.standardComponents.length}銘柄 / 重複除外後 ${expectedCount}銘柄` : ""} / 基準 ${escapeHtml(formatDate(topix.asOf))}`
         : `<span class="badge warn">未取得</span>`;
 
       el.priceStatus.innerHTML = dataStatus.priceLoaded
@@ -7172,10 +7184,40 @@
       return true;
     }
 
+    function validListingContract(dataset) {
+      const topix = dataset?.topixComponents;
+      const expected = dataset?.universe?.expectedCount;
+      if (!Array.isArray(topix) || topix.length < 1500 || topix.length > 2000) return false;
+      const topixCodes = new Set(topix.map(row => String(row.code)));
+      if (topixCodes.size !== topix.length) return false;
+      if (dataset.universe.id === "topix") return expected === topix.length;
+      const standard = dataset.standardComponents;
+      const listed = dataset.listedComponents;
+      if (dataset.universe.id !== "topix-standard" || !Array.isArray(standard) || standard.length < 1000 || standard.length > 2000 ||
+          !Array.isArray(listed) || listed.length !== expected || dataset.sources?.standard?.status !== "available" ||
+          dataset.sources.standard.refreshStatus === "error" || dataset.sources.standard.asOf !== dataset.sources.topix.asOf) return false;
+      const standardCodes = new Set(standard.map(row => String(row.code)));
+      const codes = new Set(listed.map(row => String(row.code)));
+      const union = new Set([...topixCodes, ...standardCodes]);
+      return standardCodes.size === standard.length && codes.size === expected && union.size === expected &&
+        standard.every(row => row.isStandard === true && row.exchangeSection === "スタンダード") &&
+        listed.every(row => /^[0-9A-Z]{4}$/.test(String(row.code)) && union.has(String(row.code)) &&
+          row.isTopix === topixCodes.has(String(row.code)) && row.isStandard === standardCodes.has(String(row.code)));
+    }
+
+    function matchesUniverse(item) {
+      return state.universe === "standard" ? item.isStandard === true
+        : state.universe === "topix" ? item.isTopix === true : item.isTopix === true || item.isStandard === true;
+    }
+
+    function listingLabel(item) {
+      return [item.exchangeSection || "市場区分未取得", item.isTopix ? "TOPIX" : null].filter(Boolean).join(" / ");
+    }
+
     function matches(item) {
       const haystack = `${item.code} ${item.name} ${item.themes.join(" ")} ${item.industry || ""}`.toLowerCase();
       const queryMatch = haystack.includes(state.query.toLowerCase());
-      const universeMatch = item.isTopix === true;
+      const universeMatch = matchesUniverse(item);
       return dataStatus.liveConnected && universeMatch && queryMatch && savedFilterMatches(item);
     }
 
@@ -7187,7 +7229,7 @@
       const query = state.query.trim().toLowerCase();
       if (!dataStatus.liveConnected || !state.searchOpen || query.length < 1) return [];
       return searchUniverse
-        .filter(item => item.isTopix === true)
+        .filter(matchesUniverse)
         .filter(item => !isMobileLayout() || state.mobilePage !== "watch" || watchedCodes.has(String(item.code)))
         .filter(item => searchText(item).includes(query))
         .slice(0, 8);
@@ -7213,7 +7255,7 @@
       container.hidden = false;
       container.innerHTML = suggestions.map((item, index) => {
         const activeClass = index === state.activeSuggestionIndex ? " active" : "";
-        const market = item.exchangeSection ? `TOPIX / ${item.exchangeSection}` : "TOPIX";
+        const market = listingLabel(item);
         return `
           <button id="${idPrefix}${index}" class="suggestion-button${activeClass}" type="button" role="option" aria-selected="${index === state.activeSuggestionIndex}" data-code="${escapeHtml(item.code)}">
             <span class="suggestion-main"><span>${escapeHtml(item.code)} ${escapeHtml(item.name)}</span><span>${escapeHtml(market)}</span></span>
@@ -7241,7 +7283,7 @@
       }
       const highDistance = Number(item.high52wDistance);
       const nearHigh = item.isNewHigh52w === true || (Number.isFinite(highDistance) && highDistance <= 0.05);
-      if (item.margin <= 2 && nearHigh && totalScore(item) >= 80) return ["候補", "good"];
+      if (Number.isFinite(item.margin) && item.margin <= 2 && nearHigh && totalScore(item) >= 80) return ["候補", "good"];
       if (totalScore(item) >= 65) return ["監視", "watch"];
       return ["確認", "watch"];
     }
@@ -7725,7 +7767,7 @@
         { label: "株価", status: Number.isFinite(Number(item.latestClose)) ? "available" : "missing", message: Number.isFinite(Number(item.latestClose)) ? "株価を取得済み" : "株価未取得", asOf: item.priceAsOf, source: "価格データ" },
         { label: "財務", status: item.fundamentals ? "available" : "missing", message: item.fundamentals ? "財務指標を取得済み" : "財務指標未取得", asOf: item.fundamentals?.asOf, source: "EDINET" },
         { label: "配当", status: Number.isFinite(valueFrom(item, ["dividendYield"])) ? "available" : "missing", message: Number.isFinite(valueFrom(item, ["dividendYield"])) ? "配当利回りを取得済み" : "配当利回り未取得", asOf: item.dividendYieldAsOf, source: "Yahoo Finance / EDINET" },
-        { label: "信用", status: Number.isFinite(Number(item.margin)) ? "available" : "missing", message: Number.isFinite(Number(item.margin)) ? "信用倍率を取得済み" : "信用倍率未取得", asOf: item.sources?.marginRatio?.updatedAt, source: "JPX" },
+        { label: "信用", status: Number.isFinite(item.margin) ? "available" : "missing", message: Number.isFinite(item.margin) ? "信用倍率を取得済み" : "信用倍率未取得", asOf: item.sources?.marginRatio?.updatedAt, source: "JPX" },
       ];
       const anomalies = Array.isArray(item.dataAnomalies) ? item.dataAnomalies : [];
       const issues = Array.isArray(item.acquisitionIssues) ? item.acquisitionIssues : [];
@@ -8297,7 +8339,8 @@
       const coverageNote = coverage.rate < 80
         ? `履歴取得率は${coverage.rate}%（${coverage.available}/${coverage.expected}営業日）です。欠損期間があるため変化量は参考値として確認してください。`
         : `履歴取得率は${coverage.rate}%（${coverage.available}/${coverage.expected}営業日）です。`;
-      el.scoreHistoryComment.textContent = `${rangeLabel}の総合スコアは${formatDate(stats.latest.date)}時点で${Math.round(latestScore)}点、期間内変化は${signedPoints(rangeChange)}です。${coverageNote}${timingText} ${factorChangeText(rows)} ${sourceNote}`;
+      const versionNote = scoreHistory?.archivedVersions?.length ? " 対象範囲変更前の履歴は旧版として保存し、このグラフには混在させていません。" : "";
+      el.scoreHistoryComment.textContent = `${rangeLabel}の総合スコアは${formatDate(stats.latest.date)}時点で${Math.round(latestScore)}点、期間内変化は${signedPoints(rangeChange)}です。${coverageNote}${timingText} ${factorChangeText(rows)} ${sourceNote}${versionNote}`;
       requestAnimationFrame(() => drawScoreHistoryChart(rows));
     }
 
@@ -8706,7 +8749,7 @@
               </span>
               <span class="mobile-stock-metrics">
                 <span class="mobile-stock-metric"><span>株価</span><strong>${escapeHtml(formatPrice(price.close))}</strong></span>
-                <span class="mobile-stock-metric"><span>信用倍率</span><strong>${Number.isFinite(Number(item.margin)) ? `${Number(item.margin).toFixed(1)}倍` : "未取得"}</strong></span>
+                <span class="mobile-stock-metric"><span>信用倍率</span><strong>${Number.isFinite(item.margin) ? `${item.margin.toFixed(1)}倍` : "未取得"}</strong></span>
                 <span class="mobile-stock-metric"><span>${weeklyProfile ? "週次適合度" : "52週高値"}</span><strong>${weeklyProfile ? `${escapeHtml(weeklyProfile.score)}点` : item.isNewHigh52w === true ? "更新" : Number.isFinite(highDistance) ? `${escapeHtml(formatPercent(highDistance))}以内` : "未取得"}</strong></span>
               </span>
               <span class="mobile-stock-changes">
@@ -8772,7 +8815,7 @@
               <div class="change-badges">${changes.map(change => `<span class="change-badge">${escapeHtml(change)}</span>`).join("")}</div>
             </td>
             <td>
-              <strong>${item.margin.toFixed(1)}倍</strong>
+              <strong>${Number.isFinite(item.margin) ? `${item.margin.toFixed(1)}倍` : "未取得"}</strong>
               <div class="theme-meta">${escapeHtml(item.supplyMemo || "検証済み")}</div>
             </td>
             <td>
@@ -8862,7 +8905,7 @@
               <div class="compare-metric"><div class="compare-label">株価</div><div class="compare-value">${formatPrice(price.close)}</div></div>
               <div class="compare-metric"><div class="compare-label">前日比</div><div class="compare-value price-change ${changeClass}">${escapeHtml(formatSignedPrice(price.change))} / ${escapeHtml(formatPercent(price.changeRate))}</div></div>
               <div class="compare-metric"><div class="compare-label">PER/PBR/ROE</div><div class="compare-value">PER ${formatCompactRatio(valueFrom(item, ["per", "PER"]))}<br>PBR ${formatCompactRatio(valueFrom(item, ["pbr", "PBR"]))} / ROE ${formatCompactPercent(valueFrom(item, ["roe", "ROE"]))}</div></div>
-              <div class="compare-metric"><div class="compare-label">信用倍率</div><div class="compare-value">${Number.isFinite(item.margin) ? item.margin.toFixed(1) : "-"}倍</div></div>
+              <div class="compare-metric"><div class="compare-label">信用倍率</div><div class="compare-value">${Number.isFinite(item.margin) ? item.margin.toFixed(1) + "倍" : "未取得"}</div></div>
               <div class="compare-metric"><div class="compare-label">相対強度</div><div class="compare-value">${item.relative ?? "-"}</div></div>
               <div class="compare-metric"><div class="compare-label">業績</div><div class="compare-value">${item.earnings ?? "-"}</div></div>
               <div class="compare-metric"><div class="compare-label">流動性</div><div class="compare-value">${item.liquidity ?? "-"}</div></div>
@@ -8958,7 +9001,7 @@
       el.technicalEmpty.hidden = true;
       el.technicalBody.hidden = false;
       el.selectedName.textContent = item.name;
-      el.selectedCode.textContent = `${item.code} / ${item.industry || "業種未分類"} / ${item.exchangeSection || "市場区分未取得"} / TOPIX`;
+      el.selectedCode.textContent = `${item.code} / ${item.industry || "業種未分類"} / ${listingLabel(item)}`;
       el.selectedJudgement.textContent = label;
       el.selectedJudgement.className = `badge ${className === "good" ? "ok" : "warn"}`;
       el.fundamentalTab.classList.toggle("active", state.detailTab === "fundamental");
@@ -9043,7 +9086,8 @@
       el.metricCandidates.textContent = rows.length;
       el.metricScoreLabel.textContent = state.view === "weekly" ? "平均適合度" : "平均スコア";
       el.metricScore.textContent = scoreValues.length ? Math.round(avg(scoreValues)) : "-";
-      el.metricMargin.textContent = rows.length ? avg(rows.map(item => item.margin)).toFixed(1) : "-";
+      const margins = rows.map(item => item.margin).filter(Number.isFinite);
+      el.metricMargin.textContent = margins.length ? avg(margins).toFixed(1) : "未取得";
       el.resultCount.textContent = `${rows.length}件`;
     }
 
@@ -9287,6 +9331,10 @@
       el.limit10.classList.toggle("active", state.limit === 10);
       el.limit20.classList.toggle("active", state.limit === 20);
       el.topixUniverse.classList.toggle("active", state.universe === "topix");
+      el.allUniverse.classList.toggle("active", state.universe === "all");
+      el.standardUniverse.classList.toggle("active", state.universe === "standard");
+      el.standardUniverse.disabled = officialDataset?.universe?.id !== "topix-standard";
+      [el.allUniverse, el.topixUniverse, el.standardUniverse].forEach(button => button.setAttribute("aria-pressed", String(button.classList.contains("active"))));
       el.sortBy.disabled = state.view === "weekly";
       syncFilterControls();
     }
@@ -9387,6 +9435,7 @@
       render();
     });
     el.filterReset.addEventListener("click", () => {
+      state.universe = "all";
       state.industryFilter = "all";
       state.marketCapFilter = "all";
       state.liquidityFilter = "all";
@@ -9420,10 +9469,14 @@
       state.weeklyAccuracyCondition = event.target.value || "status";
       renderWeeklyAccuracy();
     });
-    el.topixUniverse.addEventListener("click", () => {
-      state.universe = "topix";
-      render();
-    });
+    for (const [button, universe] of [[el.allUniverse, "all"], [el.topixUniverse, "topix"], [el.standardUniverse, "standard"]]) {
+      button.addEventListener("click", () => {
+        state.universe = universe;
+        state.searchOpen = false;
+        state.activeSuggestionIndex = 0;
+        render();
+      });
+    }
 
     function bindSearchInput(input) {
       input.addEventListener("input", event => {

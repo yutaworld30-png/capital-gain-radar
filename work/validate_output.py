@@ -10,6 +10,7 @@ from market_analysis import validate_analysis
 from weekly_prediction import validate_accuracy_summary, validate_prediction_ledger
 from margin_history import validate_files as validate_margin_files
 from valuation_history import validate_valuation_bundle
+from stock_universe import UNIVERSE_ID, listing_errors, screening_components
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,8 +41,6 @@ SCORE_HISTORY_ROW_FIELDS = (
     "dividendYieldKind",
     "fundamentalsAsOf",
 )
-TOPIX_MIN_COMPONENTS = 1500
-TOPIX_MAX_COMPONENTS = 2000
 
 
 def _as_date(value: object) -> date | None:
@@ -62,12 +61,7 @@ def validate_dataset(payload: object, *, today: date | None = None) -> list[str]
     if payload.get("schemaVersion") != 2:
         errors.append("schemaVersionが2ではありません。")
     expected_count = universe.get("expectedCount")
-    if (
-        universe.get("id") != "topix"
-        or not isinstance(expected_count, int)
-        or not (TOPIX_MIN_COMPONENTS <= expected_count <= TOPIX_MAX_COMPONENTS)
-    ):
-        errors.append("対象ユニバースが検証済みTOPIX構成として設定されていません。")
+    errors.extend(listing_errors(payload))
     if not payload.get("scoreVersion") or not payload.get("factorVersion"):
         errors.append("スコア計算版がありません。")
     if payload.get("priceBasis") != "adjusted-ohlc" or payload.get("highLookbackDays") != 252:
@@ -87,7 +81,7 @@ def validate_dataset(payload: object, *, today: date | None = None) -> list[str]
         or int(price_bundle.get("recordCount") or 0) < minimum_price_count
         or not price_shards
     ):
-        errors.append("遅延読込用のTOPIX価格履歴契約が不完全です。")
+        errors.append("遅延読込用の対象銘柄価格履歴契約が不完全です。")
     elif any(
         not isinstance(item, dict)
         or not re.fullmatch(r"data/price-history/topix-[0-9A-Z_]+\.json", str(item.get("url") or ""))
@@ -96,20 +90,33 @@ def validate_dataset(payload: object, *, today: date | None = None) -> list[str]
     ):
         errors.append("TOPIX価格履歴の分割ファイル一覧が不正です。")
 
-    components = payload.get("topixComponents")
+    components = screening_components(payload)
     if not isinstance(components, list) or len(components) != expected_count:
-        errors.append("TOPIX構成銘柄数がユニバース契約と一致しません。")
+        errors.append("対象銘柄数がユニバース契約と一致しません。")
         component_codes: set[str] = set()
     else:
         component_codes = {str(item.get("code")) for item in components if isinstance(item, dict)}
         if len(component_codes) != expected_count:
-            errors.append("TOPIX構成銘柄コードに重複または欠損があります。")
+            errors.append("対象銘柄コードに重複または欠損があります。")
 
     sources = payload.get("sources") if isinstance(payload.get("sources"), dict) else {}
-    for key in REQUIRED_SOURCES:
+    extended = universe.get("id") == UNIVERSE_ID
+    for key in REQUIRED_SOURCES + (("standard",) if extended else ()):
         source = sources.get(key) if isinstance(sources.get(key), dict) else {}
         if source.get("status") != "available" or source.get("refreshStatus") == "error":
             errors.append(f"必須取得元 {key} が最新の確認済み状態ではありません。")
+    if extended:
+        if (sources.get("standard") or {}).get("asOf") != (sources.get("topix") or {}).get("asOf"):
+            errors.append("TOPIXとスタンダードの公式一覧基準日が一致しません。")
+        coverage = (sources.get("priceHistory") or {}).get("coverageByGroup", {})
+        coverage = coverage if isinstance(coverage, dict) else {}
+        for key, group in (("topix", payload.get("topixComponents", [])), ("standard", payload.get("standardComponents", []))):
+            group = group if isinstance(group, list) else []
+            stats = coverage.get(key, {})
+            stats = stats if isinstance(stats, dict) else {}
+            count = stats.get("verifiedCount")
+            if stats.get("expectedCount") != len(group) or not isinstance(count, int) or not len(group) * .95 <= count <= len(group):
+                errors.append(f"{key}の検証済み株価カバー率が95%未満または件数不明です。")
     for key, max_age in (("priceHistory", 7), ("marginWeekly", 14)):
         source = sources.get(key) if isinstance(sources.get(key), dict) else {}
         source_date = _as_date(source.get("asOf") or source.get("updatedAt"))
@@ -117,6 +124,7 @@ def validate_dataset(payload: object, *, today: date | None = None) -> list[str]
             errors.append(f"必須取得元 {key} の基準日が不明または{max_age}日超です。")
 
     rows = payload.get("searchUniverse")
+    component_map = {str(item.get("code")): item for item in components if isinstance(item, dict)}
     if not isinstance(rows, list) or not rows:
         errors.append("ランキング対象銘柄がありません。")
         rows = []
@@ -126,8 +134,12 @@ def validate_dataset(payload: object, *, today: date | None = None) -> list[str]
             continue
         code = str(row.get("code") or "")
         if component_codes and code not in component_codes:
-            errors.append(f"{code or index + 1}: TOPIX構成銘柄外です。")
-        if row.get("isTopix") is not True:
+            errors.append(f"{code or index + 1}: 対象構成銘柄外です。")
+        if extended:
+            component = component_map.get(code, {})
+            if any(row.get(key) != component.get(key) for key in ("isTopix", "isStandard", "exchangeSection")):
+                errors.append(f"{code}: 市場区分・所属フラグが公式構成と一致しません。")
+        elif row.get("isTopix") is not True:
             errors.append(f"{code or index + 1}: TOPIX所属フラグがありません。")
         for key in ("score", "supply", "valuation", "dataQuality"):
             value = row.get(key)
@@ -181,7 +193,7 @@ def validate_price_history_files(dataset: dict[str, object], site_root: Path) ->
         for item in prices:
             code = str(item.get("code") or "") if isinstance(item, dict) else ""
             history = item.get("chartHistory") if isinstance(item, dict) else None
-            if not code or code in seen_codes:
+            if not code or code in seen_codes or not code.upper().startswith(str(entry.get("key", "")).upper()):
                 errors.append(f"価格履歴の銘柄コードが欠損または重複しています: {url}")
                 break
             if not isinstance(history, list) or len(history) < 50 or any(
@@ -218,6 +230,33 @@ def validate_history(payload: object, dataset: dict[str, object]) -> list[str]:
         for item in snapshots
     ):
         errors.append("スコア履歴に異なる計算版のスナップショットが混在しています。")
+    archives = payload.get("archivedVersions", [])
+    if not isinstance(archives, list):
+        errors.append("旧版スコア履歴の保存形式が不正です。")
+    else:
+        seen_versions = {(payload.get("scoreVersion"), payload.get("factorVersion"))}
+        for archived in archives:
+            if not isinstance(archived, dict):
+                errors.append("旧版スコア履歴がJSONオブジェクトではありません。")
+                continue
+            key = (archived.get("scoreVersion"), archived.get("factorVersion"))
+            if not all(key) or key in seen_versions or archived.get("schemaVersion") != 3:
+                errors.append("旧版スコア履歴の版が重複または不正です。")
+            seen_versions.add(key)
+            fields = archived.get("rowFormat", [])
+            snapshots_old = archived.get("snapshots", [])
+            if not isinstance(fields, list) or fields[:2] != ["code", "score"] or not isinstance(snapshots_old, list):
+                errors.append("旧版スコア履歴の列・スナップショットが不正です。")
+                continue
+            for snapshot in snapshots_old:
+                if not isinstance(snapshot, dict) or not _as_date(snapshot.get("date")) or (snapshot.get("scoreVersion"), snapshot.get("factorVersion")) != key:
+                    errors.append("旧版スコア履歴の版・日付が不正です。")
+                    continue
+                rows_old = snapshot.get("rows")
+                if not isinstance(rows_old, list) or snapshot.get("rowCount") != len(rows_old):
+                    errors.append("旧版スコア履歴の行数が不正です。")
+                elif any(not isinstance(row, list) or not 2 <= len(row) <= len(fields) for row in rows_old):
+                    errors.append("旧版スコア履歴の圧縮行が不正です。")
     if not snapshots:
         errors.append("スコア履歴のスナップショットが空です。")
         return errors

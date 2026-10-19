@@ -16,7 +16,8 @@ def main():
     parser.add_argument("--dataset", type=Path, default=Path(__file__).resolve().parents[1] / "outputs/data/latest-candidates.json")
     args = parser.parse_args()
     universe = json.loads(args.dataset.read_text(encoding="utf-8"))
-    codes = {str(row["code"]) for row in universe.get("topixComponents", [])}
+    from stock_universe import screening_components
+    codes = {str(row["code"]) for row in screening_components(universe)}
     if not codes:
         parser.error("TOPIX components are required")
     history_path = args.data_dir / "margin-history-v1.json"

@@ -12,6 +12,7 @@ from market_analysis import (
 )
 from validate_output import validate_dataset
 from weekly_target import attach_weekly_targets
+from stock_universe import screening_components
 
 
 class LocalPrivatePreparationError(RuntimeError):
@@ -34,12 +35,12 @@ def validate_local_candidates(payload: object) -> list[str]:
         return errors
     universe = payload.get("universe") if isinstance(payload.get("universe"), dict) else {}
     expected_count = universe.get("expectedCount")
-    components = payload.get("topixComponents")
+    components = screening_components(payload)
     candidates = payload.get("searchUniverse")
     if not isinstance(expected_count, int) or not isinstance(components, list) or len(components) != expected_count:
-        errors.append("TOPIX構成銘柄数がユニバース契約と一致しません。")
+        errors.append("対象銘柄数がユニバース契約と一致しません。")
     if not isinstance(candidates, list) or not candidates:
-        errors.append("TOPIXの候補銘柄がありません。")
+        errors.append("対象の候補銘柄がありません。")
     return list(dict.fromkeys(errors))
 
 

@@ -1,9 +1,14 @@
 # Capital Gain Radar
 
-Daily TOPIX stock screening app for capital gain candidates.
+Daily TOPIX and TSE Standard stock screening app for capital gain candidates.
 
-- Universe: TOPIX constituents identified from the JPX listed-company file
-- Score contract: `scoreVersion=3.0.0`, `factorVersion=topix-capital-gain-v3.0`
+- Universe: the union of TOPIX constituents and TSE Standard domestic shares in the JPX listed-company file, deduplicated by stock code. ETFs, REITs, foreign shares and non-TOPIX Growth shares are not added by this expansion.
+- `topixComponents` remains the actual TOPIX list; `standardComponents` and `listedComponents` store the Standard subset and the screening union. `isTopix` and `isStandard` preserve overlap without falsely labelling all Standard stocks as TOPIX.
+- Score contract: `scoreVersion=3.0.0`, `factorVersion=topix-standard-capital-gain-v3.1`. Percentile factors use the full validated screening pool, not the UI-selected subset. Prior factor versions are retained in `score-history-v2.json.archivedVersions`, not mixed into the current chart or daily changes. An oversized history stops publication instead of silently deleting observations.
+- The universe selector offers all covered stocks, TOPIX only or Standard only, including ranking, search suggestions and watch filters. Missing credit ratios remain `null`, with zero supply points and the existing quality penalty; they are not displayed as 0x or silently excluded solely for missing credit data. Stocks without 252 verified OHLCV sessions remain outside the ranking and are counted in price coverage.
+- Price collection remains bounded by the existing worker limit (8 by default), with one request set per unique code. Each of TOPIX and Standard must meet 95% validated-price coverage before publication; failure retains the prior deployed data. The EDINET cap remains 225 score-prioritized stocks, so expansion does not promise financial coverage for every member. Existing J-Quants TOPIX opt-in does not enable additional paid requests for the expanded universe.
+- Legacy `topixPrices`, `topixMargin` and `topix-*.json` storage names now carry the complete screening pool to preserve existing chart/history consumers. The Japanese industry-market proxy deliberately remains TOPIX-only, as labelled, and Nikkei 225 analysis remains limited to its 225 components.
+- The expanded universe uses two-character price-file prefixes to bound download and file sizes (legacy one-character manifests still load). Only the selected stock's prefix is requested. Generated files above the hosting limit are rejected before publication.
 - Current score history: `outputs/data/score-history-v2.json`
 - Legacy/reconstructed history remains in `score-history.json` and is not loaded by the app.
 - Pages workflow runs unit tests and `work/validate_output.py` before uploading generated files.
