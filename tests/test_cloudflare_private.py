@@ -114,12 +114,21 @@ class CloudflarePrivateTests(unittest.TestCase):
                 encoding="utf-8",
             )
             destination = root / "private-site"
+            financial_state = root / "fundamentals-state-v1.json"
+            financial_state.write_text(json.dumps({
+                "schemaVersion": 1, "generatedAt": "2026-08-28T16:10:00+09:00",
+                "companies": {}, "reportIndex": {},
+            }), encoding="utf-8")
+            (public_site / "data" / "latest-candidates.json").write_text(
+                json.dumps({"generatedAt": "2026-08-28T16:10:00+09:00"}), encoding="utf-8",
+            )
 
             prepare_private_site(
                 public_site=public_site,
                 private_analysis=private_analysis,
                 destination=destination,
                 generated_at="2026-08-28T16:10:00+09:00",
+                financial_state_path=financial_state,
             )
 
             deployed = json.loads(
@@ -130,6 +139,8 @@ class CloudflarePrivateTests(unittest.TestCase):
             )
             self.assertEqual(deployed["distributionMode"], PRIVATE_CLOUD_DISTRIBUTION_MODE)
             self.assertEqual(still_public["distributionMode"], PUBLIC_DISTRIBUTION_MODE)
+            self.assertFalse((public_site / "data" / "fundamentals-state-v1.json").exists())
+            self.assertTrue((destination / "data" / "fundamentals-state-v1.json").exists())
             self.assertEqual(validate_private_site(destination, public_site=public_site), [])
 
     def test_private_stage_rejects_public_analysis_as_private_input(self) -> None:

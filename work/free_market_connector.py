@@ -380,11 +380,11 @@ def fetch_yahoo_dividend_forecast(code: str) -> dict[str, object]:
     text = re.sub(r"<[^>]+>", " ", page)
     text = re.sub(r"\s+", " ", text)
     yield_match = re.search(
-        r"配当利回り\s*（会社予想）\s*用語\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*%\s*[（(]\s*([^）)]+)\s*[）)]",
+        r"配当利回り\s*[（(]会社予想[）)]\s*(?:用語\s*)?([0-9][0-9,]*(?:\.[0-9]+)?)\s*%\s*[（(]\s*([^）)]+)\s*[）)]",
         text,
     )
     dps_match = re.search(
-        r"1株配当\s*（会社予想）\s*用語\s*([0-9][0-9,]*(?:\.[0-9]+)?)\s*円\s*[（(]\s*([0-9]{4}/[0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}|--)\s*[）)]",
+        r"1株配当\s*[（(]会社予想[）)]\s*(?:用語\s*)?([0-9][0-9,]*(?:\.[0-9]+)?)\s*円\s*[（(]\s*([0-9]{4}/[0-9]{1,2}|[0-9]{1,2}/[0-9]{1,2}|--)\s*[）)]",
         text,
     )
     earnings_match = re.search(
@@ -400,17 +400,16 @@ def fetch_yahoo_dividend_forecast(code: str) -> dict[str, object]:
     }
     if dps_match:
         dps = float(dps_match.group(1).replace(",", ""))
-        if dps <= 0 or dps > 2000:
-            raise FreeMarketDataError("Yahoo Financeの1株配当（会社予想）が許容範囲外です。")
-        forecast.update({
-            "dps": dps,
-            "dpsKind": "forecast",
-            "dpsAsOf": dps_match.group(2),
-            "dpsSource": "Yahoo Finance 1株配当（会社予想）",
-        })
+        if 0 <= dps <= 10000:
+            forecast.update({
+                "dps": dps,
+                "dpsKind": "forecast",
+                "dpsAsOf": dps_match.group(2),
+                "dpsSource": "Yahoo Finance 1株配当（会社予想）",
+            })
     if yield_match:
         dividend_yield = float(yield_match.group(1).replace(",", "")) / 100
-        if 0 < dividend_yield <= 0.25:
+        if 0 <= dividend_yield <= 0.25:
             forecast.update({
                 "dividendYield": dividend_yield,
                 "dividendYieldAsOf": yield_match.group(2).strip(),
@@ -429,6 +428,10 @@ def fetch_yahoo_dividend_forecast(code: str) -> dict[str, object]:
             forecast["exDividendSource"] = "Yahoo Finance 権利落ち日"
     if not any(key in forecast for key in ("dps", "dividendYield", "earningsAnnouncementDate", "exDividendDate")):
         raise FreeMarketDataError("Yahoo Financeの配当予想・イベント日を確認できません。")
+    forecast["eventStatus"] = {
+        key: "available" if forecast.get(key) else "not-found-on-page"
+        for key in ("earningsAnnouncementDate", "exDividendDate")
+    }
     return forecast
 
 

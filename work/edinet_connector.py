@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import zipfile
 from datetime import date, timedelta
@@ -48,20 +49,50 @@ def fetch_recent_securities_reports(
     target_codes: set[str],
     api_key: str,
     lookback_days: int = 430,
+    *,
+    index: dict[str, object] | None = None,
+    checked_at: str | None = None,
 ) -> tuple[dict[str, dict[str, object]], list[str]]:
     reports: dict[str, dict[str, object]] = {}
     errors: list[str] = []
+    if not target_codes:
+        return reports, errors
     today = date.today()
-    target_sec_codes = {f"{code}0" if re.fullmatch(r"\d{4}", code) else code for code in target_codes}
+    target_sec_codes = {f"{code}0" if re.fullmatch(r"[0-9A-Z]{4}", code) else code for code in target_codes}
+    checked_at = checked_at or today.isoformat()
+    index = index if index is not None else {}
+    consecutive_errors = 0
     for offset in range(lookback_days):
         target = today - timedelta(days=offset)
+        day = target.isoformat()
         query = urlencode({"date": target.isoformat(), "type": 2})
         url = f"{EDINET_DOCUMENTS_URL}?{query}"
         try:
-            payload = _json(url, api_key)
+            cached = index.get(day)
+            # Recent dates and a rotating slice of older dates are checked again.
+            refresh = offset < 7 or offset % 30 == today.toordinal() % 30
+            if isinstance(cached, dict) and (not refresh or cached.get("checkedAt") == checked_at):
+                payload = {"results": cached.get("results", [])}
+            else:
+                payload = _json(url, api_key)
+                if not isinstance(payload.get("results"), list):
+                    raise EdinetError("EDINET document list is invalid")
+                index[day] = {"checkedAt": checked_at, "results": [
+                    {key: item.get(key) for key in (
+                        "secCode", "docTypeCode", "formCode", "docID", "edinetCode",
+                        "filerName", "submitDateTime", "docDescription", "withdrawalStatus", "disclosureStatus",
+                        "xbrlFlag", "legalStatus",
+                    )}
+                    for item in payload["results"] if isinstance(item, dict)
+                    and str(item.get("docTypeCode")) in {"120", "130"}
+                ]}
         except EdinetError as error:
             errors.append(f"{target.isoformat()}: {error}")
+            consecutive_errors += 1
+            if consecutive_errors >= 3:
+                break
             continue
+        consecutive_errors = 0
         results = payload.get("results")
         if not isinstance(results, list):
             continue
@@ -70,11 +101,18 @@ def fetch_recent_securities_reports(
                 continue
             sec_code = str(item.get("secCode") or "")
             doc_type = str(item.get("docTypeCode") or "")
-            form_code = str(item.get("formCode") or "")
             doc_id = str(item.get("docID") or "")
             if sec_code not in target_sec_codes or not doc_id:
                 continue
-            if doc_type != "120" and form_code != "030000":
+            if doc_type not in {"120", "130"}:
+                continue
+            if str(item.get("withdrawalStatus") or "0") != "0":
+                continue
+            if str(item.get("disclosureStatus") or "0") not in {"0", "3"}:
+                continue
+            if item.get("xbrlFlag") is not None and str(item["xbrlFlag"]) != "1":
+                continue
+            if item.get("legalStatus") is not None and str(item["legalStatus"]) not in {"1", "2"}:
                 continue
             code = sec_code[:4]
             current = reports.get(code)
@@ -407,7 +445,7 @@ def _find_dividend_per_share_by_label(
         if not _is_dividend_per_share_candidate(name, labels):
             continue
         value = _number(element.text)
-        if value is None or value <= 0:
+        if value is None or value < 0:
             continue
         context = contexts.get(element.attrib.get("contextRef", ""))
         if not context:
@@ -472,7 +510,9 @@ ANNUAL_DPS_CONCEPTS = (
 
 
 def _ratio(numerator: float | None, denominator: float | None) -> float | None:
-    if numerator is None or denominator in (None, 0):
+    if (not isinstance(numerator, (int, float)) or isinstance(numerator, bool)
+            or not isinstance(denominator, (int, float)) or isinstance(denominator, bool)
+            or not math.isfinite(numerator) or not math.isfinite(denominator) or denominator <= 0):
         return None
     return numerator / denominator
 
@@ -480,7 +520,7 @@ def _ratio(numerator: float | None, denominator: float | None) -> float | None:
 def _valid_ratio(value: float | None, maximum: float) -> float | None:
     if value is None:
         return None
-    if value < 0 or value > maximum:
+    if not math.isfinite(value) or value < 0 or value > maximum:
         return None
     return value
 
@@ -546,23 +586,23 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
     sales = sales_values[-1][1] if sales_values else None
     previous_sales = sales_values[-2][1] if len(sales_values) >= 2 else None
     previous_profit = profit_values[-2][1] if len(profit_values) >= 2 else None
-    eps, _ = _find_best_value(root, contexts, (
+    eps, eps_as_of = _find_best_value(root, contexts, (
         "BasicEarningsLossPerShare",
         "BasicEarningsLossPerShareSummaryOfBusinessResults",
         "BasicEarningsLossPerShareIFRS",
         "BasicEarningsLossPerShareUSGAAP",
     ), duration=True)
-    bps, _ = _find_best_value(root, contexts, (
+    bps, bps_as_of = _find_best_value(root, contexts, (
         "NetAssetsPerShare",
         "EquityAttributableToOwnersOfParentPerShare",
         "NetAssetsPerShareSummaryOfBusinessResults",
         "EquityAttributableToOwnersOfParentPerShareIFRS",
     ), duration=False)
-    dps, _ = _find_dividend_per_share_by_label(root, contexts, concept_labels)
+    dps, dps_as_of = _find_dividend_per_share_by_label(root, contexts, concept_labels)
     if dps is None:
-        dps, _ = _find_first_best_value_any_period(root, contexts, ANNUAL_DPS_CONCEPTS)
+        dps, dps_as_of = _find_first_best_value_any_period(root, contexts, ANNUAL_DPS_CONCEPTS)
     if dps is None:
-        dps, _ = _find_best_value_by_name_pattern(
+        dps, dps_as_of = _find_best_value_by_name_pattern(
             root,
             contexts,
             required_tokens=("Dividend", "PerShare", "Annual"),
@@ -636,6 +676,10 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         "roa": _ratio(profit, assets),
         "equityRatio": _ratio(equity, assets),
         "asOf": instant_as_of or equity_as_of or duration_as_of,
+        "epsAsOf": eps_as_of or duration_as_of,
+        "bpsAsOf": bps_as_of or equity_as_of,
+        "actualDps": dps,
+        "actualDpsAsOf": dps_as_of,
         "xbrlFile": xbrl_name,
         "companyProfile": company_profile,
     }
@@ -649,16 +693,12 @@ def calculate_valuation_metrics(
     eps = fundamentals.get("eps")
     bps = fundamentals.get("bps")
     dps = fundamentals.get("dps")
-    equity = fundamentals.get("equity")
-    profit = fundamentals.get("profit")
     shares_outstanding = fundamentals.get("sharesOutstanding")
     provided_dividend_yield = fundamentals.get("dividendYield")
-    dividend_yield_kind = fundamentals.get("dividendYieldKind")
     dps_kind = fundamentals.get("dpsKind")
     dps_source = str(fundamentals.get("dpsSource") or "")
     dps_is_forecast = (
         dps_kind == "forecast"
-        or dividend_yield_kind == "forecast"
         or "会社予想" in dps_source
         or "forecast" in dps_source.lower()
     )
@@ -668,16 +708,24 @@ def calculate_valuation_metrics(
         else _ratio(dps if isinstance(dps, (int, float)) else None, close)
     )
     dividend_yield_basis = "forecast-yield" if isinstance(provided_dividend_yield, (int, float)) else "actual-dps"
-    dividend_payout_ratio = None if dps_is_forecast else _ratio(
-        dps if isinstance(dps, (int, float)) else None,
-        eps if isinstance(eps, (int, float)) else None,
-    )
-    doe = _ratio(profit, equity) if dps is None else _ratio(
-        dps if isinstance(dps, (int, float)) else None,
-        bps if isinstance(bps, (int, float)) else None,
+    actual_dps = fundamentals.get("actualDps")
+    if actual_dps is None and not dps_is_forecast:
+        actual_dps = dps
+    actual_period = fundamentals.get("actualDpsAsOf")
+    period_matches = bool(actual_period) and actual_period == fundamentals.get("epsAsOf", fundamentals.get("asOf"))
+    bps_period_matches = bool(actual_period) and actual_period == fundamentals.get("bpsAsOf", fundamentals.get("asOf"))
+    dividend_payout_ratio = _valid_ratio(_ratio(actual_dps, eps), 3.0) if period_matches else None
+    doe = _valid_ratio(_ratio(actual_dps, bps), 0.25) if bps_period_matches else None
+    payout_status = (
+        "calculated" if dividend_payout_ratio is not None else
+        "not-calculated-mixed-basis" if (dps_is_forecast and actual_dps is None) or (actual_dps is not None and actual_period and not period_matches) else
+        "not-applicable" if isinstance(eps, (int, float)) and eps <= 0 else "missing"
     )
     return {
         **fundamentals,
+        "actualDps": actual_dps,
+        "actualDpsAsOf": actual_period,
+        "forecastDps": dps if dps_is_forecast else fundamentals.get("forecastDps"),
         "marketCap": (
             close * shares_outstanding
             if close is not None and isinstance(shares_outstanding, (int, float)) and shares_outstanding > 0
@@ -687,12 +735,13 @@ def calculate_valuation_metrics(
         "pbr": _ratio(close, bps if isinstance(bps, (int, float)) else None),
         "dividendYield": _valid_ratio(dividend_yield, 0.25),
         "dividendYieldBasis": dividend_yield_basis,
-        "dividendPayoutRatio": _valid_ratio(dividend_payout_ratio, 3.0),
-        "dividendPayoutRatioStatus": "not-calculated-mixed-basis" if dps_is_forecast else "calculated",
+        "dividendPayoutRatio": dividend_payout_ratio,
+        "dividendPayoutRatioStatus": payout_status,
         "dividendPayoutRatioNote": (
             "予想DPSと実績EPSが混在するため、配当性向は算出対象外です。"
-            if dps_is_forecast
+            if payout_status == "not-calculated-mixed-basis"
             else None
         ),
-        "doe": _valid_ratio(doe, 0.25),
+        "doe": doe,
+        "doeStatus": "calculated" if doe is not None else "missing-or-incompatible-basis",
     }

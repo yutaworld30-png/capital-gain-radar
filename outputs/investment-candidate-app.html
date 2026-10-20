@@ -5623,6 +5623,15 @@
           ? "候補JSONは空です。根拠つきデータが入るまで表示しません。"
           : stats.accepted + "件を採用、" + stats.invalid + "件を非表示にしました。",
       });
+      for (const [key, label] of [["all", "全対象"], ["topix", "TOPIX"], ["standard", "スタンダード"]]) {
+        const group = dataset?.financialCoverage?.[key];
+        if (!group?.total) continue;
+        const fields = group.fields || {};
+        const names = {per:"PER", pbr:"PBR", roe:"ROE", dividendYield:"予想利回り", actualDps:"実績DPS", forecastDps:"予想DPS", dividendPayoutRatio:"配当性向", doe:"DOE", earningsAnnouncementDate:"決算予定日", exDividendDate:"権利落ち日"};
+        checks.push({label:`${label}の情報取得率`, required:false,
+          status:Object.values(fields).every(field => field.available === group.total) ? "available" : "partial",
+          message:Object.entries(names).map(([field, name]) => `${name} ${fields[field]?.available ?? 0}/${group.total}`).join("、") + "。算出対象外・公表未確認も含みます。"});
+      }
       return checks;
     }
 
@@ -7106,7 +7115,7 @@
         : `<span class="badge warn">${escapeHtml(margin.reason || "信用倍率未取得")}</span>`;
 
       el.edinetStatus.innerHTML = edinet.status === "available" || edinet.recordCount
-        ? `<a class="source-link" href="${escapeHtml(edinet.url)}" target="_blank" rel="noreferrer">公式</a> / ${Number(edinet.recordCount || 0)}銘柄 / PER ${Number(edinet.perCount || 0)}・PBR ${Number(edinet.pbrCount || 0)}・ROE ${Number(edinet.roeCount || 0)}`
+        ? `<a class="source-link" href="${escapeHtml(edinet.url)}" target="_blank" rel="noreferrer">公式</a> / ${Number(edinet.recordCount || 0)}/${Number(edinet.targetCount || rawSearchUniverse.length)}銘柄 / PER ${Number(edinet.perCount || 0)}・PBR ${Number(edinet.pbrCount || 0)}・ROE ${Number(edinet.roeCount || 0)}`
         : `<span class="badge warn">${escapeHtml(edinet.reason || "EDINET未取得")}</span>`;
 
       el.candidateStatus.innerHTML = dataStatus.liveConnected
@@ -7412,9 +7421,15 @@
       return Number.isFinite(value) ? `${value.toFixed(1)}円` : "未取得";
     }
 
+    function creditRatioDisplay(item) {
+      if (Number.isFinite(item.margin)) return `${item.margin.toFixed(1)}倍`;
+      return item.marginRatioStatus === "zero-sales" ? "算出不可（売残0）" : "未取得";
+    }
+
     function dividendPayoutDisplay(item) {
       const status = item.dividendPayoutRatioStatus || item.fundamentals?.dividendPayoutRatioStatus;
       if (status === "not-calculated-mixed-basis") return "非算出（予想DPSと実績EPSが混在）";
+      if (status === "not-applicable") return "算出対象外（実績利益が0以下）";
       return formatFundamentalPercent(valueFrom(item, ["dividendPayoutRatio", "payoutRatio"]));
     }
 
@@ -7442,7 +7457,7 @@
       if (!item) return null;
       const sources = [item, item.fundamentals].filter(source => source && typeof source === "object");
       for (const source of sources) {
-        const dps = Number(source.dps);
+        const dps = source.dps === null || source.dps === undefined ? NaN : Number(source.dps);
         const kind = String(source.dpsKind || "").toLowerCase();
         const sourceName = String(source.dpsSource || "");
         const isForecast = kind === "forecast" || sourceName.includes("会社予想") || sourceName.toLowerCase().includes("forecast");
@@ -7457,7 +7472,7 @@
         }
       }
 
-      const dividendYield = Number(valueFrom(item, ["dividendYield"]));
+      const dividendYield = valueFrom(item, ["dividendYield"]);
       const dividendYieldKind = item.dividendYieldKind || item.fundamentals?.dividendYieldKind;
       const price = portfolioLatestPrice(item);
       if (dividendYieldKind === "forecast" && Number.isFinite(dividendYield) && dividendYield >= 0 && dividendYield <= 0.25 && Number.isFinite(price)) {
@@ -7772,7 +7787,10 @@
       const anomalies = Array.isArray(item.dataAnomalies) ? item.dataAnomalies : [];
       const issues = Array.isArray(item.acquisitionIssues) ? item.acquisitionIssues : [];
       const basis = item.metricBasis || {};
+      const attemptNames = {available:"確認済み", error:"取得失敗・前回値を保持", "not-found":"対象の年次報告書を確認できず", "not-attempted":"順次取得待ち"};
+      const attempts = item.financialAcquisition || {};
       el.detailQualityPanel.innerHTML = `
+        ${Object.keys(attempts).length ? `<div class="detail-quality-meta">${Object.entries(attempts).map(([provider, attempt]) => `${provider === "edinet" ? "財務" : "配当・イベント"}: ${escapeHtml(attemptNames[attempt.status] || "要確認")}${attempt.at ? " / 確認 " + escapeHtml(formatDate(attempt.at)) : ""}`).join("<br>")}<br>イベント日が未取得の場合、公表なしと解析不能の両方があり、予定がないとは限りません。</div>` : ""}
         <div class="detail-quality-grid">
           ${fallbackDetails.map(detail => `
             <div class="detail-quality-card">
@@ -7924,7 +7942,7 @@
       const price = latestPriceInfo(item, rows, priceMetrics);
       const changeClass = price.change > 0 ? "up" : price.change < 0 ? "down" : "";
       const priceAsOf = priceMetrics.asOf || rows.at(-1)?.date || item.priceAsOf;
-      const fundamentalsAsOf = item.fundamentals?.asOf || item.fundamentals?.submitDateTime || officialDataset?.sources?.edinetFundamentals?.checkedAt;
+      const fundamentalsAsOf = item.fundamentals?.asOf || item.fundamentals?.submitDateTime;
       const fields = [
         ["現在の株価", formatPrice(price.close)],
         ["前日終値からの変化", `<span class="price-change ${changeClass}">${escapeHtml(formatSignedPrice(price.change))}</span>`],
@@ -7932,14 +7950,17 @@
         ["株価基準日", escapeHtml(formatDate(priceAsOf))],
         ["財務基準日", escapeHtml(formatDate(fundamentalsAsOf))],
         ["時価総額", formatMarketCap(valueFrom(item, ["marketCap", "marketCapitalization"]))],
-        ["PER", formatRatio(valueFrom(item, ["per", "PER"]))],
-        ["PBR", formatRatio(valueFrom(item, ["pbr", "PBR"]))],
+        ["PER", item.metricAvailability?.per === "not-applicable" ? "算出対象外（実績EPSが0以下）" : formatRatio(valueFrom(item, ["per", "PER"]))],
+        ["PBR", item.metricAvailability?.pbr === "not-applicable" ? "算出対象外（実績BPSが0以下）" : formatRatio(valueFrom(item, ["pbr", "PBR"]))],
         ["ROE", formatFundamentalPercent(valueFrom(item, ["roe", "ROE"]))],
         ["ROA", formatFundamentalPercent(valueFrom(item, ["roa", "ROA"]))],
         ["売上高成長率", formatFundamentalPercent(valueFrom(item, ["salesGrowth"]))],
         ["利益成長率", formatFundamentalPercent(valueFrom(item, ["profitGrowth"]))],
-        ["1株配当", formatDps(valueFrom(item, ["dps"]))],
+        ["年間配当・実績", formatDps(valueFrom(item, ["actualDps"]))],
+        ["年間配当・会社予想", formatDps(valueFrom(item, ["forecastDps"]))],
+        ["配当の対象期", `実績 ${escapeHtml(formatDate(item.actualDpsAsOf || item.fundamentals?.actualDpsAsOf))} / 予想 ${escapeHtml(item.dpsKind === "forecast" ? item.dpsAsOf || "未取得" : "未取得")}`],
         ["予想配当利回り", dividendYieldDisplay(item)],
+        ["予想配当利回りの観測日", escapeHtml(formatDate(item.dividendObservedAt || item.fundamentals?.dividendObservedAt))],
         ["配当性向", dividendPayoutDisplay(item)],
         ["DOE", formatFundamentalPercent(valueFrom(item, ["doe", "DOE"]))],
         ["自己資本比率", formatFundamentalPercent(valueFrom(item, ["equityRatio", "capitalAdequacyRatio"]))],
@@ -7956,7 +7977,7 @@
       `).join("");
       renderDecisionSupport(item, priceMetrics);
       renderDetailQuality(item);
-      el.fundamentalNote.textContent = `株価は${formatDate(priceAsOf)}時点の取得値です。予想配当利回りはYahoo Financeの会社予想を優先します。予想DPSと実績EPSが混在する場合、配当性向は非算出にします。未取得項目は「未取得」と表示します。`;
+      el.fundamentalNote.textContent = `株価は${formatDate(priceAsOf)}時点の取得値です。予想配当利回りはYahoo Financeで観測した会社予想です。配当性向・DOEは同じ決算期の実績DPSと実績EPS・BPSから算出します。無配の0と未取得を区別し、前回値は元の基準日を維持します。`;
       if (state.detailTab === "fundamental") renderValuationHistory(item);
     }
 
@@ -8749,7 +8770,7 @@
               </span>
               <span class="mobile-stock-metrics">
                 <span class="mobile-stock-metric"><span>株価</span><strong>${escapeHtml(formatPrice(price.close))}</strong></span>
-                <span class="mobile-stock-metric"><span>信用倍率</span><strong>${Number.isFinite(item.margin) ? `${item.margin.toFixed(1)}倍` : "未取得"}</strong></span>
+                <span class="mobile-stock-metric"><span>信用倍率</span><strong>${creditRatioDisplay(item)}</strong></span>
                 <span class="mobile-stock-metric"><span>${weeklyProfile ? "週次適合度" : "52週高値"}</span><strong>${weeklyProfile ? `${escapeHtml(weeklyProfile.score)}点` : item.isNewHigh52w === true ? "更新" : Number.isFinite(highDistance) ? `${escapeHtml(formatPercent(highDistance))}以内` : "未取得"}</strong></span>
               </span>
               <span class="mobile-stock-changes">
@@ -8815,7 +8836,7 @@
               <div class="change-badges">${changes.map(change => `<span class="change-badge">${escapeHtml(change)}</span>`).join("")}</div>
             </td>
             <td>
-              <strong>${Number.isFinite(item.margin) ? `${item.margin.toFixed(1)}倍` : "未取得"}</strong>
+              <strong>${creditRatioDisplay(item)}</strong>
               <div class="theme-meta">${escapeHtml(item.supplyMemo || "検証済み")}</div>
             </td>
             <td>
@@ -8905,7 +8926,7 @@
               <div class="compare-metric"><div class="compare-label">株価</div><div class="compare-value">${formatPrice(price.close)}</div></div>
               <div class="compare-metric"><div class="compare-label">前日比</div><div class="compare-value price-change ${changeClass}">${escapeHtml(formatSignedPrice(price.change))} / ${escapeHtml(formatPercent(price.changeRate))}</div></div>
               <div class="compare-metric"><div class="compare-label">PER/PBR/ROE</div><div class="compare-value">PER ${formatCompactRatio(valueFrom(item, ["per", "PER"]))}<br>PBR ${formatCompactRatio(valueFrom(item, ["pbr", "PBR"]))} / ROE ${formatCompactPercent(valueFrom(item, ["roe", "ROE"]))}</div></div>
-              <div class="compare-metric"><div class="compare-label">信用倍率</div><div class="compare-value">${Number.isFinite(item.margin) ? item.margin.toFixed(1) + "倍" : "未取得"}</div></div>
+              <div class="compare-metric"><div class="compare-label">信用倍率</div><div class="compare-value">${creditRatioDisplay(item)}</div></div>
               <div class="compare-metric"><div class="compare-label">相対強度</div><div class="compare-value">${item.relative ?? "-"}</div></div>
               <div class="compare-metric"><div class="compare-label">業績</div><div class="compare-value">${item.earnings ?? "-"}</div></div>
               <div class="compare-metric"><div class="compare-label">流動性</div><div class="compare-value">${item.liquidity ?? "-"}</div></div>

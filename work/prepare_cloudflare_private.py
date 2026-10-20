@@ -7,6 +7,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from fundamental_store import STATE_PATH, validate_state
 
 from market_analysis import (
     PRIVATE_CLOUD_DISTRIBUTION_MODE,
@@ -70,6 +71,7 @@ def prepare_private_site(
     destination: Path = PRIVATE_SITE,
     auth_source: Path = AUTH_SOURCE,
     generated_at: str | None = None,
+    financial_state_path: Path | None = None,
 ) -> Path:
     public_analysis_path = public_site / "data" / "nikkei225-analysis.json"
     public_analysis = _load_json(public_analysis_path, "公開用日経225分析JSON")
@@ -99,6 +101,12 @@ def prepare_private_site(
         json.dumps(private_payload, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
     )
+    if financial_state_path is not None:
+        financial_state = _load_json(financial_state_path, "財務データ保管JSON")
+        validate_state(financial_state)
+        if financial_state.get("generatedAt") != _load_json(public_site / "data" / "latest-candidates.json", "銘柄JSON").get("generatedAt"):
+            raise PrivateDeploymentError("財務データ保管JSONと銘柄JSONの生成日時が一致しません。")
+        shutil.copy2(financial_state_path, destination / "data" / STATE_PATH.name)
 
     marker = {
         "schemaVersion": 1,
@@ -142,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
             private_analysis=args.private_analysis,
             destination=args.destination,
             auth_source=args.auth_source,
+            financial_state_path=STATE_PATH,
         )
     except PrivateDeploymentError as error:
         print(f"ERROR: {error}")

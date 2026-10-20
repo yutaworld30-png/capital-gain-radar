@@ -11,6 +11,7 @@ from weekly_prediction import validate_accuracy_summary, validate_prediction_led
 from margin_history import validate_files as validate_margin_files
 from valuation_history import validate_valuation_bundle
 from stock_universe import UNIVERSE_ID, listing_errors, screening_components
+from fundamental_store import validate_coverage
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +58,10 @@ def validate_dataset(payload: object, *, today: date | None = None) -> list[str]
         return ["ルートがJSONオブジェクトではありません。"]
     today = today or date.today()
     errors: list[str] = []
+    if payload.get("factorVersion") == "topix-standard-capital-gain-v3.2" and "financialCoverage" not in payload:
+        errors.append("財務指標の取得率集計がありません。")
+    if "financialCoverage" in payload:
+        errors.extend(validate_coverage(payload))
     universe = payload.get("universe") if isinstance(payload.get("universe"), dict) else {}
     if payload.get("schemaVersion") != 2:
         errors.append("schemaVersionが2ではありません。")

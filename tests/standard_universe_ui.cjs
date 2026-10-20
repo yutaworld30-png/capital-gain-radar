@@ -26,6 +26,16 @@ dataset.searchUniverse = [
     supply:0, dataQuality:50, dataWarnings:['信用: 信用倍率未取得']},
 ];
 dataset.candidates = [];
+const complete = dataset.searchUniverse[0];
+Object.assign(complete, {actualDps:20, actualDpsAsOf:'2026-03-31', forecastDps:40,
+  dps:40, dpsKind:'forecast', dpsAsOf:'2027/03', dividendYield:0.02, dividendYieldKind:'forecast',
+  dividendPayoutRatio:0.2, dividendPayoutRatioStatus:'calculated', doe:0.02,
+  fundamentals:{asOf:'2026-03-31', eps:100, bps:1000},
+  financialAcquisition:{edinet:{status:'available',at:'2026-10-19'},yahoo:{status:'available',at:'2026-10-19'}}});
+Object.assign(dataset.searchUniverse[1], {actualDps:0,forecastDps:0,dps:0,dpsKind:'forecast',dividendYield:0,dividendYieldKind:'forecast',fundamentals:{}});
+Object.assign(dataset.searchUniverse[2], {actualDps:null,forecastDps:null,dps:null,dividendYield:null,dividendYieldKind:'forecast',fundamentals:{},
+  financialAcquisition:{edinet:{status:'not-attempted'},yahoo:{status:'error',at:'2026-10-19'}}});
+dataset.financialCoverage = {standard:{total:2,fields:{per:{available:1,total:2,missing:1}}}};
 delete dataset.topixPrices;
 dataset.priceHistoryBundle = {status:'available',generatedAt:dataset.generatedAt,scoreVersion:dataset.scoreVersion,
   factorVersion:dataset.factorVersion,priceBasis:dataset.priceBasis,highLookbackDays:252,
@@ -72,6 +82,15 @@ const server = http.createServer((req,res) => {
     }
     const codes = () => page.locator('#candidateRows tr[data-code]').evaluateAll(rows => rows.map(row=>row.dataset.code).sort());
     assert.deepEqual(await codes(),['1001','1002','3001']);
+    await page.locator('#candidateRows tr[data-code="1001"]').click();
+    await page.locator('#fundamentalTab').click();
+    assert.match(await page.locator('#fundamentalGrid').innerText(),/年間配当・実績\s*20.0円/);
+    assert.match(await page.locator('#fundamentalGrid').innerText(),/年間配当・会社予想\s*40.0円/);
+    assert.match(await page.locator('#fundamentalGrid').innerText(),/2026\/03\/31/);
+    assert.match(await page.locator('#detailQualityPanel').innerText(),/確認済み/);
+    assert.match(await page.locator('#qualityList').innerText(),/スタンダードの情報取得率/);
+    await page.locator('#candidateRows tr[data-code="1002"]').click();
+    assert.match(await page.locator('#fundamentalGrid').innerText(),/年間配当・会社予想\s*0.0円/);
     await page.locator('#standardUniverse').click();
     assert.deepEqual(await codes(),['1002','3001']);
     assert.equal(await page.locator('#standardUniverse').getAttribute('aria-pressed'),'true');
@@ -89,6 +108,8 @@ const server = http.createServer((req,res) => {
     await page.waitForFunction(()=>document.querySelector('#chartLegend').textContent.includes('ローソク足'));
     assert.deepEqual(loadedPricePrefixes,['30']);
     await page.locator('#fundamentalTab').click();
+    assert.match(await page.locator('#fundamentalGrid').innerText(),/年間配当・会社予想\s*未取得/);
+    assert.match(await page.locator('#detailQualityPanel').innerText(),/順次取得待ち/);
     await page.locator('#candidateRows [data-compare-code="3001"]').click();
     assert.match(await page.locator('#comparePanel').innerText(),/スタンダードテスト/);
     await page.locator('#searchBox').fill('');

@@ -96,6 +96,12 @@ class OutputValidationTest(unittest.TestCase):
     def test_valid_dataset_passes(self) -> None:
         self.assertEqual(validate_dataset(self.valid_dataset(), today=date(2026, 7, 14)), [])
 
+    def test_new_factor_requires_financial_coverage(self) -> None:
+        payload = self.valid_dataset()
+        payload["factorVersion"] = "topix-standard-capital-gain-v3.2"
+        errors = validate_dataset(payload, today=date(2026, 7, 14))
+        self.assertIn("財務指標の取得率集計がありません。", errors)
+
     def test_stale_source_and_wrong_component_count_fail(self) -> None:
         payload = self.valid_dataset()
         payload["topixComponents"] = payload["topixComponents"][:-1]

@@ -13,7 +13,6 @@ from io import BytesIO
 from datetime import date, datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
-from xml.etree import ElementTree
 from urllib.error import URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
@@ -44,15 +43,12 @@ from tdnet_connector import (
     fetch_theme_news_counts,
     industry_theme,
 )
-from edinet_connector import (
-    EDINET_DOCUMENTS_URL,
-    EdinetError,
-    calculate_valuation_metrics,
-    download_xbrl_zip,
-    fetch_recent_securities_reports,
-    parse_financial_metrics_from_xbrl,
-)
+from edinet_connector import EDINET_DOCUMENTS_URL
 from market_breadth import build_nikkei225_breadth
+from fundamental_store import (
+    load_state as load_fundamental_state, save_state as save_fundamental_state,
+    refresh_fundamentals,
+)
 from margin_history import update as update_margin_history
 from weekly_target import attach_weekly_targets
 from weekly_prediction import build_accuracy_summary, update_prediction_ledger
@@ -81,7 +77,7 @@ JPX_MARGIN_INDEX_URL = "https://www.jpx.co.jp/markets/statistics-equities/margin
 SCHEMA_VERSION = 2
 SCORE_HISTORY_SCHEMA_VERSION = 3
 SCORE_VERSION = "3.0.0"
-FACTOR_VERSION = "topix-standard-capital-gain-v3.1"
+FACTOR_VERSION = "topix-standard-capital-gain-v3.2"
 PRICE_BASIS = "adjusted-ohlc"
 HIGH_LOOKBACK_DAYS = 252
 CHART_HISTORY_ROWS = 780
@@ -1052,6 +1048,9 @@ def collect_tdnet_and_build_candidates(dataset: dict[str, object], generated_at:
             "themeEvidence": bool(assigned_themes),
             "theme": theme_score,
             "margin": round(float(margin_ratio), 2) if isinstance(margin_ratio, (int, float)) and math.isfinite(margin_ratio) else None,
+            "marginSales": margin.get("outstandingSales") if margin else None,
+            "marginPurchases": margin.get("outstandingPurchases") if margin else None,
+            "marginRatioStatus": "zero-sales" if margin and margin.get("outstandingSales") == 0 else "available" if isinstance(margin_ratio, (int, float)) else "missing",
             "monthsFromHigh": float(price.get("monthsFromHigh", 0)),
             "high52wDistance": high_distance,
             "isNewHigh52w": price.get("isNewHigh52w") is True,
@@ -1474,8 +1473,10 @@ def _data_quality_details(item: dict[str, object]) -> tuple[list[dict[str, objec
         ),
         _detail_status(
             "信用",
-            margin_status if isinstance(item.get("margin"), (int, float)) else "missing",
+            margin_status if isinstance(item.get("margin"), (int, float)) or item.get("marginRatioStatus") == "zero-sales" else "missing",
             (
+                "売り残0株のため倍率は算出不能（残高は取得済み）"
+                if item.get("marginRatioStatus") == "zero-sales" else
                 "JPX銘柄別信用取引残高を取得済み"
                 if margin_status == "available"
                 else "信用倍率が古い、または更新確認に失敗"
@@ -1501,7 +1502,8 @@ def _data_quality(item: dict[str, object]) -> tuple[int, list[str]]:
         "earnings",
         "latestClose",
     )
-    core_count = sum(1 for key in core_fields if isinstance(item.get(key), (int, float)))
+    core_count = sum(1 for key in core_fields if isinstance(item.get(key), (int, float))
+                     or (key == "margin" and item.get("marginRatioStatus") == "zero-sales"))
     core_score = core_count / len(core_fields) * 70
 
     valuation_fields = ("per", "pbr", "roe")
@@ -2519,234 +2521,12 @@ def collect_edinet_fundamentals(
     generated_at: str,
     previous_dataset: dict[str, object],
 ) -> None:
-    sources = dataset["sources"]  # type: ignore[assignment]
-    source = sources["edinetFundamentals"]  # type: ignore[index]
-    search_universe = dataset.get("searchUniverse")
-    if not isinstance(search_universe, list) or not search_universe:
-        source["status"] = "blocked"
-        source["reason"] = "ランキング対象銘柄の生成後にEDINET財務指標を取得します。"
-        return
-
-    ranked = sorted(
-        [
-            item for item in search_universe
-            if isinstance(item, dict) and re.fullmatch(r"\d{4}", str(item.get("code", "")))
-        ],
-        key=_total_score,
-        reverse=True,
+    state = load_fundamental_state(
+        previous_dataset,
+        lambda url: load_json_url(url, headers=_remote_auth_headers()),
     )
-    yahoo_company_delay = max(0.0, float(os.environ.get("YAHOO_DIVIDEND_REQUEST_DELAY_SECONDS", "0.45")))
-    yahoo_company_limit = max(1, int(os.environ.get("YAHOO_COMPANY_MAX_DOWNLOADS", "225")))
-    yahoo_company_data: dict[str, dict[str, object]] = {}
-    yahoo_company_errors: list[str] = []
-    company_rows = ranked[:yahoo_company_limit]
-
-    def fetch_company_data(row: dict[str, object]) -> tuple[str, dict[str, object] | None, str | None]:
-        code = str(row.get("code"))
-        try:
-            company_data = fetch_yahoo_dividend_forecast(code)
-            result = (code, company_data, None)
-        except FreeMarketDataError as error:
-            result = (code, None, f"{code}: 配当予想・イベント日を取得できません（{error}）")
-        if yahoo_company_delay:
-            time.sleep(yahoo_company_delay)
-        return result
-
-    company_row_map = {str(row.get("code")): row for row in company_rows}
-    company_workers = max(1, min(4, int(os.environ.get("YAHOO_COMPANY_WORKERS", "4"))))
-    with ThreadPoolExecutor(max_workers=company_workers) as executor:
-        futures = [executor.submit(fetch_company_data, row) for row in company_rows]
-        for completed, future in enumerate(as_completed(futures), start=1):
-            code, company_data, error = future.result()
-            row = company_row_map[code]
-            if error:
-                yahoo_company_errors.append(error)
-                continue
-            if company_data is not None:
-                yahoo_company_data[code] = company_data
-            for field in (
-                "dps",
-                "dpsKind",
-                "dpsAsOf",
-                "dpsSource",
-                "dividendYield",
-                "dividendYieldAsOf",
-                "dividendYieldSource",
-                "dividendYieldKind",
-                "earningsAnnouncementDate",
-                "earningsAnnouncementSource",
-                "exDividendDate",
-                "exDividendSource",
-            ):
-                if company_data.get(field) is not None:
-                    row[field] = company_data[field]
-            if any(company_data.get(field) for field in ("earningsAnnouncementDate", "exDividendDate")):
-                row.setdefault("sources", {})["events"] = {  # type: ignore[index]
-                    "url": company_data.get("dpsUrl", YAHOO_INFO_URL),
-                    "updatedAt": generated_at,
-                    "status": "available",
-                }
-            if isinstance(company_data.get("dividendYield"), (int, float)):
-                row.setdefault("sources", {})["dividend"] = {  # type: ignore[index]
-                    "url": company_data.get("dpsUrl", YAHOO_INFO_URL),
-                    "updatedAt": company_data.get("dividendYieldAsOf") or generated_at,
-                    "status": "available",
-                    "basis": "Yahoo Finance会社予想",
-                    "maxAgeDays": SOURCE_FRESHNESS_DAYS["dividend"],
-                }
-            if completed % 25 == 0 or completed == len(futures):
-                print(
-                    f"Yahoo company pages: {completed}/{len(futures)} "
-                    f"(verified {len(yahoo_company_data)}, errors {len(yahoo_company_errors)})",
-                    flush=True,
-                )
-
-    def attach(metrics: list[dict[str, object]], *, reused: bool = False) -> None:
-        metric_map = {str(item.get("code")): item for item in metrics}
-        for key in ("searchUniverse", "candidates"):
-            rows = dataset.get(key)
-            if not isinstance(rows, list):
-                continue
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                metric = metric_map.get(str(row.get("code")))
-                if metric:
-                    latest_close = row.get("latestClose")
-                    row_metric = dict(metric)
-                    row_metric.update(yahoo_company_data.get(str(row.get("code")), {}))
-                    if isinstance(latest_close, (int, float)):
-                        refreshed = calculate_valuation_metrics(row_metric, float(latest_close))
-                        row_metric.update(refreshed)
-                        row_metric["valuationPriceAsOf"] = row.get("priceAsOf")
-                    row["fundamentals"] = row_metric
-                    for field in (
-                        "per",
-                        "pbr",
-                        "roe",
-                        "marketCap",
-                        "dps",
-                        "dpsKind",
-                        "dpsAsOf",
-                        "dpsSource",
-                        "dividendYield",
-                        "dividendYieldAsOf",
-                        "dividendYieldSource",
-                        "dividendYieldKind",
-                        "dividendYieldBasis",
-                        "dividendPayoutRatio",
-                        "dividendPayoutRatioStatus",
-                        "dividendPayoutRatioNote",
-                        "doe",
-                        "equityRatio",
-                        "salesGrowth",
-                        "profitGrowth",
-                        "earningsAnnouncementDate",
-                        "earningsAnnouncementSource",
-                        "exDividendDate",
-                        "exDividendSource",
-                    ):
-                        row[field] = row_metric.get(field)
-                    row.setdefault("sources", {})["edinet"] = {  # type: ignore[index]
-                        "url": row_metric.get("url"),
-                        "updatedAt": row_metric.get("asOf") or row_metric.get("submitDateTime"),
-                        "status": "reused" if reused else "available",
-                    }
-                    if isinstance(row_metric.get("dividendYield"), (int, float)):
-                        forecast_dividend = row_metric.get("dividendYieldKind") == "forecast"
-                        dividend_reused = reused and str(row.get("code")) not in yahoo_company_data
-                        row.setdefault("sources", {})["dividend"] = {  # type: ignore[index]
-                            "url": YAHOO_INFO_URL if forecast_dividend else row_metric.get("url"),
-                            "updatedAt": row_metric.get("dividendYieldAsOf") or row.get("priceAsOf"),
-                            "status": "reused" if dividend_reused else "available",
-                            "basis": "Yahoo Finance会社予想" if forecast_dividend else "EDINET実績DPS/株価",
-                            "maxAgeDays": SOURCE_FRESHNESS_DAYS["dividend"] if forecast_dividend else SOURCE_FRESHNESS_DAYS["edinet"],
-                        }
-
-    previous_metrics = previous_dataset.get("edinetFundamentals")
-    reusable_metrics = previous_metrics if isinstance(previous_metrics, list) else []
-    raw_api_key = os.environ.get("EDINET_API_KEY", "")
-    ascii_tokens = re.findall(r"[A-Za-z0-9_-]{20,}", raw_api_key)
-    api_key = max(ascii_tokens, key=len) if ascii_tokens else ""
-    if not api_key:
-        if reusable_metrics:
-            dataset["edinetFundamentals"] = reusable_metrics
-            attach(reusable_metrics, reused=True)  # type: ignore[arg-type]
-            source["status"] = "api-key-required"
-            source["recordCount"] = len(reusable_metrics)
-            source["perCount"] = _count_numeric(reusable_metrics, "per")
-            source["pbrCount"] = _count_numeric(reusable_metrics, "pbr")
-            source["roeCount"] = _count_numeric(reusable_metrics, "roe")
-            source["checkedAt"] = generated_at
-            source["errors"] = yahoo_company_errors[:10]
-            source["reason"] = "EDINET_API_KEY未設定のため、前回取得済みのEDINET財務指標を再利用しました。"
-        else:
-            source["status"] = "api-key-required"
-            source["checkedAt"] = generated_at
-            source["errors"] = yahoo_company_errors[:10]
-            source["reason"] = "EDINET API v2は無料登録のAPIキーが必要です。EDINET_API_KEYを設定するとPER/PBR/ROE等を算出します。"
-        return
-
-    max_downloads = max(1, int(os.environ.get("EDINET_MAX_DOWNLOADS", "225")))
-    lookback_days = max(30, int(os.environ.get("EDINET_LOOKBACK_DAYS", "430")))
-    ranked_codes = [str(item.get("code")) for item in ranked]
-    target_codes = list(dict.fromkeys(ranked_codes))[:max_downloads]
-    metrics: list[dict[str, object]] = []
-    errors: list[str] = list(yahoo_company_errors)
-    try:
-        reports, report_errors = fetch_recent_securities_reports(set(target_codes), api_key, lookback_days=lookback_days)
-        errors.extend(report_errors[:10])
-    except EdinetError as error:
-        source["status"] = "error"
-        source["checkedAt"] = generated_at
-        source["reason"] = str(error)
-        return
-
-    price_map = {str(item.get("code")): item for item in search_universe if isinstance(item, dict)}
-    for code in target_codes:
-        report = reports.get(code)
-        if not report:
-            continue
-        try:
-            zip_bytes, download_url = download_xbrl_zip(str(report["docID"]), api_key)
-            parsed = parse_financial_metrics_from_xbrl(zip_bytes)
-            parsed.update(yahoo_company_data.get(code, {}))
-            latest_close = price_map.get(code, {}).get("latestClose")
-            valuation = calculate_valuation_metrics(
-                parsed,
-                float(latest_close) if isinstance(latest_close, (int, float)) else None,
-            )
-            metrics.append({
-                "code": code,
-                "name": price_map.get(code, {}).get("name"),
-                **valuation,
-                "docID": report.get("docID"),
-                "edinetCode": report.get("edinetCode"),
-                "submitDateTime": report.get("submitDateTime"),
-                "docDescription": report.get("docDescription"),
-                "url": download_url,
-                "provider": "EDINET API v2",
-            })
-        except (EdinetError, ValueError, KeyError, zipfile.BadZipFile, ElementTree.ParseError) as error:
-            errors.append(f"{code}: {error}")
-
-    if metrics:
-        dataset["edinetFundamentals"] = metrics
-        attach(metrics)
-    source["status"] = "available" if metrics else "partial"
-    source["recordCount"] = len(metrics)
-    source["targetCount"] = len(target_codes)
-    source["targetPolicy"] = "screening-score-priority"
-    source["perCount"] = _count_numeric(metrics, "per")
-    source["pbrCount"] = _count_numeric(metrics, "pbr")
-    source["roeCount"] = _count_numeric(metrics, "roe")
-    source["checkedAt"] = generated_at
-    source["errors"] = errors[:10]
-    source["reason"] = (
-        f"全対象のスコア上位候補を優先し、EDINET有価証券報告書XBRLから{len(metrics)}/{len(target_codes)}銘柄の財務指標を算出しました。"
-        if metrics
-        else "EDINET APIには接続できましたが、対象銘柄の財務指標を算出できませんでした。"
-    )
+    refresh_fundamentals(dataset, generated_at, state)
+    save_fundamental_state(state)
 
 
 def _attach_candidate_source_statuses(dataset: dict[str, object]) -> None:
@@ -2771,7 +2551,7 @@ def _attach_candidate_source_statuses(dataset: dict[str, object]) -> None:
             if not isinstance(item_source, dict) or not isinstance(global_source, dict):
                 continue
             item_source["status"] = (
-                "unavailable" if item_key == "marginRatio" and not isinstance(row.get("margin"), (int, float))
+                "unavailable" if item_key == "marginRatio" and not isinstance(row.get("margin"), (int, float)) and row.get("marginRatioStatus") != "zero-sales"
                 else global_source.get("status", "missing")
             )
             if global_source.get("refreshStatus"):

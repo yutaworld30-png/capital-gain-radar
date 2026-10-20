@@ -106,6 +106,8 @@ jobs:
         env:
           EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
           EDINET_MAX_DOWNLOADS: "225"
+          YAHOO_COMPANY_MAX_DOWNLOADS: "225"
+          FUNDAMENTALS_STATE_URL: ${{ vars.PRIVATE_HISTORY_SOURCE_URL }}/data/fundamentals-state-v1.json
           TOPIX_PRICE_WORKERS: "8"
           SCORE_HISTORY_URL: ${{ vars.PRIVATE_HISTORY_SOURCE_URL }}/data/score-history-v2.json
           SCORE_HISTORY_REQUIRE_REMOTE: "true"
