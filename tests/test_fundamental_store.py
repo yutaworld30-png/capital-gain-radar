@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import os
 import sys
@@ -10,10 +11,11 @@ from datetime import date, timedelta
 from pathlib import Path
 from urllib.error import HTTPError
 from unittest.mock import patch
+from zipfile import ZipFile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "work"))
 import fundamental_store as store
-from edinet_connector import calculate_valuation_metrics, fetch_recent_securities_reports
+from edinet_connector import calculate_valuation_metrics, fetch_recent_securities_reports, parse_financial_metrics_from_xbrl
 from edinet_connector import EdinetError
 from free_market_connector import fetch_yahoo_dividend_forecast, FreeMarketDataError
 
@@ -29,6 +31,22 @@ def dataset(codes=("1000", "1001", "130A")):
 
 
 class FundamentalStoreTest(unittest.TestCase):
+    def test_annual_actual_dps_uses_business_results_not_interim_or_preferred(self):
+        xbrl = '''<xbrl xmlns="http://www.xbrl.org/2003/instance" xmlns:j="https://example.test/jpcrp">
+          <context id="CurrentYearDuration_NonConsolidatedMember"><entity><identifier scheme="test">1</identifier></entity><period><startDate>2025-04-01</startDate><endDate>2026-03-31</endDate></period><scenario>NonConsolidatedMember</scenario></context>
+          <context id="PriorYearDuration_NonConsolidatedMember"><entity><identifier scheme="test">1</identifier></entity><period><startDate>2024-04-01</startDate><endDate>2025-03-31</endDate></period><scenario>NonConsolidatedMember</scenario></context>
+          <j:DividendPaidPerShareSummaryOfBusinessResults contextRef="PriorYearDuration_NonConsolidatedMember">8</j:DividendPaidPerShareSummaryOfBusinessResults>
+          <j:DividendPaidPerShareSummaryOfBusinessResults contextRef="CurrentYearDuration_NonConsolidatedMember">10</j:DividendPaidPerShareSummaryOfBusinessResults>
+          <j:InterimDividendPaidPerShareSummaryOfBusinessResults contextRef="CurrentYearDuration_NonConsolidatedMember">5</j:InterimDividendPaidPerShareSummaryOfBusinessResults>
+          <j:DividendPaidPerShareClassDPreferredSharesSummaryOfBusinessResults contextRef="CurrentYearDuration_NonConsolidatedMember">50</j:DividendPaidPerShareClassDPreferredSharesSummaryOfBusinessResults>
+        </xbrl>'''
+        archive_bytes = io.BytesIO()
+        with ZipFile(archive_bytes, "w") as archive:
+            archive.writestr("XBRL/PublicDoc/jpcrp030000-asr.xbrl", xbrl)
+        result = parse_financial_metrics_from_xbrl(archive_bytes.getvalue())
+        self.assertEqual(result["actualDps"], 10)
+        self.assertEqual(result["actualDpsAsOf"], "2026-03-31")
+
     def test_missing_dps_never_becomes_roe(self):
         value = calculate_valuation_metrics({"profit": 100, "equity": 1000, "eps": 10, "bps": 100}, 100)
         self.assertIsNone(value["doe"])
@@ -126,6 +144,14 @@ class FundamentalStoreTest(unittest.TestCase):
         self.assertEqual(len(set(first + second + third)), 6)
         self.assertEqual(store.select_codes(first, state, "edinet", 2, "2026-10-20"), [])
         self.assertEqual(len(store.select_codes(first, state, "edinet", 2, "2026-10-27")), 2)
+
+    def test_outdated_financial_fact_retries_once_on_same_day(self):
+        state = store.seed_state({})
+        state["companies"]["1000"] = {"financial": {**FACTS, "factVersion": store.FACT_VERSION - 1},
+                                     "edinetAttempt": {"at": NOW, "status": "available", "docID": "DOC1"}}
+        self.assertEqual(store.select_codes(["1000"], state, "edinet", 1, NOW), ["1000"])
+        state["companies"]["1000"]["edinetAttempt"]["factVersion"] = store.FACT_VERSION
+        self.assertEqual(store.select_codes(["1000"], state, "edinet", 1, NOW), [])
 
     def test_alpha_correction_and_cached_index(self):
         day = date.today().isoformat()

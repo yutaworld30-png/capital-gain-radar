@@ -499,6 +499,7 @@ def _find_dividend_per_share_by_label(
 
 
 ANNUAL_DPS_CONCEPTS = (
+    "DividendPaidPerShareSummaryOfBusinessResults",
     "AnnualDividendsPerShare",
     "AnnualDividendsPerShareSummaryOfBusinessResults",
     "CashDividendsPerShareAnnual",
@@ -598,9 +599,13 @@ def parse_financial_metrics_from_xbrl(zip_bytes: bytes) -> dict[str, object]:
         "NetAssetsPerShareSummaryOfBusinessResults",
         "EquityAttributableToOwnersOfParentPerShareIFRS",
     ), duration=False)
-    dps, dps_as_of = _find_dividend_per_share_by_label(root, contexts, concept_labels)
+    # The annual amount in the business-results table already includes interim dividends.
+    # Never sum it with the separate interim or dividend-policy resolution facts.
+    dps, dps_as_of = _find_first_best_value_any_period(root, contexts, ANNUAL_DPS_CONCEPTS)
+    if dps is not None and not 0 <= dps <= MAX_PLAUSIBLE_DPS:
+        dps, dps_as_of = None, None
     if dps is None:
-        dps, dps_as_of = _find_first_best_value_any_period(root, contexts, ANNUAL_DPS_CONCEPTS)
+        dps, dps_as_of = _find_dividend_per_share_by_label(root, contexts, concept_labels)
     if dps is None:
         dps, dps_as_of = _find_best_value_by_name_pattern(
             root,

@@ -21,7 +21,7 @@ from edinet_connector import (
 from free_market_connector import FreeMarketDataError, fetch_yahoo_dividend_forecast
 
 STATE_PATH = Path(__file__).resolve().parents[1] / ".private-data" / "fundamentals-state-v1.json"
-FACT_VERSION = 2
+FACT_VERSION = 3
 FIELDS = (
     "per", "pbr", "roe", "roa", "marketCap", "dps", "dpsKind", "dpsAsOf", "dpsSource",
     "actualDps", "actualDpsAsOf", "forecastDps", "dividendYield", "dividendYieldAsOf",
@@ -140,9 +140,11 @@ def select_codes(codes: list[str], state: dict, provider: str, limit: int, now: 
         facts = entry.get("financial" if provider == "edinet" else "forecast", {})
         changed = bool(reports and reports.get(code) and reports[code].get("docID") != facts.get("docID"))
         untried_document = changed and attempt.get("docID") != reports[code].get("docID")
-        if not untried_document and (stamp[:10] == today or (attempt.get("status") in {"error", "not-found"} and stamp[:10] > cutoff)):
+        outdated = provider == "edinet" and facts.get("docID") and facts.get("factVersion") != FACT_VERSION
+        version_needs_attempt = outdated and attempt.get("factVersion") != FACT_VERSION
+        if not untried_document and not version_needs_attempt and (stamp[:10] == today or (attempt.get("status") in {"error", "not-found"} and stamp[:10] > cutoff)):
             continue
-        priority = 0 if changed else 1 if not facts else 2
+        priority = 0 if changed else 1 if outdated else 2 if not facts else 3
         ordered.append((priority, stamp, code))
     return [item[2] for item in sorted(ordered)[:limit]]
 
@@ -266,11 +268,14 @@ def refresh_fundamentals(dataset: dict, now: str, state: dict) -> None:
 
     def yahoo(code):
         try:
-            return code, fetch_yahoo_dividend_forecast(code), "available"
+            return code, fetch_yahoo_dividend_forecast(code), "available", None
         except FreeMarketDataError as error:
-            return code, None, "not-found" if "配当予想・イベント日を確認できません" in str(error) else "error"
+            reason = str(error)
+            if "配当予想・イベント日を確認できません" in reason:
+                return code, None, "not-found", "not-found-on-page"
+            return code, None, "error", reason if re.fullmatch(r"HTTP [0-9]{3}", reason) else "network-or-parse"
         except (ValueError, OSError):
-            return code, None, "error"
+            return code, None, "error", "network-or-parse"
         finally:
             if delay:
                 time.sleep(delay)
@@ -278,18 +283,21 @@ def refresh_fundamentals(dataset: dict, now: str, state: dict) -> None:
     workers = max(1, min(4, int(os.environ.get("YAHOO_COMPANY_WORKERS", "4"))))
     consecutive_errors = 0
     yahoo_checked = 0
+    yahoo_failures: dict[str, int] = {}
     with ThreadPoolExecutor(max_workers=workers) as executor:
         for offset in range(0, len(yahoo_targets), workers):
-            for code, incoming, status in executor.map(yahoo, yahoo_targets[offset:offset + workers]):
+            for code, incoming, status, reason in executor.map(yahoo, yahoo_targets[offset:offset + workers]):
                 yahoo_checked += 1
                 entry = companies[code]
-                entry["yahooAttempt"] = {"at": now, "status": status}
+                entry["yahooAttempt"] = {"at": now, "status": status, "reason": reason}
+                if reason:
+                    yahoo_failures[reason] = yahoo_failures.get(reason, 0) + 1
                 consecutive_errors = consecutive_errors + 1 if status == "error" else 0
                 if incoming is not None:
                     entry["forecast"] = merge_forecast(entry.get("forecast", {}), incoming, now)
             if consecutive_errors >= 12:
                 break
-    print(f"Company forecasts: attempted {yahoo_checked}", flush=True)
+    print(f"Company forecasts: attempted {yahoo_checked}, unavailable {yahoo_failures}", flush=True)
     api_key = os.environ.get("EDINET_API_KEY", "").strip()
     target_codes = []
     report_errors = []
@@ -304,7 +312,7 @@ def refresh_fundamentals(dataset: dict, now: str, state: dict) -> None:
         report_errors.extend(older_errors)
         for count, code in enumerate(target_codes, 1):
             entry = companies[code]
-            attempt = {"at": now, "status": "not-found"}
+            attempt = {"at": now, "status": "not-found", "factVersion": FACT_VERSION}
             report = reports.get(code)
             if report:
                 attempt["docID"] = report["docID"]
