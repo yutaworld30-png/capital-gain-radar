@@ -96,6 +96,23 @@ class FundamentalStoreTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 store.load_state({}, lambda url: {"login": "required"})
 
+    def test_html_fallback_bootstraps_only_before_new_factor_version(self):
+        def loader(url):
+            if url.endswith("fundamentals-state-v1.json"):
+                raise json.JSONDecodeError("HTML fallback", "<html>", 0)
+            return {"factorVersion": "topix-standard-capital-gain-v3.1",
+                    "searchUniverse": [{"code": "130A", "fundamentals": FACTS}]}
+        with patch.dict(os.environ, {"FUNDAMENTALS_STATE_URL": "https://private.test/data/fundamentals-state-v1.json"}):
+            self.assertIn("130A", store.load_state({}, loader)["companies"])
+
+            def after_migration(url):
+                result = loader(url)
+                result["factorVersion"] = "topix-standard-capital-gain-v3.2"
+                return result
+
+            with self.assertRaisesRegex(ValueError, "missing after migration"):
+                store.load_state({}, after_migration)
+
     def test_queue_rotates_and_failure_has_cooldown(self):
         state = store.seed_state({})
         codes = [str(1000 + i) for i in range(6)]

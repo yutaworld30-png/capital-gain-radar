@@ -94,15 +94,22 @@ def seed_state(dataset: dict) -> dict:
 def load_state(previous: dict, loader, path: Path = STATE_PATH) -> dict:
     url = os.environ.get("FUNDAMENTALS_STATE_URL", "").strip()
     if url:
+        bootstrap = False
         try:
             state = loader(url)
         except HTTPError as error:
             if error.code != 404:
                 raise RuntimeError("Financial state restore failed; retain published data") from None
-            # First deployment migrates the authenticated published snapshot.
+            bootstrap = True
+        except json.JSONDecodeError:
+            # Pages can return its HTML fallback with HTTP 200 for a missing file.
+            bootstrap = True
+        if bootstrap:
             legacy = loader(url.rsplit("/", 1)[0] + "/latest-candidates.json")
             if not isinstance(legacy, dict) or not legacy.get("searchUniverse"):
                 raise ValueError("Cannot bootstrap financial state from an empty snapshot")
+            if legacy.get("factorVersion") == "topix-standard-capital-gain-v3.2":
+                raise ValueError("Financial state missing after migration; retain published data")
             state = seed_state(legacy)
         validate_state(state)
         return state
