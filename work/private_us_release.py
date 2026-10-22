@@ -23,6 +23,7 @@ DATA_FILES = (
     "score-history.json", "weekly-accuracy-summary-v1.json", "weekly-predictions-v1.json",
 )
 SHARD_PATTERN = re.compile(r"data/search-universe/part-\d{3}\.json\Z")
+MISSING_ASSET_FALLBACK = b'<meta http-equiv="refresh" content="0; url=./investment-candidate-app.html">'
 
 
 def private_base(url: str) -> str:
@@ -54,6 +55,8 @@ def remote_json(base: str, relative: str, *, optional: bool = False) -> tuple[by
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as error:
+        if optional and relative == "data/us-market.json" and MISSING_ASSET_FALLBACK in raw:
+            return None
         raise RuntimeError(f"本人限定版の{relative}がJSONではありません。") from error
     if not isinstance(payload, dict):
         raise RuntimeError(f"本人限定版の{relative}がオブジェクトではありません。")

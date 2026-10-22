@@ -9,10 +9,35 @@ from unittest.mock import patch
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "work"))
-from private_us_release import DATA_FILES, prepare_us_release, private_base, restore_us_market  # noqa: E402
+from private_us_release import DATA_FILES, prepare_us_release, private_base, remote_json, restore_us_market  # noqa: E402
 
 
 class PrivateUsReleaseTests(unittest.TestCase):
+    def test_only_known_missing_asset_fallback_is_optional(self) -> None:
+        class Response:
+            def __init__(self, body: bytes):
+                self.body = body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def read(self):
+                return self.body
+
+        fallback = b'<!doctype html><meta http-equiv="refresh" content="0; url=./investment-candidate-app.html">'
+        with patch.dict("os.environ", {"PRIVATE_SERVICE_TOKEN": "test-token"}), \
+             patch("private_us_release.urlopen", return_value=Response(fallback)):
+            self.assertIsNone(remote_json("https://capital-gain-radar-private.pages.dev",
+                                          "data/us-market.json", optional=True))
+        with patch.dict("os.environ", {"PRIVATE_SERVICE_TOKEN": "test-token"}), \
+             patch("private_us_release.urlopen", return_value=Response(b"<h1>本人確認</h1>")):
+            with self.assertRaises(RuntimeError):
+                remote_json("https://capital-gain-radar-private.pages.dev",
+                            "data/us-market.json", optional=True)
+
     def test_private_source_must_be_expected_host(self) -> None:
         self.assertEqual(private_base("https://capital-gain-radar-private.pages.dev/"),
                          "https://capital-gain-radar-private.pages.dev")
