@@ -98,7 +98,8 @@ def prepare_us_release(base: str, us_market: Path, destination: Path = PRIVATE_S
     with tempfile.TemporaryDirectory() as folder:
         private_analysis = Path(folder) / "nikkei225-analysis.json"
         private_analysis.write_bytes(remote["nikkei225-analysis.json"][0])
-        prepare_private_site(private_analysis=private_analysis, destination=destination)
+        prepare_private_site(private_analysis=private_analysis, destination=destination,
+                             validate_public_analysis=False)
 
     shard_dir = (destination / "data" / "search-universe").resolve()
     if shard_dir.is_dir():
@@ -113,7 +114,7 @@ def prepare_us_release(base: str, us_market: Path, destination: Path = PRIVATE_S
         target.write_bytes(raw)
     (destination / "data" / "us-market.json").write_bytes(us_market.read_bytes())
 
-    errors = validate_private_site(destination)
+    errors = validate_private_site(destination, validate_public_analysis=False)
     if errors:
         raise RuntimeError("本人限定版の検証に失敗しました: " + " / ".join(errors))
     if remote["fundamentals-state-v1.json"][1].get("generatedAt") != candidates.get("generatedAt"):

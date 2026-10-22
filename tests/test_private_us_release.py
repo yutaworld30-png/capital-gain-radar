@@ -63,8 +63,9 @@ class PrivateUsReleaseTests(unittest.TestCase):
                 data = remote[relative.removeprefix("data/")]
                 return json.dumps(data).encode(), data
 
-            def fake_prepare(*, private_analysis, destination):
+            def fake_prepare(*, private_analysis, destination, validate_public_analysis):
                 self.assertTrue(private_analysis.is_file())
+                self.assertFalse(validate_public_analysis)
                 (destination / "data").mkdir(parents=True)
 
             with patch("private_us_release.remote_json", side_effect=fake_fetch), \

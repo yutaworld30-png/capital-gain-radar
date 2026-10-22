@@ -128,14 +128,16 @@ def prepare_private_site(
     auth_source: Path = AUTH_SOURCE,
     generated_at: str | None = None,
     financial_state_path: Path | None = None,
+    validate_public_analysis: bool = True,
 ) -> Path:
-    public_analysis_path = public_site / "data" / "nikkei225-analysis.json"
-    public_analysis = _load_json(public_analysis_path, "公開用日経225分析JSON")
-    public_errors = validate_analysis(public_analysis, public_only=True)
-    if public_analysis.get("distributionMode") != PUBLIC_DISTRIBUTION_MODE:
-        public_errors.append("公開成果物に非公開用データが混入しています。")
-    if public_errors:
-        raise PrivateDeploymentError(" / ".join(dict.fromkeys(public_errors)))
+    if validate_public_analysis:
+        public_analysis_path = public_site / "data" / "nikkei225-analysis.json"
+        public_analysis = _load_json(public_analysis_path, "公開用日経225分析JSON")
+        public_errors = validate_analysis(public_analysis, public_only=True)
+        if public_analysis.get("distributionMode") != PUBLIC_DISTRIBUTION_MODE:
+            public_errors.append("公開成果物に非公開用データが混入しています。")
+        if public_errors:
+            raise PrivateDeploymentError(" / ".join(dict.fromkeys(public_errors)))
 
     private_payload = _load_json(private_analysis, "本人限定用日経225分析JSON")
     private_errors = validate_private_analysis(private_payload)

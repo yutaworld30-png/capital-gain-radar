@@ -24,6 +24,7 @@ def validate_private_site(
     site: Path = PRIVATE_SITE,
     *,
     public_site: Path = PUBLIC_SITE,
+    validate_public_analysis: bool = True,
 ) -> list[str]:
     errors: list[str] = []
     if site.is_dir():
@@ -52,14 +53,15 @@ def validate_private_site(
     except (OSError, json.JSONDecodeError) as error:
         errors.append(f"本人限定用日経225分析JSONを読み込めません: {error}")
 
-    try:
-        public_analysis = _json(public_site / "data" / "nikkei225-analysis.json")
-        errors.extend(
-            f"公開成果物: {error}"
-            for error in validate_analysis(public_analysis, public_only=True)
-        )
-    except (OSError, json.JSONDecodeError) as error:
-        errors.append(f"公開用日経225分析JSONを読み込めません: {error}")
+    if validate_public_analysis:
+        try:
+            public_analysis = _json(public_site / "data" / "nikkei225-analysis.json")
+            errors.extend(
+                f"公開成果物: {error}"
+                for error in validate_analysis(public_analysis, public_only=True)
+            )
+        except (OSError, json.JSONDecodeError) as error:
+            errors.append(f"公開用日経225分析JSONを読み込めません: {error}")
 
     try:
         candidates = _json(site / "data" / "latest-candidates.json")
