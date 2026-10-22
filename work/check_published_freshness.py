@@ -59,6 +59,11 @@ def _expected_price_date(current: datetime) -> date:
     return expected
 
 
+def _generation_is_current(generated_at: datetime, current: datetime) -> bool:
+    generated_date = generated_at.astimezone(JST).date()
+    return _expected_price_date(current) <= generated_date <= current.date()
+
+
 def _expected_margin_date(current: datetime) -> date:
     expected = current.date()
     if current.weekday() >= 5 or current.time() < time(16, 0):
@@ -102,9 +107,9 @@ def freshness_issues(
     issues: list[str] = []
     if generated_at is None:
         issues.append("generatedAtが未設定またはタイムゾーンなしです。")
-    elif generated_at.astimezone(JST).date() != current.date():
+    elif not _generation_is_current(generated_at, current):
         issues.append(
-            "generatedAtが当日ではありません: "
+            "generatedAtが直近の確定取引日以降ではありません: "
             f"{generated_at.astimezone(JST).date().isoformat()}"
         )
 
@@ -159,9 +164,9 @@ def analysis_freshness_issues(
     generated_at = _parse_timestamp(payload.get("generatedAt"))
     if generated_at is None:
         issues.append("日経225分析のgeneratedAtが未設定またはタイムゾーンなしです。")
-    elif generated_at.astimezone(JST).date() != current.date():
+    elif not _generation_is_current(generated_at, current):
         issues.append(
-            "日経225分析のgeneratedAtが当日ではありません: "
+            "日経225分析のgeneratedAtが直近の確定取引日以降ではありません: "
             f"{generated_at.astimezone(JST).date().isoformat()}"
         )
 

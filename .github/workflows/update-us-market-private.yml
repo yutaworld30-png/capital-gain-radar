@@ -1,0 +1,66 @@
+name: Update US market after close and deploy private site
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "27 16 * * 1-5"
+      timezone: "America/New_York"
+    - cron: "57 16 * * 1-5"
+      timezone: "America/New_York"
+    - cron: "27 17 * * 1-5"
+      timezone: "America/New_York"
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: cloudflare-private-pages
+  cancel-in-progress: false
+
+jobs:
+  update-us-market:
+    if: vars.CLOUDFLARE_PRIVATE_DEPLOYMENT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run focused tests
+        run: python -m unittest tests.test_us_market tests.test_private_us_release -v
+
+      - name: Collect confirmed US session and fear-greed data
+        id: collect
+        env:
+          PRIVATE_US_MARKET_URL: ${{ vars.CLOUDFLARE_PRIVATE_SITE_URL }}/data/us-market.json
+          PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
+        run: python work/us_market.py --output us-market.json
+
+      - name: Preserve private Japanese data and prepare release
+        if: steps.collect.outputs.should_deploy == 'true'
+        env:
+          PRIVATE_SITE_URL: ${{ vars.CLOUDFLARE_PRIVATE_SITE_URL }}
+          PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
+        run: python work/private_us_release.py --mode release --us-market us-market.json
+
+      - name: Verify private authentication code
+        if: steps.collect.outputs.should_deploy == 'true'
+        run: node --check .private-deploy/functions/_middleware.js
+
+      - name: Deploy authenticated site to Cloudflare Pages
+        if: steps.collect.outputs.should_deploy == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: .private-deploy
+          command: pages deploy . --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=main
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

@@ -73,7 +73,27 @@ class PublishedFreshnessTests(unittest.TestCase):
             sample_payload("2026-08-12T07:20:00+00:00"),
             now=self.now,
         )
-        self.assertTrue(any("当日ではありません" in issue for issue in issues))
+        self.assertTrue(any("確定取引日以降ではありません" in issue for issue in issues))
+
+    def test_overnight_accepts_previous_evening_data_until_new_close(self) -> None:
+        candidate = sample_payload("2026-10-22T13:23:00+00:00")
+        candidate["sources"]["priceHistory"]["asOf"] = "2026-10-22"
+        analysis = sample_analysis("2026-10-22T13:23:00+00:00")
+        analysis["priceSource"]["asOf"] = "2026-10-22"
+        analysis["rows"][-1]["date"] = "2026-10-22"
+        morning = datetime(2026, 10, 23, 6, 0, tzinfo=JST)
+        self.assertEqual(freshness_issues(candidate, now=morning), [])
+        self.assertEqual(analysis_freshness_issues(
+            analysis, candidate_payload=candidate, now=morning,
+        ), [])
+        after_close = datetime(2026, 10, 23, 16, 10, tzinfo=JST)
+        self.assertTrue(freshness_issues(candidate, now=after_close))
+
+    def test_weekend_accepts_friday_evening_data(self) -> None:
+        candidate = sample_payload("2026-10-23T13:23:00+00:00")
+        candidate["sources"]["priceHistory"]["asOf"] = "2026-10-23"
+        sunday = datetime(2026, 10, 25, 12, 0, tzinfo=JST)
+        self.assertEqual(freshness_issues(candidate, now=sunday), [])
 
     def test_unavailable_price_source_is_stale(self) -> None:
         payload = sample_payload()
@@ -188,7 +208,7 @@ class PublishedFreshnessTests(unittest.TestCase):
             candidate_payload=sample_payload(),
             now=self.now,
         )
-        self.assertTrue(any("generatedAtが当日ではありません" in issue for issue in issues))
+        self.assertTrue(any("generatedAtが直近の確定取引日以降ではありません" in issue for issue in issues))
 
     def test_history_matching_candidate_price_date_is_fresh(self) -> None:
         self.assertEqual(

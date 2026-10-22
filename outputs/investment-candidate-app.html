@@ -364,6 +364,16 @@
       height: 100%;
     }
 
+    .fear-greed-body { padding: 16px; }
+    .fear-greed-reading { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+    .fear-greed-value { font-size: 42px; line-height: 1; font-weight: 900; font-variant-numeric: tabular-nums; }
+    .fear-greed-value[data-tone="fear"] { color: #b4434e; }
+    .fear-greed-value[data-tone="greed"] { color: #0c8c70; }
+    .fear-greed-label { font-size: 16px; font-weight: 800; }
+    .fear-greed-chart { height: 180px; margin-top: 14px; }
+    .fear-greed-chart canvas { width: 100%; height: 100%; display: block; }
+    .fear-greed-note { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
     .market-grid {
       padding: 0 16px;
     }
@@ -2128,6 +2138,7 @@
     body[data-app-view="portfolio"] #marketPanel,
     body[data-app-view="portfolio"] #industryMarketPanel,
     body[data-app-view="portfolio"] #vixPanel,
+    body[data-app-view="portfolio"] #fearGreedPanel,
     body[data-app-view="portfolio"] #nikkeiAnalysisPanel,
     body[data-app-view="portfolio"] #backtestPanel,
     body[data-app-view="portfolio"] #candidateSummary,
@@ -3051,6 +3062,7 @@
       #marketPanel,
       #industryMarketPanel,
       #vixPanel,
+      #fearGreedPanel,
       #nikkeiAnalysisPanel,
       #backtestPanel,
       #candidateSummary,
@@ -3079,6 +3091,7 @@
       body[data-mobile-page="market"][data-mobile-market-view="summary"] #marketPanel,
       body[data-mobile-page="market"][data-mobile-market-view="industry"] #industryMarketPanel,
       body[data-mobile-page="market"][data-mobile-market-view="vix"] #vixPanel,
+      body[data-mobile-page="market"][data-mobile-market-view="fear-greed"] #fearGreedPanel,
       body[data-mobile-page="market"][data-mobile-market-view="technical"] #nikkeiAnalysisPanel,
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel,
       body[data-mobile-page="more"][data-mobile-more-view="backtest"] #backtestPanel,
@@ -3520,6 +3533,7 @@
       body[data-mobile-page="market"] #marketPanel,
       body[data-mobile-page="market"] #industryMarketPanel,
       body[data-mobile-page="market"] #vixPanel,
+      body[data-mobile-page="market"] #fearGreedPanel,
       body[data-mobile-page="market"] #nikkeiAnalysisPanel,
       body[data-mobile-page="compare"] #comparePanel,
       body[data-mobile-page="more"] #backtestPanel,
@@ -3561,6 +3575,7 @@
       #marketPanel .market-details > summary { padding: 8px 10px; font-size: 11px; }
       #marketPanel .market-details-body { padding: 0 10px 10px; }
       #vixPanel .vix-chart-wrap { height: min(62dvh, 500px); }
+      #fearGreedPanel .fear-greed-chart { height: 180px; }
 
       body[data-mobile-page="market"][data-mobile-market-view="technical"] #nikkeiAnalysisPanel .analysis-detail-grid,
       body[data-mobile-page="market"][data-mobile-market-view="stats"] #nikkeiAnalysisPanel .nikkei-analysis-toolbar,
@@ -3917,6 +3932,7 @@
           <button class="active" type="button" data-mobile-market-view="summary" role="tab">相場サマリー</button>
           <button type="button" data-mobile-market-view="industry" role="tab">業種別</button>
           <button type="button" data-mobile-market-view="vix" role="tab">VIX</button>
+          <button type="button" data-mobile-market-view="fear-greed" role="tab">Fear &amp; Greed</button>
           <button type="button" data-mobile-market-view="technical" role="tab">日経チャート</button>
           <button type="button" data-mobile-market-view="stats" role="tab">需給統計</button>
         </div>
@@ -4073,6 +4089,16 @@
         <div class="interactive-chart-readout" id="vixReadout" style="padding:8px 16px">読込中</div>
         <div class="vix-chart-wrap"><div id="vixChart" role="img" aria-label="VIX日足ローソク足とMACD"></div></div>
         <div class="analysis-source-note" id="vixNote" style="padding:0 16px 16px"></div>
+      </section>
+
+      <section class="panel" id="fearGreedPanel" aria-label="米国株Fear and Greed Index">
+        <div class="panel-header"><h2>Fear &amp; Greed Index</h2><span class="updated" id="fearGreedStatus">読込中</span></div>
+        <div class="fear-greed-body">
+          <div class="fear-greed-reading"><strong class="fear-greed-value" id="fearGreedValue">--</strong><span class="fear-greed-label" id="fearGreedLabel">確認中</span></div>
+          <div class="fear-greed-chart"><canvas id="fearGreedChart" aria-label="Fear and Greed Indexの日次推移"></canvas></div>
+          <div class="fear-greed-note" id="fearGreedNote">FearGreedChartの米国株センチメント指標です。CNNの指数とは別の計算方法です。投資判断の補助情報であり、銘柄スコアには反映しません。</div>
+          <a class="analysis-source-note" href="https://feargreedchart.com/" target="_blank" rel="noopener noreferrer">出典: FearGreedChart</a>
+        </div>
       </section>
 
       <section class="panel nikkei-analysis-panel" id="nikkeiAnalysisPanel" aria-label="日経225テクニカル分析">
@@ -4665,6 +4691,7 @@
     let backtestSummary = null;
     let marketEnvironment = null;
     let marketHistory = null;
+    let usMarket = null;
     let industryMarket = null;
     let nikkeiAnalysis = null;
     let weeklyAccuracySummary = null;
@@ -4912,6 +4939,11 @@
       vixChart: document.querySelector("#vixChart"),
       vixReadout: document.querySelector("#vixReadout"),
       vixNote: document.querySelector("#vixNote"),
+      fearGreedStatus: document.querySelector("#fearGreedStatus"),
+      fearGreedValue: document.querySelector("#fearGreedValue"),
+      fearGreedLabel: document.querySelector("#fearGreedLabel"),
+      fearGreedChart: document.querySelector("#fearGreedChart"),
+      fearGreedNote: document.querySelector("#fearGreedNote"),
       marketScoreChart: document.querySelector("#marketScoreChart"),
       marketHistoryMeta: document.querySelector("#marketHistoryMeta"),
       marketRangeButtons: {
@@ -5069,6 +5101,7 @@
           renderNikkeiAnalysis(nikkeiAnalysis);
         }
         if (state.mobilePage === "market" && state.mobileMarketView === "vix") renderVixChart();
+        if (state.mobilePage === "market" && state.mobileMarketView === "fear-greed") renderFearGreed();
         if (state.mobileDetailOpen) renderTechnical(currentRows());
       });
     }
@@ -5202,7 +5235,7 @@
     }
 
     function setMobileMarketView(view) {
-      if (!["summary", "industry", "vix", "technical", "stats"].includes(view)) return;
+      if (!["summary", "industry", "vix", "fear-greed", "technical", "stats"].includes(view)) return;
       state.mobileMarketView = view;
       syncMobileShell();
       requestVisibleMobileCharts();
@@ -5949,7 +5982,7 @@
       return filtered.length ? filtered : snapshots.slice(-1);
     }
 
-    function drawMarketLineChart(canvas, rows, { scoreChart = false } = {}) {
+    function drawMarketLineChart(canvas, rows, { scoreChart = false, guides = [45, 60, 75] } = {}) {
       if (!canvas) return;
       const context = canvas.getContext("2d");
       const bounds = canvas.getBoundingClientRect();
@@ -5993,7 +6026,7 @@
       context.strokeStyle = "#e2e8f0";
       context.lineWidth = 1;
       if (scoreChart) {
-        [45, 60, 75].forEach(value => {
+        guides.forEach(value => {
           context.setLineDash([3, 3]);
           context.beginPath();
           context.moveTo(left, y(value));
@@ -6064,9 +6097,11 @@
 
     function renderMarketEnvironment(payload) {
       const environment = payload?.marketEnvironment || {};
-      const indicators = payload?.indicators || {};
+      const indicators = { ...(payload?.indicators || {}), ...(usMarket?.indicators || {}) };
       const score = Number(environment.score);
-      el.marketStatus.textContent = payload ? `相場データ: ${formatDate(payload.generatedAt)}` : "相場環境JSON未読込";
+      el.marketStatus.textContent = payload
+        ? `国内 ${formatDate(payload.generatedAt)}${usMarket?.asOf ? ` / 米国 ${formatDate(usMarket.asOf)}` : ""}`
+        : "相場環境JSON未読込";
       el.marketScore.textContent = Number.isFinite(score) ? Math.round(score) : "--";
       el.marketLabel.textContent = environment.label || "確認中";
       el.marketSummary.textContent = environment.summary || "相場環境データを読み込めませんでした。";
@@ -6134,10 +6169,42 @@
       }
     }
 
+    function renderFearGreed() {
+      const reading = usMarket?.fearGreed || {};
+      const score = reading.status === "available" && Number.isFinite(reading.score) ? reading.score : null;
+      el.fearGreedStatus.textContent = score === null
+        ? "未取得" : `米国 ${formatDate(reading.asOf)} 確認`;
+      el.fearGreedValue.textContent = score === null ? "--" : String(score);
+      el.fearGreedValue.dataset.tone = score === null ? "" : score <= 40 ? "fear" : score >= 61 ? "greed" : "";
+      el.fearGreedLabel.textContent = score === null ? "確定値を確認できません" : reading.label;
+      el.fearGreedNote.textContent = `${reading.note ? `${reading.note} ` : ""}FearGreedChartの米国株センチメント指標（0〜100）。CNNの指数とは別の計算方法です。銘柄スコアには反映しません。`;
+      if (!isMobileLayout() || (state.mobilePage === "market" && state.mobileMarketView === "fear-greed")) {
+        const history = Array.isArray(usMarket?.fearGreedHistory) ? usMarket.fearGreedHistory.slice(-30) : [];
+        drawMarketLineChart(el.fearGreedChart, history.map(row => ({ date: row.date, value: row.score })),
+          { scoreChart: true, guides: [20, 40, 60, 80] });
+      }
+    }
+
+    async function loadUsMarket() {
+      try {
+        const response = await fetch("data/us-market.json", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+        if (payload.schemaVersion !== 1 || !payload.asOf || !payload.indicators) throw new Error("US market schema");
+        usMarket = payload;
+      } catch (_error) {
+        usMarket = null;
+      }
+      if (marketEnvironment) renderMarketEnvironment(marketEnvironment);
+      renderIndustryMarket();
+      requestAnimationFrame(renderVixChart);
+      renderFearGreed();
+    }
+
     let sectorMarketView = "japan";
     function renderIndustryMarket() {
       const us = sectorMarketView === "us";
-      const payload = us ? marketEnvironment?.usSectors : industryMarket;
+      const payload = us ? (usMarket?.usSectors || marketEnvironment?.usSectors) : industryMarket;
       const rows = (Array.isArray(payload?.rows) ? payload.rows.filter(row =>
         row?.industry && typeof row.changeRate === "number" && Number.isFinite(row.changeRate)
       ) : []).sort((a, b) => b.changeRate - a.changeRate);
@@ -6172,7 +6239,7 @@
     }
 
     function renderVixChart() {
-      const section = marketEnvironment?.vixTechnical || {};
+      const section = usMarket?.vixTechnical || marketEnvironment?.vixTechnical || {};
       const rows = Array.isArray(section.rows) ? section.rows.filter(row =>
         row?.date && [row.open, row.high, row.low, row.close].every(value => Number.isFinite(Number(value)) && Number(value) > 0)
       ) : [];
@@ -7172,6 +7239,7 @@
           loadBacktestSummary(),
           loadMarketHistory(),
           loadMarketEnvironment(),
+          loadUsMarket(),
           loadIndustryMarket(),
           loadNikkeiAnalysis(),
           loadWeeklyAccuracy(),

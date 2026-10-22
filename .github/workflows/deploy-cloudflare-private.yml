@@ -141,6 +141,14 @@ jobs:
           python work/validate_cloudflare_private.py
           node --check .private-deploy/functions/_middleware.js
 
+      - name: Preserve separately updated US market data
+        env:
+          PRIVATE_SITE_URL: ${{ vars.CLOUDFLARE_PRIVATE_SITE_URL }}
+          PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
+        run: |
+          python work/private_us_release.py --mode restore
+          python work/validate_cloudflare_private.py
+
       - name: Deploy authenticated site to Cloudflare Pages
         id: deploy
         uses: cloudflare/wrangler-action@v3
