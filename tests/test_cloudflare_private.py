@@ -14,6 +14,7 @@ WORK = ROOT / "work"
 sys.path.insert(0, str(WORK))
 
 import fetch_official_data as pipeline  # noqa: E402
+import prepare_cloudflare_private as private_deploy  # noqa: E402
 from market_analysis import (  # noqa: E402
     PRIVATE_CLOUD_DISTRIBUTION_MODE,
     PUBLIC_DISTRIBUTION_MODE,
@@ -187,6 +188,46 @@ class CloudflarePrivateTests(unittest.TestCase):
             errors = validate_private_site(destination, public_site=public_site)
 
         self.assertTrue(any("25MiB" in error and "oversized.json" in error for error in errors))
+
+    def test_private_stage_shards_large_ranking_without_changing_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            public_site = root / "outputs"
+            (public_site / "data").mkdir(parents=True)
+            (public_site / "investment-candidate-app.html").write_text("app", encoding="utf-8")
+            (public_site / "data" / "nikkei225-analysis.json").write_text(
+                json.dumps(analysis(PUBLIC_DISTRIBUTION_MODE)), encoding="utf-8",
+            )
+            private_analysis = root / "private-analysis.json"
+            private_analysis.write_text(
+                json.dumps(analysis(PRIVATE_CLOUD_DISTRIBUTION_MODE)), encoding="utf-8",
+            )
+            candidate_path = public_site / "data" / "latest-candidates.json"
+            original = {
+                "generatedAt": "2026-10-22T18:30:00+09:00",
+                "scoreVersion": "3.0.0", "factorVersion": "test-v1",
+                "searchUniverse": [
+                    {"code": f"{index:04d}", "score": 70 + index, "note": "x" * 500}
+                    for index in range(3)
+                ],
+            }
+            candidate_path.write_text(json.dumps(original), encoding="utf-8")
+            source_bytes = candidate_path.read_bytes()
+            with (patch.object(private_deploy, "MAX_INLINE_CANDIDATES_BYTES", 300),
+                  patch.object(private_deploy, "MAX_CANDIDATE_SHARD_BYTES", 2200)):
+                destination = prepare_private_site(
+                    public_site=public_site, private_analysis=private_analysis,
+                    destination=root / "private-site",
+                )
+            self.assertEqual(candidate_path.read_bytes(), source_bytes)
+            manifest = json.loads((destination / "data" / "latest-candidates.json").read_text(encoding="utf-8"))
+            bundle = manifest["searchUniverseBundle"]
+            self.assertEqual(manifest["searchUniverse"], [])
+            self.assertEqual(bundle["recordCount"], 3)
+            self.assertGreater(len(bundle["shards"]), 1)
+            self.assertEqual(validate_private_site(destination, public_site=public_site), [])
+            (destination / bundle["shards"][0]["url"]).unlink()
+            self.assertTrue(any("ランキングJSON" in error for error in validate_private_site(destination, public_site=public_site)))
 
     def test_password_middleware_uses_signed_secure_cookie_and_fails_closed(self) -> None:
         source = (

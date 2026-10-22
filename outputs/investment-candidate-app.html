@@ -7127,6 +7127,43 @@
       render();
     }
 
+    async function resolveSearchUniverseBundle(dataset) {
+      const bundle = dataset?.searchUniverseBundle;
+      if (!bundle) return dataset;
+      if (bundle.status !== "available" || bundle.schemaVersion !== 1 ||
+          bundle.generatedAt !== dataset.generatedAt ||
+          bundle.scoreVersion !== dataset.scoreVersion ||
+          bundle.factorVersion !== dataset.factorVersion ||
+          !Number.isInteger(bundle.recordCount) || bundle.recordCount <= 0 ||
+          !Array.isArray(bundle.shards) || !bundle.shards.length) {
+        throw new Error("Ranking bundle metadata is invalid");
+      }
+      const parts = await Promise.all(bundle.shards.map(async shard => {
+        if (!/^data\/search-universe\/part-[0-9]{3}\.json$/.test(shard?.url) ||
+            !Number.isInteger(shard.rowCount) || shard.rowCount <= 0) {
+          throw new Error("Ranking shard metadata is invalid");
+        }
+        const response = await fetch(shard.url, {cache: "no-store"});
+        if (!response.ok) throw new Error(`Ranking shard HTTP ${response.status}`);
+        const part = await response.json();
+        if (part.schemaVersion !== 1 || part.generatedAt !== dataset.generatedAt ||
+            part.scoreVersion !== dataset.scoreVersion ||
+            part.factorVersion !== dataset.factorVersion ||
+            !Array.isArray(part.rows) || part.rows.length !== shard.rowCount) {
+          throw new Error("Ranking shard version or row count mismatch");
+        }
+        return part.rows;
+      }));
+      const rows = parts.flat();
+      if (rows.length !== bundle.recordCount ||
+          rows.some(row => !row || !row.code) ||
+          new Set(rows.map(row => String(row?.code || ""))).size !== rows.length) {
+        throw new Error("Ranking bundle is incomplete or contains duplicate codes");
+      }
+      dataset.searchUniverse = rows;
+      return dataset;
+    }
+
     async function loadBundledDataset() {
       valuationArchiveCache.clear();
       try {
@@ -7144,7 +7181,7 @@
           return;
         }
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        applyDataset(await response.json(), "公式データ読込");
+        applyDataset(await resolveSearchUniverseBundle(await response.json()), "公式データ読込");
       } catch (error) {
         console.error("Candidate dataset could not be loaded", error);
         const loadMessage = "データを読み込めませんでした。通信状態を確認して「更新」を押してください。";

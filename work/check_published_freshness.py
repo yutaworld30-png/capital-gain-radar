@@ -125,7 +125,22 @@ def freshness_issues(
             )
 
     rows = payload.get("searchUniverse")
-    if not isinstance(rows, list) or not rows:
+    bundle = payload.get("searchUniverseBundle")
+    bundled = isinstance(bundle, dict) and (
+        bundle.get("status") == "available"
+        and bundle.get("schemaVersion") == 1
+        and bundle.get("generatedAt") == payload.get("generatedAt")
+        and bundle.get("scoreVersion") == payload.get("scoreVersion")
+        and bundle.get("factorVersion") == payload.get("factorVersion")
+        and isinstance(bundle.get("recordCount"), int)
+        and bundle["recordCount"] > 0
+        and isinstance(bundle.get("shards"), list)
+        and bool(bundle["shards"])
+        and all(isinstance(shard, dict) and isinstance(shard.get("rowCount"), int)
+                and shard["rowCount"] > 0 for shard in bundle["shards"])
+        and sum(shard["rowCount"] for shard in bundle["shards"]) == bundle["recordCount"]
+    )
+    if (not isinstance(rows, list) or not rows) and not bundled:
         issues.append("ランキング母集団が空です。")
     return issues
 
@@ -244,7 +259,10 @@ def history_freshness_issues(
         )
 
     current_rows = candidate_payload.get("searchUniverse")
+    bundle = candidate_payload.get("searchUniverseBundle")
     current_count = len(current_rows) if isinstance(current_rows, list) else 0
+    if not current_count and isinstance(bundle, dict) and isinstance(bundle.get("recordCount"), int):
+        current_count = bundle["recordCount"]
     history_count = latest.get("rowCount")
     if not isinstance(history_count, int) or history_count <= 0:
         issues.append("スコア履歴の最新スナップショットが空です。")

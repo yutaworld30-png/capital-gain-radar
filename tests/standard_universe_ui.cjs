@@ -137,7 +137,30 @@ const server = http.createServer((req,res) => {
     await page.reload();
     await page.waitForFunction(()=>document.querySelector('#candidateStatus').textContent.includes('データ待ち'));
     assert.equal(await page.locator('#candidateRows tr[data-code]').count(),0);
+    dataset.sources.standard.status = 'available';
+    const rows = dataset.searchUniverse;
+    const bundle = {schemaVersion:1,status:'available',generatedAt:dataset.generatedAt,
+      scoreVersion:dataset.scoreVersion,factorVersion:dataset.factorVersion,recordCount:rows.length,
+      shards:[{url:'data/search-universe/part-000.json',rowCount:2},
+        {url:'data/search-universe/part-001.json',rowCount:1}]};
+    await page.route('**/data/latest-candidates.json',route => route.fulfill({json:{...dataset,searchUniverse:[],searchUniverseBundle:bundle}}));
+    await page.route('**/data/search-universe/*.json',route => {
+      const second = route.request().url().endsWith('part-001.json');
+      return route.fulfill({json:{schemaVersion:1,generatedAt:dataset.generatedAt,
+        scoreVersion:dataset.scoreVersion,factorVersion:dataset.factorVersion,
+        rows:second?rows.slice(2):rows.slice(0,2)}});
+    });
+    await page.reload();
+    await page.waitForFunction(()=>document.querySelectorAll('#candidateRows tr[data-code]').length===3);
+    assert.deepEqual(await codes(),['1001','1002','3001']);
+    await page.route('**/data/search-universe/part-001.json',route => route.fulfill({json:{
+      schemaVersion:1,generatedAt:'wrong-date',scoreVersion:dataset.scoreVersion,
+      factorVersion:dataset.factorVersion,rows:rows.slice(2),
+    }}));
+    await page.reload();
+    await page.waitForFunction(()=>document.querySelector('#candidateStatus').textContent.includes('データ読込失敗'));
+    assert.equal(await page.locator('#candidateRows tr[data-code]').count(),0);
     assert.deepEqual(errors,[]);
-    console.log('PASS: Standard membership, overlap dedup, scope filters, search, compare, missing margin, mobile widths and stale source gate');
+    console.log('PASS: Standard membership, scope filters, mobile widths, stale source gate and candidate shards');
   } finally {if(browser)await browser.close();await new Promise(resolve=>server.close(resolve));}
 })().catch(error=>{console.error(error);process.exitCode=1;});

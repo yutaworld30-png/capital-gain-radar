@@ -105,6 +105,26 @@ class PublishedFreshnessTests(unittest.TestCase):
         issues = freshness_issues(payload, now=self.now)
         self.assertIn("ランキング母集団が空です。", issues)
 
+    def test_sharded_ranking_manifest_is_fresh_and_checked_against_history(self) -> None:
+        payload = sample_payload()
+        payload["searchUniverse"] = []
+        payload["searchUniverseBundle"] = {
+            "schemaVersion": 1, "status": "available",
+            "generatedAt": payload["generatedAt"],
+            "scoreVersion": payload["scoreVersion"],
+            "factorVersion": payload["factorVersion"],
+            "recordCount": 10,
+            "shards": [{"url": "data/search-universe/part-000.json", "rowCount": 10}],
+        }
+        self.assertEqual(freshness_issues(payload, now=self.now), [])
+        history = sample_history()
+        history["snapshots"][0]["rowCount"] = 8
+        self.assertTrue(any("90%未満" in issue for issue in history_freshness_issues(
+            history, candidate_payload=payload,
+        )))
+        payload["searchUniverseBundle"]["generatedAt"] = "2026-08-12T07:20:00+00:00"
+        self.assertIn("ランキング母集団が空です。", freshness_issues(payload, now=self.now))
+
     def test_analysis_matching_candidate_price_date_is_fresh(self) -> None:
         self.assertEqual(
             analysis_freshness_issues(

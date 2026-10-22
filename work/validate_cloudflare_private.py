@@ -61,6 +61,47 @@ def validate_private_site(
     except (OSError, json.JSONDecodeError) as error:
         errors.append(f"公開用日経225分析JSONを読み込めません: {error}")
 
+    try:
+        candidates = _json(site / "data" / "latest-candidates.json")
+        bundle = candidates.get("searchUniverseBundle") if isinstance(candidates, dict) else None
+        if isinstance(bundle, dict):
+            shards = bundle.get("shards")
+            if (bundle.get("status") != "available" or bundle.get("schemaVersion") != 1
+                    or bundle.get("generatedAt") != candidates.get("generatedAt")
+                    or bundle.get("scoreVersion") != candidates.get("scoreVersion")
+                    or bundle.get("factorVersion") != candidates.get("factorVersion")
+                    or not isinstance(shards, list) or not shards
+                    or candidates.get("searchUniverse") != []):
+                errors.append("ランキング分割の索引が不正です。")
+            else:
+                count = 0
+                codes: set[str] = set()
+                for index, entry in enumerate(shards):
+                    expected_url = f"data/search-universe/part-{index:03d}.json"
+                    if not isinstance(entry, dict) or entry.get("url") != expected_url:
+                        errors.append("ランキング分割のファイル指定が不正です。")
+                        break
+                    part = _json(site / expected_url)
+                    rows = part.get("rows") if isinstance(part, dict) else None
+                    if (not isinstance(rows, list) or not rows
+                            or part.get("schemaVersion") != 1
+                            or any(part.get(key) != candidates.get(key)
+                                   for key in ("generatedAt", "scoreVersion", "factorVersion"))
+                            or len(rows) != entry.get("rowCount")):
+                        errors.append("ランキング分割の内容が不正です。")
+                        break
+                    count += len(rows)
+                    for row in rows:
+                        code = str(row.get("code") or "") if isinstance(row, dict) else ""
+                        if not code or code in codes:
+                            errors.append("ランキング分割に空または重複コードがあります。")
+                            break
+                        codes.add(code)
+                if count != bundle.get("recordCount"):
+                    errors.append("ランキング分割の銘柄数が一致しません。")
+    except (OSError, json.JSONDecodeError) as error:
+        errors.append(f"本人限定用ランキングJSONを読み込めません: {error}")
+
     headers = site / "_headers"
     robots = site / "robots.txt"
     try:

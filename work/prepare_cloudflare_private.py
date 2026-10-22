@@ -24,6 +24,8 @@ PUBLIC_SITE = ROOT / "outputs"
 PRIVATE_SITE = ROOT / ".private-deploy"
 AUTH_SOURCE = ROOT / "cloudflare" / "functions"
 PRIVATE_MARKER = "private-deployment.json"
+MAX_INLINE_CANDIDATES_BYTES = 16 * 1024 * 1024
+MAX_CANDIDATE_SHARD_BYTES = 8 * 1024 * 1024
 
 
 class PrivateDeploymentError(RuntimeError):
@@ -62,6 +64,60 @@ def validate_private_analysis(payload: object) -> list[str]:
     ):
         errors.append("本人限定版に表示する日経平均PER・PBR・EPS・BPSが利用可能ではありません。")
     return list(dict.fromkeys(errors))
+
+
+def shard_private_candidates(path: Path) -> None:
+    if not path.is_file() or path.stat().st_size <= MAX_INLINE_CANDIDATES_BYTES:
+        return
+    payload = _load_json(path, "銘柄JSON")
+    rows = payload.get("searchUniverse")
+    if not isinstance(rows, list) or not rows:
+        raise PrivateDeploymentError("分割するランキング母集団がありません。")
+    shard_dir = path.parent / "search-universe"
+    shard_dir.mkdir(exist_ok=True)
+    shards: list[dict[str, object]] = []
+    part: list[object] = []
+    part_bytes = 512
+
+    def flush() -> None:
+        nonlocal part_bytes
+        if not part:
+            return
+        index = len(shards)
+        name = f"part-{index:03d}.json"
+        shard = {
+            "schemaVersion": 1,
+            "generatedAt": payload.get("generatedAt"),
+            "scoreVersion": payload.get("scoreVersion"),
+            "factorVersion": payload.get("factorVersion"),
+            "rows": part[:],
+        }
+        encoded = json.dumps(shard, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        if len(encoded) > MAX_CANDIDATE_SHARD_BYTES:
+            raise PrivateDeploymentError(f"ランキング分割ファイルが大きすぎます: {name}")
+        (shard_dir / name).write_bytes(encoded)
+        shards.append({"url": f"data/search-universe/{name}", "rowCount": len(part)})
+        part.clear()
+        part_bytes = 512
+
+    for row in rows:
+        row_bytes = len(json.dumps(row, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+        if part and part_bytes + row_bytes + 1 > MAX_CANDIDATE_SHARD_BYTES // 2:
+            flush()
+        part.append(row)
+        part_bytes += row_bytes + 1
+    flush()
+    payload["searchUniverse"] = []
+    payload["searchUniverseBundle"] = {
+        "schemaVersion": 1,
+        "status": "available",
+        "generatedAt": payload.get("generatedAt"),
+        "scoreVersion": payload.get("scoreVersion"),
+        "factorVersion": payload.get("factorVersion"),
+        "recordCount": len(rows),
+        "shards": shards,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
 
 def prepare_private_site(
@@ -107,6 +163,8 @@ def prepare_private_site(
         if financial_state.get("generatedAt") != _load_json(public_site / "data" / "latest-candidates.json", "銘柄JSON").get("generatedAt"):
             raise PrivateDeploymentError("財務データ保管JSONと銘柄JSONの生成日時が一致しません。")
         shutil.copy2(financial_state_path, destination / "data" / STATE_PATH.name)
+
+    shard_private_candidates(destination / "data" / "latest-candidates.json")
 
     marker = {
         "schemaVersion": 1,
