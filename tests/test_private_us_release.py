@@ -33,7 +33,7 @@ class PrivateUsReleaseTests(unittest.TestCase):
             self.assertIsNone(remote_json("https://capital-gain-radar-private.pages.dev",
                                           "data/us-market.json", optional=True))
         with patch.dict("os.environ", {"PRIVATE_SERVICE_TOKEN": "test-token"}), \
-             patch("private_us_release.urlopen", return_value=Response(b"<h1>本人確認</h1>")):
+             patch("private_us_release.urlopen", return_value=Response(b"<h1>Login required</h1>")):
             with self.assertRaises(RuntimeError):
                 remote_json("https://capital-gain-radar-private.pages.dev",
                             "data/us-market.json", optional=True)
