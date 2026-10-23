@@ -131,6 +131,17 @@ class UsMarketTests(unittest.TestCase):
         ])
         self.assertNotIn("history", payload["fearGreed"])
 
+    def test_unavailable_cnn_reason_is_preserved(self) -> None:
+        with patch("us_market.ZoneInfo", return_value=NEW_YORK_OCTOBER):
+            payload = build_us_market(
+                points=points(), sectors=sectors(),
+                fear_greed={"status": "unavailable", "score": None, "providerId": "cnn",
+                            "note": "CNN側で自動取得が制限されています。"},
+                previous={}, generated_at=GENERATED,
+            )
+        self.assertEqual(payload["fearGreed"]["status"], "unavailable")
+        self.assertEqual(payload["fearGreed"]["note"], "CNN側で自動取得が制限されています。")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -120,7 +120,7 @@ def build_us_market(*, points: dict[str, Any], sectors: dict[str, Any],
         history[market_date] = {"date": market_date, "score": fear_greed["score"]}
     else:
         fear_greed = {**fear_greed, "status": "unavailable", "score": None,
-                      "note": "CNNの同じ米国取引日の値を確認できませんでした。"}
+                      "note": fear_greed.get("note") or "CNNの同じ米国取引日の値を確認できませんでした。"}
     return {
         "schemaVersion": 1, "generatedAt": generated_at, "asOf": market_date,
         "indicators": {key: points[key].to_dict() for key in US_KEYS},
@@ -164,12 +164,18 @@ def main() -> int:
         "wtiCrudeOil": fetch_yahoo_point("wtiCrudeOil", "WTI原油", ["CL=F"], unit="ドル"),
     }
     sectors = collect_us_sectors(fetch_yahoo_point, generated_at)
+    fetch_note = None
     try:
         raw_fear = json.loads(fetch_bytes(FEAR_GREED_URL).decode("utf-8"))
-    except (ValueError, OSError, RuntimeError):
+    except (ValueError, OSError, RuntimeError) as error:
         raw_fear = None
+        print(f"CNN Fear & Greed fetch unavailable: {type(error).__name__}")
+        if str(error) == "HTTP 418":
+            fetch_note = "CNN側で自動取得が制限されています。最新値は公式ページで確認してください。"
     market_date = str(points["sp500"].as_of or "")
     fear_greed = parse_fear_greed(raw_fear, generated_at=generated_at, market_date=market_date)
+    if fetch_note:
+        fear_greed["note"] = fetch_note
     payload = build_us_market(points=points, sectors=sectors, fear_greed=fear_greed,
                               previous=previous, generated_at=generated_at)
     old_fear = previous.get("fearGreed") if isinstance(previous.get("fearGreed"), dict) else {}
@@ -177,7 +183,8 @@ def main() -> int:
     changed = (previous.get("asOf") != payload["asOf"]
                or old_fear.get("status") != new_fear.get("status")
                or old_fear.get("score") != new_fear.get("score")
-               or old_fear.get("providerId") != new_fear.get("providerId"))
+               or old_fear.get("providerId") != new_fear.get("providerId")
+               or old_fear.get("note") != new_fear.get("note"))
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a", encoding="utf-8") as output:
