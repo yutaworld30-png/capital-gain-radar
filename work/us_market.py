@@ -16,8 +16,9 @@ from private_us_release import private_base, remote_json
 from us_sector_market import collect_us_sectors
 
 
-FEAR_GREED_URL = "https://feargreedchart.com/api/?action=all"
-FEAR_GREED_PAGE = "https://feargreedchart.com/"
+FEAR_GREED_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata"
+FEAR_GREED_PAGE = "https://www.cnn.com/markets/fear-and-greed"
+FEAR_GREED_PROVIDER = "cnn"
 US_KEYS = ("sp500", "nasdaq", "sox", "vix", "us10y", "usdJpy", "wtiCrudeOil")
 OUTPUT = Path(__file__).resolve().parents[1] / "outputs" / "data" / "us-market.json"
 
@@ -25,31 +26,58 @@ OUTPUT = Path(__file__).resolve().parents[1] / "outputs" / "data" / "us-market.j
 def parse_fear_greed(raw: object, *, generated_at: str, market_date: str) -> dict[str, Any]:
     result: dict[str, Any] = {
         "status": "unavailable", "score": None, "asOf": None,
-        "observedAt": None, "source": "FearGreedChart (CNNとは別指標)",
-        "url": FEAR_GREED_PAGE,
+        "observedAt": None, "providerId": FEAR_GREED_PROVIDER,
+        "source": "CNN Business Fear & Greed Index", "url": FEAR_GREED_PAGE,
+        "history": [],
     }
-    if not isinstance(raw, dict) or not isinstance(raw.get("score"), dict):
+    if not isinstance(raw, dict) or not isinstance(raw.get("fear_and_greed"), dict):
         return result
-    score = raw["score"].get("score")
-    stamp = raw.get("ts")
+    reading = raw["fear_and_greed"]
+    score = reading.get("score")
+    stamp = reading.get("timestamp")
     if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score):
         return result
-    if not 0 <= score <= 100 or isinstance(stamp, bool) or not isinstance(stamp, (int, float)):
+    if not 0 <= score <= 100 or not isinstance(stamp, str):
         return result
     try:
-        observed = datetime.fromtimestamp(stamp / 1000, tz=timezone.utc)
+        observed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
         generated = datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
-    except (OverflowError, ValueError, TypeError):
+        if observed.tzinfo is None or generated.tzinfo is None:
+            return result
+        observed = observed.astimezone(timezone.utc)
+        generated = generated.astimezone(timezone.utc)
+    except (ValueError, TypeError):
         return result
     if observed.astimezone(ZoneInfo("America/New_York")).date().isoformat() != market_date:
         return result
     if observed > generated + timedelta(minutes=5) or generated - observed > timedelta(hours=12):
         return result
     value = round(float(score))
-    label = ("強い恐怖" if value <= 20 else "恐怖" if value <= 40 else
-             "中立" if value <= 60 else "強欲" if value <= 80 else "強い強欲")
+    labels = {"extreme fear": "強い恐怖", "fear": "恐怖", "neutral": "中立",
+              "greed": "強欲", "extreme greed": "強い強欲"}
+    label = labels.get(str(reading.get("rating") or "").lower())
+    if label is None:
+        return result
+    history: dict[str, dict[str, Any]] = {}
+    historical = raw.get("fear_and_greed_historical")
+    historical_rows = historical.get("data") if isinstance(historical, dict) else None
+    for row in historical_rows if isinstance(historical_rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        x, y = row.get("x"), row.get("y")
+        if (isinstance(x, bool) or not isinstance(x, (int, float)) or not math.isfinite(x)
+                or isinstance(y, bool) or not isinstance(y, (int, float)) or not math.isfinite(y)
+                or not 0 <= y <= 100):
+            continue
+        try:
+            day = datetime.fromtimestamp(x / 1000, tz=timezone.utc).date().isoformat()
+        except (OverflowError, ValueError, OSError):
+            continue
+        if day <= market_date:
+            history[day] = {"date": day, "score": round(float(y))}
     result.update({"status": "available", "score": value, "label": label,
-                   "asOf": market_date, "observedAt": observed.isoformat()})
+                   "asOf": market_date, "observedAt": observed.isoformat(),
+                   "history": [history[day] for day in sorted(history)[-93:]]})
     return result
 
 
@@ -75,14 +103,24 @@ def build_us_market(*, points: dict[str, Any], sectors: dict[str, Any],
     if not vix_rows or vix_rows[-1]["date"] != market_date:
         raise ValueError("VIXの日足が米国主要指数の確定日と一致しません。")
 
-    history = {str(row.get("date")): row for row in previous.get("fearGreedHistory", [])
+    previous_fear = previous.get("fearGreed")
+    previous_history = previous.get("fearGreedHistory", []) if (
+        isinstance(previous_fear, dict) and previous_fear.get("providerId") == FEAR_GREED_PROVIDER
+    ) else []
+    if not isinstance(previous_history, list):
+        previous_history = []
+    history = {str(row.get("date")): row for row in previous_history
                if isinstance(row, dict) and isinstance(row.get("date"), str)
                and isinstance(row.get("score"), int) and 0 <= row["score"] <= 100}
+    for row in fear_greed.get("history", []):
+        if isinstance(row, dict) and isinstance(row.get("date"), str) and row["date"] <= market_date:
+            history[row["date"]] = row
+    fear_greed = {key: value for key, value in fear_greed.items() if key != "history"}
     if fear_greed.get("status") == "available" and fear_greed.get("asOf") == market_date:
         history[market_date] = {"date": market_date, "score": fear_greed["score"]}
     else:
         fear_greed = {**fear_greed, "status": "unavailable", "score": None,
-                      "note": "同じ米国取引日の確定値を確認できませんでした。"}
+                      "note": "CNNの同じ米国取引日の値を確認できませんでした。"}
     return {
         "schemaVersion": 1, "generatedAt": generated_at, "asOf": market_date,
         "indicators": {key: points[key].to_dict() for key in US_KEYS},
@@ -138,7 +176,8 @@ def main() -> int:
     new_fear = payload["fearGreed"]
     changed = (previous.get("asOf") != payload["asOf"]
                or old_fear.get("status") != new_fear.get("status")
-               or old_fear.get("score") != new_fear.get("score"))
+               or old_fear.get("score") != new_fear.get("score")
+               or old_fear.get("providerId") != new_fear.get("providerId"))
     github_output = os.environ.get("GITHUB_OUTPUT")
     if github_output:
         with open(github_output, "a", encoding="utf-8") as output:

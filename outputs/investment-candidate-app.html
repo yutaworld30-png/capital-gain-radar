@@ -4091,13 +4091,13 @@
         <div class="analysis-source-note" id="vixNote" style="padding:0 16px 16px"></div>
       </section>
 
-      <section class="panel" id="fearGreedPanel" aria-label="米国株Fear and Greed Index">
-        <div class="panel-header"><h2>Fear &amp; Greed Index</h2><span class="updated" id="fearGreedStatus">読込中</span></div>
+      <section class="panel" id="fearGreedPanel" aria-label="CNN Fear and Greed Index">
+        <div class="panel-header"><h2>CNN Fear &amp; Greed Index</h2><span class="updated" id="fearGreedStatus">読込中</span></div>
         <div class="fear-greed-body">
           <div class="fear-greed-reading"><strong class="fear-greed-value" id="fearGreedValue">--</strong><span class="fear-greed-label" id="fearGreedLabel">確認中</span></div>
           <div class="fear-greed-chart"><canvas id="fearGreedChart" aria-label="Fear and Greed Indexの日次推移"></canvas></div>
-          <div class="fear-greed-note" id="fearGreedNote">FearGreedChartの米国株センチメント指標です。CNNの指数とは別の計算方法です。投資判断の補助情報であり、銘柄スコアには反映しません。</div>
-          <a class="analysis-source-note" href="https://feargreedchart.com/" target="_blank" rel="noopener noreferrer">出典: FearGreedChart</a>
+          <div class="fear-greed-note" id="fearGreedNote">CNNの米国株センチメント指標です。投資判断の補助情報であり、銘柄スコアには反映しません。</div>
+          <a class="analysis-source-note" href="https://www.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener noreferrer">出典: CNN Business</a>
         </div>
       </section>
 
@@ -6171,15 +6171,16 @@
 
     function renderFearGreed() {
       const reading = usMarket?.fearGreed || {};
-      const score = reading.status === "available" && Number.isFinite(reading.score) ? reading.score : null;
+      const isCnn = reading.providerId === "cnn";
+      const score = isCnn && reading.status === "available" && Number.isFinite(reading.score) ? reading.score : null;
       el.fearGreedStatus.textContent = score === null
         ? "未取得" : `米国 ${formatDate(reading.asOf)} 確認`;
       el.fearGreedValue.textContent = score === null ? "--" : String(score);
       el.fearGreedValue.dataset.tone = score === null ? "" : score <= 40 ? "fear" : score >= 61 ? "greed" : "";
       el.fearGreedLabel.textContent = score === null ? "確定値を確認できません" : reading.label;
-      el.fearGreedNote.textContent = `${reading.note ? `${reading.note} ` : ""}FearGreedChartの米国株センチメント指標（0〜100）。CNNの指数とは別の計算方法です。銘柄スコアには反映しません。`;
+      el.fearGreedNote.textContent = `${reading.note ? `${reading.note} ` : ""}CNNの米国株センチメント指標（0〜100）。銘柄スコアには反映しません。`;
       if (!isMobileLayout() || (state.mobilePage === "market" && state.mobileMarketView === "fear-greed")) {
-        const history = Array.isArray(usMarket?.fearGreedHistory) ? usMarket.fearGreedHistory.slice(-30) : [];
+        const history = isCnn && Array.isArray(usMarket?.fearGreedHistory) ? usMarket.fearGreedHistory.slice(-30) : [];
         drawMarketLineChart(el.fearGreedChart, history.map(row => ({ date: row.date, value: row.score })),
           { scoreChart: true, guides: [20, 40, 60, 80] });
       }
