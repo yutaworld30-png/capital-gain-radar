@@ -143,6 +143,12 @@ class CloudflarePrivateTests(unittest.TestCase):
             self.assertFalse((public_site / "data" / "fundamentals-state-v1.json").exists())
             self.assertTrue((destination / "data" / "fundamentals-state-v1.json").exists())
             self.assertEqual(validate_private_site(destination, public_site=public_site), [])
+            candidates_path = destination / "data" / "latest-candidates.json"
+            candidates = json.loads(candidates_path.read_text(encoding="utf-8"))
+            candidates["valuationHistorySummary"] = {"schemaVersion": 1}
+            candidates_path.write_text(json.dumps(candidates), encoding="utf-8")
+            self.assertTrue(any("バリュエーション履歴" in error
+                                for error in validate_private_site(destination, public_site=public_site)))
 
     def test_private_stage_rejects_public_analysis_as_private_input(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

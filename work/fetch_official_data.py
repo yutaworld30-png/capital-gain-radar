@@ -2950,10 +2950,16 @@ def main() -> None:
         "generatedAt": generated_at,
     }
     score_history = update_score_history(dataset, generated_at)
+    recovery_base = os.environ.get("VALUATION_HISTORY_RECOVERY_BASE_URL", "").rstrip("/")
+    if recovery_base and not re.fullmatch(
+        r"https://[0-9a-f]{8}\.capital-gain-radar-private\.pages\.dev/data", recovery_base
+    ):
+        raise ValueError("バリュエーション履歴の復元元URLが不正です。")
     valuation_history = update_valuation_history(
         OUTPUT.parent, score_history, generated_at,
         remote_base=history_base or f"{PAGES_BASE_URL}/data",
         loader=lambda url: load_json_url(url, headers=_remote_auth_headers()),
+        recovery_base=recovery_base,
     )
     dataset["valuationHistorySummary"] = {
         "schemaVersion": 1, "basis": valuation_history["basis"],

@@ -145,3 +145,28 @@ class MarketExtensionsTests(unittest.TestCase):
                 raise HTTPError(url, 404, "missing", {}, None)
             with self.assertRaises(RuntimeError):
                 update_valuation_history(root, self.history(), "2026-10-17", remote_base="https://example.test/data", loader=lost)
+
+    def test_missing_published_archive_recovers_from_verified_previous_deployment(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            recovery = "https://old.example.test/data"
+            manifest = {"schemaVersion": 1, "basis": BASIS,
+                        "shards": [{"url": "valuation-history/60.json"}]}
+            shard = {"schemaVersion": 1, "basis": BASIS, "rowFormat": FIELDS,
+                     "stocks": {"6098": [["2026-10-15", 11.0, 2.0, 0, "forecast", None, None]]}}
+
+            def load(url):
+                if url.endswith("latest-candidates.json"):
+                    return {"valuationHistorySummary": {"schemaVersion": 1}}
+                if url == f"{recovery}/valuation-history-v1.json":
+                    return manifest
+                if url == f"{recovery}/valuation-history/60.json":
+                    return shard
+                raise HTTPError(url, 404, "missing", {}, None)
+
+            result = update_valuation_history(root, self.history("2026-10-16"), "2026-10-16",
+                remote_base="https://current.example.test/data", recovery_base=recovery, loader=load)
+            self.assertEqual(result["stockCount"], 1)
+            rows = json.loads((root / "valuation-history/60.json").read_text())["stocks"]["6098"]
+            self.assertEqual([row[0] for row in rows], ["2026-10-15", "2026-10-16"])
+            self.assertEqual(validate_valuation_bundle(root), [])

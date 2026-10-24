@@ -42,6 +42,7 @@ def _record(row: object, fields: list[str] = FIELDS) -> list[Any] | None:
 def update_valuation_history(
     data_dir: Path, history: dict[str, Any], generated_at: str, *,
     remote_base: str = "", loader: Callable[[str], dict[str, Any]] | None = None,
+    recovery_base: str = "",
 ) -> dict[str, Any]:
     records: dict[str, dict[str, list[Any]]] = {}
 
@@ -61,9 +62,9 @@ def update_valuation_history(
                 records.setdefault(code, {})[row[0]] = row
 
     manifest_path = data_dir / "valuation-history-v1.json"
-    sources: list[tuple[dict[str, Any], bool]] = []
+    sources: list[tuple[dict[str, Any], str]] = []
     if manifest_path.exists():
-        sources.append((json.loads(manifest_path.read_text(encoding="utf-8")), False))
+        sources.append((json.loads(manifest_path.read_text(encoding="utf-8")), ""))
     if remote_base and loader:
         try:
             published = loader(f"{remote_base}/latest-candidates.json")
@@ -74,15 +75,19 @@ def update_valuation_history(
                 restored = loader(f"{remote_base}/valuation-history-v1.json")
             except (HTTPError, ValueError) as error:
                 # A first-release Pages SPA can return HTML rather than a 404.
-                if expected or (isinstance(error, HTTPError) and error.code != 404):
+                missing = isinstance(error, ValueError) or (isinstance(error, HTTPError) and error.code == 404)
+                if expected and missing and recovery_base:
+                    restored = loader(f"{recovery_base}/valuation-history-v1.json")
+                    sources.append((restored, recovery_base))
+                elif expected or not missing:
                     raise RuntimeError("公開済みの長期履歴を復元できません。") from None
             else:
-                sources.append((restored, True))
+                sources.append((restored, remote_base))
         except HTTPError as error:
             raise RuntimeError("過去のバリュエーション履歴を復元できないため更新を停止しました。") from None
         except (OSError, ValueError, RuntimeError):
             raise RuntimeError("過去のバリュエーション履歴を復元できないため更新を停止しました。") from None
-    for manifest, remote in sources:
+    for manifest, source_base in sources:
         if manifest.get("basis") != BASIS or manifest.get("schemaVersion") != 1:
             raise ValueError("バリュエーション履歴の基準が不明です。")
         paths = [entry.get("url", "") for entry in manifest.get("shards", [])]
@@ -90,7 +95,7 @@ def update_valuation_history(
             raise ValueError("バリュエーション履歴の保存先が不正です。")
 
         def load(path: str) -> dict[str, Any]:
-            return loader(f"{remote_base}/{path}") if remote and loader else json.loads((data_dir / path).read_text(encoding="utf-8"))
+            return loader(f"{source_base}/{path}") if source_base and loader else json.loads((data_dir / path).read_text(encoding="utf-8"))
 
         with ThreadPoolExecutor(max_workers=4) as pool:
             for payload in pool.map(load, paths):

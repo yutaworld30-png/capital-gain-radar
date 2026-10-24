@@ -13,6 +13,8 @@ from urllib.request import Request, urlopen
 
 from prepare_cloudflare_private import PRIVATE_SITE, prepare_private_site
 from validate_cloudflare_private import validate_private_site
+from validate_output import validate_price_history_files
+from valuation_history import validate_valuation_bundle
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -23,6 +25,8 @@ DATA_FILES = (
     "score-history.json", "weekly-accuracy-summary-v1.json", "weekly-predictions-v1.json",
 )
 SHARD_PATTERN = re.compile(r"data/search-universe/part-\d{3}\.json\Z")
+VALUATION_SHARD_PATTERN = re.compile(r"valuation-history/[0-9A-Z]{2}\.json\Z")
+PRICE_SHARD_PATTERN = re.compile(r"data/price-history/topix-[0-9A-Z_]+\.json\Z")
 MISSING_ASSET_FALLBACK = b'<meta http-equiv="refresh" content="0; url=./investment-candidate-app.html">'
 
 
@@ -94,6 +98,29 @@ def prepare_us_release(base: str, us_market: Path, destination: Path = PRIVATE_S
             if not isinstance(relative, str) or not SHARD_PATTERN.fullmatch(relative):
                 raise RuntimeError("本人限定版のランキング分割ファイル指定が不正です。")
             shards[relative] = remote_json(base, relative)[0]
+    price_files: dict[str, bytes] = {}
+    price_bundle = candidates.get("priceHistoryBundle")
+    if isinstance(price_bundle, dict) and price_bundle.get("status") == "available":
+        entries = price_bundle.get("shards")
+        if not isinstance(entries, list) or not entries:
+            raise RuntimeError("本人限定版の価格履歴索引が不正です。")
+        for entry in entries:
+            path = entry.get("url") if isinstance(entry, dict) else None
+            if not isinstance(path, str) or not PRICE_SHARD_PATTERN.fullmatch(path):
+                raise RuntimeError("本人限定版の価格履歴ファイル指定が不正です。")
+            price_files[path] = remote_json(base, path)[0]
+    valuation_files: dict[str, bytes] = {}
+    if candidates.get("valuationHistorySummary"):
+        manifest_raw, manifest = remote_json(base, "data/valuation-history-v1.json")
+        valuation_files["data/valuation-history-v1.json"] = manifest_raw
+        entries = manifest.get("shards")
+        if not isinstance(entries, list):
+            raise RuntimeError("本人限定版のバリュエーション履歴索引が不正です。")
+        for entry in entries:
+            path = entry.get("url") if isinstance(entry, dict) else None
+            if not isinstance(path, str) or not VALUATION_SHARD_PATTERN.fullmatch(path):
+                raise RuntimeError("本人限定版のバリュエーション履歴ファイル指定が不正です。")
+            valuation_files[f"data/{path}"] = remote_json(base, f"data/{path}")[0]
 
     with tempfile.TemporaryDirectory() as folder:
         private_analysis = Path(folder) / "nikkei225-analysis.json"
@@ -108,10 +135,18 @@ def prepare_us_release(base: str, us_market: Path, destination: Path = PRIVATE_S
         shutil.rmtree(shard_dir)
     for name, (raw, _payload) in remote.items():
         (destination / "data" / name).write_bytes(raw)
-    for relative, raw in shards.items():
+    for relative, raw in {**shards, **price_files, **valuation_files}.items():
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(raw)
+    if price_files:
+        price_errors = validate_price_history_files(candidates, destination)
+        if price_errors:
+            raise RuntimeError("本人限定版の価格履歴を検証できません: " + " / ".join(price_errors))
+    if valuation_files:
+        valuation_errors = validate_valuation_bundle(destination / "data")
+        if valuation_errors:
+            raise RuntimeError("本人限定版のバリュエーション履歴を検証できません: " + " / ".join(valuation_errors))
     (destination / "data" / "us-market.json").write_bytes(us_market.read_bytes())
 
     errors = validate_private_site(destination, validate_public_analysis=False)

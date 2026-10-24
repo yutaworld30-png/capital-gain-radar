@@ -11,6 +11,8 @@ from prepare_cloudflare_private import (
     PUBLIC_SITE,
     validate_private_analysis,
 )
+from validate_output import validate_price_history_files
+from valuation_history import validate_valuation_bundle
 
 
 MAX_CLOUDFLARE_FILE_BYTES = 25 * 1024 * 1024
@@ -65,6 +67,11 @@ def validate_private_site(
 
     try:
         candidates = _json(site / "data" / "latest-candidates.json")
+        if isinstance(candidates, dict) and candidates.get("valuationHistorySummary"):
+            errors.extend(validate_valuation_bundle(site / "data"))
+        price_bundle = candidates.get("priceHistoryBundle") if isinstance(candidates, dict) else None
+        if isinstance(price_bundle, dict) and price_bundle.get("status") == "available":
+            errors.extend(validate_price_history_files(candidates, site))
         bundle = candidates.get("searchUniverseBundle") if isinstance(candidates, dict) else None
         if isinstance(bundle, dict):
             shards = bundle.get("shards")
