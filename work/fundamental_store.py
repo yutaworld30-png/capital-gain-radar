@@ -370,6 +370,15 @@ def refresh_fundamentals(dataset: dict, now: str, state: dict) -> None:
         state["reportIndex"] = {day: record for day, record in index.items() if day >= cutoff}
     attach_facts(dataset, state, now)
     dataset["financialCoverage"] = coverage(rows)
+    summary = dataset["financialCoverage"]["all"]["fields"]
+    print(
+        "Fundamental coverage: "
+        + ", ".join(
+            f"{field} {summary[field]['available']}/{summary[field]['total']}"
+            for field in ("per", "pbr", "roe", "dividendYield", "actualDps", "forecastDps")
+        ),
+        flush=True,
+    )
     available = sum(bool(row.get("fundamentals")) for row in rows)
     source = dataset["sources"]["edinetFundamentals"]
     source.update({
