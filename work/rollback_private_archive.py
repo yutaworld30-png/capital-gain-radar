@@ -6,6 +6,7 @@ import os
 import re
 import time
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -42,8 +43,11 @@ def main() -> None:
         request = Request(api_base + path, data=b"" if method == "POST" else None,
                           headers={"Authorization": "Bearer " + token,
                                    "Accept": "application/json"}, method=method)
-        with urlopen(request, timeout=60) as response:
-            payload = json.load(response)
+        try:
+            with urlopen(request, timeout=60) as response:
+                payload = json.load(response)
+        except HTTPError as error:
+            raise RuntimeError(f"Cloudflare Pages API HTTP {error.code}") from None
         if not payload.get("success") or not isinstance(payload.get("result"), (dict, list)):
             raise RuntimeError("Cloudflare Pages APIの応答を確認できません。")
         return payload
@@ -63,13 +67,13 @@ def main() -> None:
     if not re.fullmatch(r"[0-9a-f-]{36}", current_id):
         raise RuntimeError("現在の本番デプロイを特定できません。")
     deployments: list[dict] = []
-    for page in range(1, 6):
-        query = urlencode({"env": "production", "per_page": 100, "page": page})
+    for page in range(1, 21):
+        query = urlencode({"env": "production", "per_page": 20, "page": page})
         batch = api("GET", "/deployments?" + query)["result"]
         if not isinstance(batch, list):
             raise RuntimeError("Cloudflare Pagesの配信履歴を確認できません。")
         deployments.extend(batch)
-        if len(batch) < 100:
+        if len(batch) < 20:
             break
     target = select_target(deployments)
     if target["id"] == current_id:
