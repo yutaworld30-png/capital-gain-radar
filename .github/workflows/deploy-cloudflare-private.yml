@@ -123,6 +123,7 @@ jobs:
           YAHOO_COMPANY_MAX_DOWNLOADS: "225"
           YAHOO_COMPANY_WORKERS: "1"
           YAHOO_DIVIDEND_REQUEST_DELAY_SECONDS: "1.2"
+          RETRY_FAILED_COMPANY_DATA: ${{ inputs.force_refresh }}
           FUNDAMENTALS_STATE_URL: ${{ vars.PRIVATE_HISTORY_SOURCE_URL }}/data/fundamentals-state-v1.json
           TOPIX_PRICE_WORKERS: "8"
           SCORE_HISTORY_URL: ${{ vars.PRIVATE_HISTORY_SOURCE_URL }}/data/score-history-v2.json

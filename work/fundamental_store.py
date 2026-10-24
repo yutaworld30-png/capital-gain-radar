@@ -128,7 +128,8 @@ def save_state(state: dict, path: Path = STATE_PATH) -> None:
     temporary.replace(path)
 
 
-def select_codes(codes: list[str], state: dict, provider: str, limit: int, now: str, reports=None) -> list[str]:
+def select_codes(codes: list[str], state: dict, provider: str, limit: int, now: str, reports=None,
+                 retry_failed_today: bool = False) -> list[str]:
     today = now[:10]
     cutoff = (datetime.fromisoformat(today) - timedelta(days=7)).date().isoformat()
     companies = state["companies"]
@@ -142,9 +143,17 @@ def select_codes(codes: list[str], state: dict, provider: str, limit: int, now: 
         untried_document = changed and attempt.get("docID") != reports[code].get("docID")
         outdated = provider == "edinet" and facts.get("docID") and facts.get("factVersion") != FACT_VERSION
         version_needs_attempt = outdated and attempt.get("factVersion") != FACT_VERSION
-        if not untried_document and not version_needs_attempt and (stamp[:10] == today or (attempt.get("status") in {"error", "not-found"} and stamp[:10] > cutoff)):
+        if not untried_document and not version_needs_attempt and (
+            (stamp[:10] == today and not (retry_failed_today and attempt.get("status") == "error"))
+            or (attempt.get("status") == "not-found" and stamp[:10] > cutoff)
+        ):
             continue
-        priority = 0 if changed else 1 if outdated else 2 if not facts else 3
+        if changed:
+            priority = 0
+        elif outdated or (attempt.get("status") == "error" and not facts):
+            priority = 1
+        else:
+            priority = 2 if not facts else 3
         ordered.append((priority, stamp, code))
     return [item[2] for item in sorted(ordered)[:limit]]
 
@@ -263,7 +272,11 @@ def refresh_fundamentals(dataset: dict, now: str, state: dict) -> None:
     companies = state["companies"]
     for code in codes:
         companies.setdefault(code, {})
-    yahoo_targets = select_codes(codes, state, "yahoo", max(1, int(os.environ.get("YAHOO_COMPANY_MAX_DOWNLOADS", "225"))), now)
+    retry_failed_today = os.environ.get("RETRY_FAILED_COMPANY_DATA") == "true"
+    yahoo_targets = select_codes(
+        codes, state, "yahoo", max(1, int(os.environ.get("YAHOO_COMPANY_MAX_DOWNLOADS", "225"))),
+        now, retry_failed_today=retry_failed_today,
+    )
     delay = max(0, float(os.environ.get("YAHOO_DIVIDEND_REQUEST_DELAY_SECONDS", "0.45")))
 
     def yahoo(code):
@@ -284,6 +297,7 @@ def refresh_fundamentals(dataset: dict, now: str, state: dict) -> None:
     consecutive_errors = 0
     yahoo_checked = 0
     yahoo_failures: dict[str, int] = {}
+    yahoo_failure_samples: list[str] = []
     with ThreadPoolExecutor(max_workers=workers) as executor:
         for offset in range(0, len(yahoo_targets), workers):
             for code, incoming, status, reason in executor.map(yahoo, yahoo_targets[offset:offset + workers]):
@@ -292,12 +306,16 @@ def refresh_fundamentals(dataset: dict, now: str, state: dict) -> None:
                 entry["yahooAttempt"] = {"at": now, "status": status, "reason": reason}
                 if reason:
                     yahoo_failures[reason] = yahoo_failures.get(reason, 0) + 1
+                    if len(yahoo_failure_samples) < 10:
+                        yahoo_failure_samples.append(f"{code}: {reason}")
                 consecutive_errors = consecutive_errors + 1 if status == "error" else 0
                 if incoming is not None:
                     entry["forecast"] = merge_forecast(entry.get("forecast", {}), incoming, now)
             if consecutive_errors >= 12:
                 break
     print(f"Company forecasts: attempted {yahoo_checked}, unavailable {yahoo_failures}", flush=True)
+    if yahoo_failure_samples:
+        print(f"Company forecast sample failures: {', '.join(yahoo_failure_samples)}", flush=True)
     api_key = os.environ.get("EDINET_API_KEY", "").strip()
     target_codes = []
     report_errors = []
@@ -306,7 +324,10 @@ def refresh_fundamentals(dataset: dict, now: str, state: dict) -> None:
     if api_key:
         index = state["reportIndex"]
         recent, report_errors = fetch_recent_securities_reports(set(codes), api_key, lookback_days=7, index=index, checked_at=now)
-        target_codes = select_codes(codes, state, "edinet", max(1, int(os.environ.get("EDINET_MAX_DOWNLOADS", "225"))), now, recent)
+        target_codes = select_codes(
+            codes, state, "edinet", max(1, int(os.environ.get("EDINET_MAX_DOWNLOADS", "225"))),
+            now, recent, retry_failed_today=retry_failed_today,
+        )
         reports, older_errors = fetch_recent_securities_reports(set(target_codes), api_key,
             lookback_days=max(30, int(os.environ.get("EDINET_LOOKBACK_DAYS", "430"))), index=index, checked_at=now) if target_codes else ({}, [])
         report_errors.extend(older_errors)

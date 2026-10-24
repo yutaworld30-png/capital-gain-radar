@@ -131,7 +131,7 @@ class FundamentalStoreTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "missing after migration"):
                 store.load_state({}, after_migration)
 
-    def test_queue_rotates_and_failure_has_cooldown(self):
+    def test_queue_rotates_and_transient_failure_retries_next_day(self):
         state = store.seed_state({})
         codes = [str(1000 + i) for i in range(6)]
         first = store.select_codes(codes, state, "edinet", 2, NOW)
@@ -142,8 +142,32 @@ class FundamentalStoreTest(unittest.TestCase):
             state["companies"][code] = {"financial": FACTS, "edinetAttempt": {"at": NOW, "status": "available"}}
         third = store.select_codes(codes, state, "edinet", 2, NOW)
         self.assertEqual(len(set(first + second + third)), 6)
-        self.assertEqual(store.select_codes(first, state, "edinet", 2, "2026-10-20"), [])
-        self.assertEqual(len(store.select_codes(first, state, "edinet", 2, "2026-10-27")), 2)
+        self.assertEqual(store.select_codes(first, state, "edinet", 2, "2026-10-20"), first)
+        for code in second + third:
+            state["companies"].setdefault(code, {})["edinetAttempt"] = {"at": NOW, "status": "available"}
+        self.assertEqual(store.select_codes(codes, state, "edinet", 2, "2026-10-20"), first)
+
+    def test_missing_source_field_keeps_weekly_cooldown(self):
+        state = store.seed_state({})
+        state["companies"]["1000"] = {
+            "yahooAttempt": {"at": NOW, "status": "not-found", "reason": "not-found-on-page"}
+        }
+        self.assertEqual(store.select_codes(["1000"], state, "yahoo", 1, "2026-10-20"), [])
+        self.assertEqual(store.select_codes(["1000"], state, "yahoo", 1, "2026-10-27"), ["1000"])
+
+    def test_manual_refresh_retries_only_same_day_errors(self):
+        state = store.seed_state({})
+        state["companies"] = {
+            "1000": {"yahooAttempt": {"at": NOW, "status": "error", "reason": "HTTP 500"}},
+            "1001": {"yahooAttempt": {"at": NOW, "status": "not-found"}},
+            "1002": {"yahooAttempt": {"at": NOW, "status": "available"}},
+        }
+        codes = ["1000", "1001", "1002"]
+        self.assertEqual(store.select_codes(codes, state, "yahoo", 3, NOW), [])
+        self.assertEqual(
+            store.select_codes(codes, state, "yahoo", 3, NOW, retry_failed_today=True),
+            ["1000"],
+        )
 
     def test_outdated_financial_fact_retries_once_on_same_day(self):
         state = store.seed_state({})
