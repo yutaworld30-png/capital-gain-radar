@@ -16,6 +16,7 @@ from valuation_history import BASIS
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_SHORT_ID = "81983c8d"
 SITE_URL = "https://capital-gain-radar-private.pages.dev"
+PRIOR_URL = "https://81983c8d.capital-gain-radar-private.pages.dev"
 
 
 def select_target(deployments: list[dict], short_id: str = TARGET_SHORT_ID) -> dict:
@@ -52,9 +53,10 @@ def main() -> None:
             raise RuntimeError("Cloudflare Pages APIの応答を確認できません。")
         return payload
 
-    def site(path: str) -> dict:
-        request = Request(f"{SITE_URL}/data/{path}", headers={
+    def site(path: str, *, base: str = SITE_URL) -> dict:
+        request = Request(f"{base}/data/{path}", headers={
             "Accept": "application/json", "X-Capital-Radar-Service": service_token,
+            "User-Agent": "capital-gain-radar-us-release/1.0",
         })
         with urlopen(request, timeout=60) as response:
             payload = json.load(response)
@@ -78,6 +80,27 @@ def main() -> None:
     target = select_target(deployments)
     if target["id"] == current_id:
         raise RuntimeError("復元対象が現在の本番版と同じです。")
+
+    try:
+        prior_manifest = site("valuation-history-v1.json", base=PRIOR_URL)
+        prior_shards = prior_manifest.get("shards")
+        if prior_manifest.get("basis") != BASIS or not isinstance(prior_shards, list) or not prior_shards:
+            raise ValueError("Prior archive is incomplete")
+        first_path = prior_shards[0].get("url") if isinstance(prior_shards[0], dict) else None
+        if not isinstance(first_path, str) or not re.fullmatch(r"valuation-history/[0-9A-Z]{2}\.json", first_path):
+            raise ValueError("Prior archive path is invalid")
+        if site(first_path, base=PRIOR_URL).get("basis") != BASIS:
+            raise ValueError("Prior archive shard is invalid")
+    except (OSError, ValueError, RuntimeError):
+        pass
+    else:
+        github_env = os.environ.get("GITHUB_ENV")
+        if not github_env:
+            raise RuntimeError("GitHub Actionsの復元設定を保存できません。")
+        with open(github_env, "a", encoding="utf-8") as output:
+            output.write(f"VALUATION_HISTORY_RECOVERY_BASE_URL={PRIOR_URL}/data\n")
+        print(f"Verified direct valuation archive recovery: {len(prior_shards)} shards")
+        return
 
     us_market = site("us-market.json")
     if us_market.get("schemaVersion") != 1 or not us_market.get("asOf"):
