@@ -8,7 +8,7 @@ on:
         type: boolean
         default: true
       recover_valuation_history:
-        description: One-time recovery from the last confirmed Japanese deployment
+        description: One-time rollback to the last verified Japanese deployment before refresh
         type: boolean
         default: false
   schedule:
@@ -106,28 +106,15 @@ jobs:
           PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
         run: python work/market_environment.py
 
-      - name: Verify one-time valuation archive recovery source
+      - name: Restore verified Japanese deployment for valuation archive recovery
         if: inputs.recover_valuation_history == true
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          PRIVATE_SITE_URL: ${{ vars.CLOUDFLARE_PRIVATE_SITE_URL }}
           PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          from urllib.request import Request, urlopen
-          from work.valuation_history import BASIS
-
-          base = "https://81983c8d.capital-gain-radar-private.pages.dev/data"
-          headers = {"X-Capital-Radar-Service": os.environ["PRIVATE_SERVICE_TOKEN"]}
-          def read(path):
-              with urlopen(Request(f"{base}/{path}", headers=headers), timeout=60) as response:
-                  return json.load(response)
-          manifest = read("valuation-history-v1.json")
-          assert manifest.get("basis") == BASIS and manifest.get("shards"), "Recovery archive unavailable"
-          first = read(manifest["shards"][0]["url"])
-          assert first.get("basis") == BASIS, "Recovery shard unavailable"
-          print("Verified prior valuation archive and first shard")
-          PY
+        run: python work/rollback_private_archive.py
 
       - name: Refresh market data and persistent histories
         env:
@@ -143,7 +130,6 @@ jobs:
           WEEKLY_PREDICTIONS_URL: ${{ vars.PRIVATE_HISTORY_SOURCE_URL }}/data/weekly-predictions-v1.json
           WEEKLY_PREDICTIONS_REQUIRE_REMOTE: "true"
           PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
-          VALUATION_HISTORY_RECOVERY_BASE_URL: ${{ inputs.recover_valuation_history && 'https://81983c8d.capital-gain-radar-private.pages.dev/data' || '' }}
         run: python work/fetch_official_data.py
 
       - name: Fill available official dated margin history
@@ -174,7 +160,11 @@ jobs:
           PRIVATE_SITE_URL: ${{ vars.CLOUDFLARE_PRIVATE_SITE_URL }}
           PRIVATE_SERVICE_TOKEN: ${{ secrets.PRIVATE_SERVICE_TOKEN }}
         run: |
-          python work/private_us_release.py --mode restore
+          if [ -f work/tmp/us-market-before-rollback.json ]; then
+            cp work/tmp/us-market-before-rollback.json .private-deploy/data/us-market.json
+          else
+            python work/private_us_release.py --mode restore
+          fi
           python work/validate_cloudflare_private.py
 
       - name: Deploy authenticated site to Cloudflare Pages
