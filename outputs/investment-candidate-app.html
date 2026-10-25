@@ -138,6 +138,42 @@
       position: relative;
     }
 
+    .search-field .search {
+      padding-right: 44px;
+    }
+
+    .search-field .search::-webkit-search-cancel-button {
+      display: none;
+    }
+
+    .search-clear {
+      position: absolute;
+      top: 50%;
+      right: 2px;
+      display: grid;
+      place-items: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: 0;
+      border-radius: 6px;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+      transform: translateY(-50%);
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .search-clear[hidden] {
+      display: none;
+    }
+
+    .search-clear:focus-visible {
+      outline: 2px solid currentColor;
+      outline-offset: -3px;
+    }
+
     .search-suggestions {
       position: absolute;
       z-index: 20;
@@ -3883,6 +3919,7 @@
           <label for="searchBox"><span>銘柄検索</span></label>
           <div class="search-field">
             <input id="searchBox" class="search" type="search" placeholder="コード・銘柄名・テーマ・業種" autocomplete="off" aria-autocomplete="list" aria-controls="searchSuggestions">
+            <button class="search-clear" id="searchClear" type="button" aria-label="検索語を消去" title="検索語を消去" hidden>&times;</button>
             <div id="searchSuggestions" class="search-suggestions" role="listbox" hidden></div>
           </div>
         </div>
@@ -3910,6 +3947,7 @@
         <div class="mobile-search-row">
           <div class="search-field">
             <input id="mobileSearchBox" class="search" type="search" placeholder="コード・銘柄名・テーマ・業種" autocomplete="off" aria-label="銘柄検索" aria-autocomplete="list" aria-controls="mobileSearchSuggestions">
+            <button class="search-clear" id="mobileSearchClear" type="button" aria-label="検索語を消去" title="検索語を消去" hidden>&times;</button>
             <div id="mobileSearchSuggestions" class="search-suggestions" role="listbox" hidden></div>
           </div>
           <button class="mobile-filter-button" id="mobileFilterOpen" type="button" aria-expanded="false" aria-controls="mobileFilterSheet">
@@ -4828,8 +4866,10 @@
       allUniverse: document.querySelector("#allUniverse"),
       standardUniverse: document.querySelector("#standardUniverse"),
       searchBox: document.querySelector("#searchBox"),
+      searchClear: document.querySelector("#searchClear"),
       searchSuggestions: document.querySelector("#searchSuggestions"),
       mobileSearchBox: document.querySelector("#mobileSearchBox"),
+      mobileSearchClear: document.querySelector("#mobileSearchClear"),
       mobileSearchSuggestions: document.querySelector("#mobileSearchSuggestions"),
       mobileRankingButtons: document.querySelectorAll("[data-mobile-ranking-view]"),
       mobileMarketButtons: document.querySelectorAll("[data-mobile-market-view]"),
@@ -5072,8 +5112,10 @@
     }
 
     function syncSearchInputs() {
-      el.searchBox.value = state.query;
-      el.mobileSearchBox.value = state.query;
+      if (el.searchBox.value !== state.query) el.searchBox.value = state.query;
+      if (el.mobileSearchBox.value !== state.query) el.mobileSearchBox.value = state.query;
+      el.searchClear.hidden = !state.query;
+      el.mobileSearchClear.hidden = !state.query;
     }
 
     function activeFilterDetails() {
@@ -7382,6 +7424,7 @@
     }
 
     function renderSearchSuggestions() {
+      syncSearchInputs();
       const suggestions = currentSearchSuggestions();
       if (state.activeSuggestionIndex >= suggestions.length) state.activeSuggestionIndex = 0;
       renderSearchSuggestionList(el.searchSuggestions, el.searchBox, suggestions, "searchSuggestion");
@@ -9651,6 +9694,16 @@
 
     bindSearchInput(el.searchBox);
     bindSearchInput(el.mobileSearchBox);
+    for (const [button, input] of [[el.searchClear, el.searchBox], [el.mobileSearchClear, el.mobileSearchBox]]) {
+      button.addEventListener("click", () => {
+        state.query = "";
+        state.searchOpen = false;
+        state.activeSuggestionIndex = 0;
+        syncSearchInputs();
+        render();
+        input.focus();
+      });
+    }
     bindSearchSuggestions(el.searchSuggestions);
     bindSearchSuggestions(el.mobileSearchSuggestions);
     document.addEventListener("click", event => {

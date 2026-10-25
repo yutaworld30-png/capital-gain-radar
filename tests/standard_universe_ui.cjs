@@ -101,6 +101,12 @@ const server = http.createServer((req,res) => {
     await page.locator('#allUniverse').click();
     assert.deepEqual(await codes(),['1001','1002','3001']);
     await page.locator('#searchBox').fill('スタンダードテスト');
+    assert.equal(await page.locator('#searchClear').isVisible(), true);
+    await page.locator('#searchClear').click();
+    assert.equal(await page.locator('#searchBox').inputValue(), '');
+    assert.deepEqual(await codes(),['1001','1002','3001']);
+    assert.equal(await page.locator('#searchClear').isVisible(), false);
+    await page.locator('#searchBox').fill('スタンダードテスト');
     await page.locator('#searchSuggestions [data-code="3001"]').click();
     assert.match(await page.locator('#selectedCode').innerText(),/スタンダード/);
     assert(!(await page.locator('#selectedCode').innerText()).includes('TOPIX'));
@@ -124,6 +130,13 @@ const server = http.createServer((req,res) => {
       assert.deepEqual(await codes(),['1002','3001']);
       assert.equal(await page.locator('#mobileFilterCount').isVisible(),true);
       assert.equal(await page.locator('#mobileCandidateCards .mobile-stock-card').count(),2);
+      await page.locator('#mobileSearchBox').fill('スタンダードテスト');
+      assert.equal(await page.locator('#mobileSearchClear').isVisible(), true);
+      await page.locator('.mobile-search-row').screenshot({path:path.join(shots,`search-clear-${width}.png`)});
+      await page.locator('#mobileSearchClear').click();
+      assert.equal(await page.locator('#mobileSearchBox').inputValue(), '');
+      assert.equal(await page.locator('#mobileCandidateCards .mobile-stock-card').count(),2);
+      assert.equal(await page.locator('#mobileSearchClear').isVisible(), false);
       const standardCard = page.locator('#mobileCandidateCards .mobile-stock-card').filter({hasText:'スタンダードテスト'});
       assert.match(await standardCard.innerText(),/未取得/);
       assert(!(await standardCard.innerText()).includes('0.0倍'));
