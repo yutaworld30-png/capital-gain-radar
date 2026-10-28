@@ -7,6 +7,6 @@
     "required": ["GITHUB_DISPATCH_TOKEN"]
   },
   "triggers": {
-    "crons": ["30 9 * * 1-5", "30 12 * * 1-5"]
+    "crons": ["30 9 * * mon-fri", "30 12 * * mon-fri", "45 21 * * mon-fri"]
   }
 }

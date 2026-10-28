@@ -34,11 +34,38 @@ test("GitHub rejection reports only the status", async () => {
 
 test("scheduled handler fails closed when the secret is missing", async () => {
   let pending;
-  worker.scheduled({}, {}, {
+  worker.scheduled({ cron: "30 9 * * mon-fri" }, {}, {
     waitUntil(promise) { pending = promise; },
   });
   assert.equal(typeof pending?.then, "function");
   await assert.rejects(pending, /not configured/);
+});
+
+test("US after-close schedule dispatches its separate workflow", async () => {
+  let pending;
+  const requests = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return { status: 204 };
+  };
+  try {
+    worker.scheduled({ cron: "45 21 * * mon-fri" }, { GITHUB_DISPATCH_TOKEN: "test-token" }, {
+      waitUntil(promise) { pending = promise; },
+    });
+    await pending;
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /update-us-market-private\.yml\/dispatches$/);
+  assert.deepEqual(JSON.parse(requests[0].options.body), { ref: "main" });
+});
+
+test("unknown schedule never dispatches", () => {
+  assert.throws(() => worker.scheduled({ cron: "0 0 * * sun" }, {
+    GITHUB_DISPATCH_TOKEN: "test-token",
+  }, { waitUntil() { throw new Error("unexpected dispatch"); } }), /Unknown watchdog schedule/);
 });
 
 test("backup schedule and workflow input stay aligned", () => {
@@ -47,7 +74,9 @@ test("backup schedule and workflow input stay aligned", () => {
   ));
   assert.equal(config.workers_dev, false);
   assert.deepEqual(config.secrets.required, ["GITHUB_DISPATCH_TOKEN"]);
-  assert.deepEqual(config.triggers.crons, ["30 9 * * 1-5", "30 12 * * 1-5"]);
+  assert.deepEqual(config.triggers.crons, [
+    "30 9 * * mon-fri", "30 12 * * mon-fri", "45 21 * * mon-fri",
+  ]);
   const workflow = readFileSync(
     new URL("../.github/workflows/deploy-cloudflare-private.yml", import.meta.url), "utf8",
   );
