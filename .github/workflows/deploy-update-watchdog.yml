@@ -36,7 +36,7 @@ jobs:
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Cloudflare API token is required."; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Cloudflare account ID is required."; exit 1; }
-          npx --yes wrangler@4 deploy \
+          npx --yes wrangler@4.151.0 deploy \
             --config cloudflare/update-watchdog/wrangler.jsonc \
             --secrets-file "$RUNNER_TEMP/watchdog-secrets.json"
 
